@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tradeorama</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <h1>Tradeorama</h1>
+  <span id="mode" class="badge">…</span>
+  <span id="address" class="muted"></span>
+</header>
+
+<main>
+  <section id="markets-pane">
+    <form id="search-form">
+      <input id="search" type="search" placeholder="Search markets…">
+    </form>
+    <ul id="markets"></ul>
+  </section>
+
+  <section id="detail-pane">
+    <div id="empty" class="muted">Select a market to see its order book and trade.</div>
+    <div id="detail" hidden>
+      <h2 id="question"></h2>
+      <p id="meta" class="muted"></p>
+      <div id="outcomes" class="tabs"></div>
+
+      <div class="grid">
+        <div>
+          <h3>Order book</h3>
+          <table class="book">
+            <thead><tr><th>Bid size</th><th>Bid</th><th>Ask</th><th>Ask size</th></tr></thead>
+            <tbody id="book"></tbody>
+          </table>
+        </div>
+
+        <form id="ticket">
+          <h3>Order ticket</h3>
+          <div class="seg">
+            <label><input type="radio" name="side" value="BUY" checked> Buy</label>
+            <label><input type="radio" name="side" value="SELL"> Sell</label>
+          </div>
+          <div class="seg">
+            <label><input type="radio" name="kind" value="limit" checked> Limit</label>
+            <label><input type="radio" name="kind" value="market"> Market</label>
+          </div>
+          <label class="limit-only">Price (0–1)<input name="price" type="number" step="0.001" min="0.001" max="0.999"></label>
+          <label class="limit-only">Shares<input name="size" type="number" step="0.01" min="0"></label>
+          <label class="market-only" hidden><span id="amount-label">Amount (USDC)</span><input name="amount" type="number" step="0.01" min="0"></label>
+          <p id="cost" class="muted"></p>
+          <button type="submit">Place order</button>
+          <pre id="result"></pre>
+        </form>
+      </div>
+    </div>
+  </section>
+</main>
+
+<section id="account">
+  <div>
+    <h3>Open orders <button id="cancel-all" class="small">Cancel all</button></h3>
+    <table><thead><tr><th>Outcome</th><th>Side</th><th>Price</th><th>Size</th><th>Filled</th><th></th></tr></thead>
+    <tbody id="orders"></tbody></table>
+  </div>
+  <div>
+    <h3>Positions</h3>
+    <table><thead><tr><th>Market</th><th>Outcome</th><th>Shares</th><th>Avg</th><th>Now</th><th>P&amp;L</th></tr></thead>
+    <tbody id="positions"></tbody></table>
+  </div>
+</section>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
