@@ -149,3 +149,43 @@ def test_index_served(client):
     r = client.get("/")
     assert r.status_code == 200
     assert "Tradeorama" in r.text
+
+
+@pytest.mark.parametrize("overrides,expected", [
+    ({}, []),
+    ({"private_key": None, "signature_type": 1}, []),  # read-only is fine
+    ({"private_key": "0xyour_private_key_here"}, ["example text"]),
+    ({"private_key": "0x1234"}, ["64 characters"]),
+    ({"private_key": TEST_KEY[2:]}, []),  # no 0x prefix is fine
+    ({"signature_type": 1}, ["POLY_FUNDER_ADDRESS is empty"]),
+    ({"signature_type": 2, "funder_address": "0xyour_polymarket_profile_address"}, ["still the example"]),
+    ({"signature_type": 1, "funder_address": "0x123"}, ["40 characters"]),
+    ({"signature_type": 7}, ["must be 0, 1 or 2"]),
+])
+def test_setup_problems(overrides, expected):
+    from tradeorama.config import setup_problems
+
+    problems = setup_problems(make_settings(**overrides))
+    assert len(problems) == len(expected)
+    for problem, snippet in zip(problems, expected):
+        assert snippet in problem
+        assert TEST_KEY[2:] not in problem  # never echo the key
+
+
+def test_status_reports_setup_problem_instead_of_failing():
+    settings = make_settings(private_key="0xyour_private_key_here")
+    c = TestClient(create_app(settings, Trader(settings), FakeMarkets()))
+    body = c.get("/api/status").json()
+    assert body["dry_run"] is True and body["address"] is None
+    assert "example text" in body["problems"][0]
+    r = c.get("/api/positions")
+    assert r.status_code == 400 and "Setup problem" in r.json()["detail"]
+
+
+def test_settings_strip_quotes_and_spaces(monkeypatch):
+    from tradeorama.config import load_settings
+
+    monkeypatch.setenv("POLY_PRIVATE_KEY", f'  "{TEST_KEY}" ')
+    monkeypatch.setenv("POLY_SIGNATURE_TYPE", " 2 ")
+    assert load_settings().private_key == TEST_KEY
+    assert load_settings().signature_type == 2

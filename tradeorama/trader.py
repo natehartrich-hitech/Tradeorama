@@ -15,7 +15,7 @@ from py_clob_client.clob_types import (
 )
 from py_clob_client.order_builder.constants import BUY, SELL
 
-from .config import CLOB_HOST, POLYGON_CHAIN_ID, Settings
+from .config import CLOB_HOST, POLYGON_CHAIN_ID, Settings, setup_problems
 
 Side = Literal["BUY", "SELL"]
 
@@ -26,6 +26,10 @@ class OrderRejected(ValueError):
 
 class TradingDisabled(RuntimeError):
     """Raised when a trading call is made without a configured private key."""
+
+
+class SetupProblem(RuntimeError):
+    """Raised when wallet settings in .env are filled in but unusable."""
 
 
 def check_limit_order(price: float, size: float, max_order_usd: float) -> float:
@@ -66,10 +70,16 @@ class Trader:
 
     # --- authenticated -----------------------------------------------------
 
-    @property
-    def client(self) -> ClobClient:
+    def check_setup(self) -> None:
         if not self.settings.can_trade:
             raise TradingDisabled("POLY_PRIVATE_KEY is not set; the app is in read-only mode")
+        problems = setup_problems(self.settings)
+        if problems:
+            raise SetupProblem(" ".join(problems))
+
+    @property
+    def client(self) -> ClobClient:
+        self.check_setup()
         with self._lock:
             if self._auth is None:
                 s = self.settings
@@ -91,6 +101,7 @@ class Trader:
     def address(self) -> str | None:
         if not self.settings.can_trade:
             return None
+        self.check_setup()
         # Funds live at the funder (proxy) address when one is configured.
         return self.settings.funder_address or Account.from_key(self.settings.private_key).address
 

@@ -9,9 +9,9 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from .config import Settings, load_settings, load_strategy_settings
+from .config import Settings, load_settings, load_strategy_settings, setup_problems
 from .markets import MarketData
-from .trader import OrderRejected, Trader, TradingDisabled
+from .trader import OrderRejected, SetupProblem, Trader, TradingDisabled
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -41,17 +41,23 @@ def create_app(settings: Settings | None = None, trader: Trader | None = None, m
     async def _disabled(_: Request, exc: TradingDisabled):
         return JSONResponse(status_code=403, content={"detail": str(exc)})
 
+    @app.exception_handler(SetupProblem)
+    async def _setup(_: Request, exc: SetupProblem):
+        return JSONResponse(status_code=400, content={"detail": f"Setup problem in .env: {exc}"})
+
     @app.exception_handler(httpx.HTTPError)
     async def _upstream(_: Request, exc: httpx.HTTPError):
         return JSONResponse(status_code=502, content={"detail": f"Polymarket API error: {exc}"})
 
     @app.get("/api/status")
     def status():
+        problems = setup_problems(settings)
         return {
             "trading_enabled": settings.can_trade,
             "dry_run": settings.dry_run,
             "max_order_usd": settings.max_order_usd,
-            "address": trader.address(),
+            "address": None if problems else trader.address(),
+            "problems": problems,
         }
 
     @app.get("/api/markets")

@@ -1,4 +1,5 @@
 import os
+import re
 from dataclasses import dataclass
 
 from dotenv import load_dotenv
@@ -35,13 +36,54 @@ class Settings:
         return bool(self.api_key and self.api_secret and self.api_passphrase)
 
 
+def _clean(value: str | None) -> str | None:
+    # Tolerate stray spaces and quotes pasted in along with a key or address.
+    value = (value or "").strip().strip("'\"").strip()
+    return value or None
+
+
+HEX_KEY = re.compile(r"^(0x)?[0-9a-fA-F]{64}$")
+HEX_ADDRESS = re.compile(r"^0x[0-9a-fA-F]{40}$")
+
+
+def setup_problems(s: Settings) -> list[str]:
+    """Plain-language problems with the wallet settings. Never includes the key itself."""
+    problems = []
+    if s.private_key is None:
+        return problems  # read-only mode is a valid setup
+    key = s.private_key
+    if "your" in key.lower() or "here" in key.lower():
+        problems.append("POLY_PRIVATE_KEY is still the example text from .env.example. Replace it with your real key.")
+    elif not HEX_KEY.match(key):
+        digits = len(key[2:] if key.lower().startswith("0x") else key)
+        problems.append(
+            "POLY_PRIVATE_KEY doesn't look like a private key. It should be 64 characters of 0-9 and a-f, "
+            f"optionally starting with 0x; this one has {digits} characters after any 0x"
+            + (" and contains other characters." if not re.fullmatch(r"(0x)?[0-9a-fA-F]*", key) else ".")
+        )
+    if s.signature_type not in (0, 1, 2):
+        problems.append("POLY_SIGNATURE_TYPE must be 0, 1 or 2 (1 for email login, 2 for MetaMask).")
+    if s.funder_address is None:
+        if s.signature_type in (1, 2):
+            problems.append(
+                "POLY_FUNDER_ADDRESS is empty. Copy the 0x… address from your Polymarket profile "
+                "(it may only appear after your first deposit)."
+            )
+    elif "your" in s.funder_address.lower():
+        problems.append("POLY_FUNDER_ADDRESS is still the example text. Replace it with your Polymarket profile address.")
+    elif not HEX_ADDRESS.match(s.funder_address):
+        problems.append("POLY_FUNDER_ADDRESS should be 0x followed by 40 characters of 0-9 and a-f.")
+    return problems
+
+
 def load_settings() -> Settings:
     load_dotenv()
     env = os.environ.get
+    sig = _clean(env("POLY_SIGNATURE_TYPE")) or "1"
     return Settings(
-        private_key=env("POLY_PRIVATE_KEY") or None,
-        signature_type=int(env("POLY_SIGNATURE_TYPE") or 1),
-        funder_address=env("POLY_FUNDER_ADDRESS") or None,
+        private_key=_clean(env("POLY_PRIVATE_KEY")),
+        signature_type=int(sig) if sig.isdigit() else -1,
+        funder_address=_clean(env("POLY_FUNDER_ADDRESS")),
         api_key=env("POLY_API_KEY") or None,
         api_secret=env("POLY_API_SECRET") or None,
         api_passphrase=env("POLY_API_PASSPHRASE") or None,

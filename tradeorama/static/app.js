@@ -24,7 +24,13 @@ async function loadStatus() {
   const s = await api("/api/status");
   state.status = s;
   const badge = $("#mode");
-  if (!s.trading_enabled) { badge.textContent = "READ-ONLY"; badge.className = "badge"; }
+  const mode = s.dry_run ? "dry run" : "live";
+  $("#problems").hidden = !s.problems.length;
+  $("#problems").innerHTML = s.problems.length
+    ? `<strong>Fix your .env, then restart the app.</strong> Trading is off until then (mode is set to ${mode}).<ul>${s.problems.map((p) => `<li>${esc(p)}</li>`).join("")}</ul>`
+    : "";
+  if (s.problems.length) { badge.textContent = "SETUP PROBLEM"; badge.className = "badge problem"; }
+  else if (!s.trading_enabled) { badge.textContent = "READ-ONLY"; badge.className = "badge"; }
   else if (s.dry_run) { badge.textContent = "DRY RUN"; badge.className = "badge dry"; }
   else { badge.textContent = "LIVE TRADING"; badge.className = "badge live"; }
   $("#address").textContent = s.address ? `${s.address} · max $${s.max_order_usd}/order` : "";
@@ -236,7 +242,12 @@ $("#cancel-all").onclick = async () => {
   loadOrders();
 };
 
-loadStatus().catch((e) => ($("#mode").textContent = "ERROR"));
+loadStatus().catch((e) => {
+  $("#mode").textContent = "ERROR";
+  $("#mode").className = "badge problem";
+  $("#problems").hidden = false;
+  $("#problems").textContent = `Couldn't read the app's status: ${e.message}. Check the terminal running the app for details.`;
+});
 loadMarkets();
 loadStrategy();
 setInterval(loadStrategy, 60000);
