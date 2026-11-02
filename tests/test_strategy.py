@@ -375,10 +375,21 @@ def test_events_pages_through_all_results():
             self.offsets = []
 
         def get(self, url, params):
+            # Like Gamma: never more than 100 per page, however many are asked for.
             self.offsets.append(params["offset"])
-            n = {0: 500, 500: 500, 1000: 3}[params["offset"]]
-            return Resp([{"id": params["offset"] + i} for i in range(n)])
+            return Resp([{"id": i} for i in range(params["offset"], min(params["offset"] + 100, 250))])
 
     http = Http()
     events = SportsMarkets(http).events("americanfootball_nfl")
-    assert len(events) == 1003 and http.offsets == [0, 500, 1000]
+    assert len(events) == 250 and http.offsets == [0, 100, 200, 250]
+
+
+def test_cli_does_not_log_request_urls(tmp_path, monkeypatch, caplog):
+    import logging
+    from tradeorama.strategy import __main__ as cli
+
+    monkeypatch.setattr(cli, "cmd_report", lambda args: logging.getLogger("httpx").info("GET ...?apiKey=secret"))
+    monkeypatch.setenv("STRATEGY_DB", str(tmp_path / "x.db"))
+    with caplog.at_level(logging.INFO):
+        cli.main(["report"])
+    assert "secret" not in caplog.text

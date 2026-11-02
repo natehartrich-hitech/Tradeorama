@@ -132,6 +132,8 @@ def cmd_settle(args) -> None:
 
 def main(argv=None) -> None:
     logging.basicConfig(level=logging.INFO, format="%(message)s")
+    # httpx logs every request URL at INFO, and Odds API URLs contain the API key.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
     p = argparse.ArgumentParser(prog="python -m tradeorama.strategy", description="Pinnacle +EV sports bot for Polymarket")
     sub = p.add_subparsers(dest="cmd", required=True)
     sub.add_parser("scan", help="show matched markets and current edges; trades nothing").set_defaults(fn=cmd_scan)

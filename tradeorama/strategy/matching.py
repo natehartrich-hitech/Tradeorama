@@ -203,8 +203,8 @@ class SportsMarkets:
     def __init__(self, client: httpx.Client | None = None):
         self.http = client or httpx.Client(timeout=15)
 
-    PAGE = 500
-    MAX_PAGES = 20
+    PAGE = 100  # Gamma returns at most 100 events per request, whatever limit is asked for
+    MAX_PAGES = 50
 
     def events(self, sport: str) -> list[dict]:
         tag = SPORT_TAGS.get(sport)
@@ -213,7 +213,7 @@ class SportsMarkets:
         # Leagues like the NFL have hundreds of season-long markets (MVP, Super Bowl winner, ...),
         # so the game markets can be several pages in. Gamma requests don't use Odds API credits.
         events: list[dict] = []
-        for page in range(self.MAX_PAGES):
+        for _ in range(self.MAX_PAGES):
             r = self.http.get(
                 f"{GAMMA_HOST}/events",
                 params={
@@ -221,12 +221,12 @@ class SportsMarkets:
                     "active": "true",
                     "closed": "false",
                     "limit": self.PAGE,
-                    "offset": page * self.PAGE,
+                    "offset": len(events),
                 },
             )
             r.raise_for_status()
             batch = r.json()
             events += batch
-            if len(batch) < self.PAGE:
+            if not batch:
                 break
         return events

@@ -128,7 +128,11 @@ def create_app(settings: Settings | None = None, trader: Trader | None = None, m
 
 
 def main():
+    import logging
+
     import uvicorn
+
+    logging.getLogger("httpx").setLevel(logging.WARNING)  # request URLs can contain API keys
 
     uvicorn.run(create_app(), host="127.0.0.1", port=8000)
 
