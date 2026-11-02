@@ -277,3 +277,38 @@ def test_run_loop_single_cycle(tmp_path):
     bot = make_bot(tmp_path, {"lakers": book(0.53, 0.54), "celtics": book(0.45, 0.46)})
     bot.run(interval=300, max_cycles=1)
     assert bot.ledger.summary("paper")["trades"] == 1
+
+
+def test_summary_by_sport(tmp_path, monkeypatch):
+    ledger = Ledger(str(tmp_path / "s.db"))
+    start = NOW.timestamp()
+    common = dict(ts=start - 3600, mode="paper", commence=start - 10, market_id="m", label="x", question="q")
+    ledger.record_fill(sport="basketball_nba", event_id="a", token_id="nba1", size=10, cost=5.0, fair=0.55, edge=0.05, **common)
+    ledger.record_fill(sport="basketball_nba", event_id="b", token_id="nba2", size=10, cost=4.0, fair=0.45, edge=0.05, **common)
+    ledger.record_fill(sport="mma_mixed_martial_arts", event_id="c", token_id="ufc1", size=10, cost=6.0, fair=0.64, edge=0.04, **common)
+    ledger.record_closing("nba1", 0.58, commence=start - 10, now=start - 20)  # +8¢
+    ledger.record_closing("ufc1", 0.57, commence=start - 10, now=start - 20)  # -3¢
+    for f in ledger.unsettled(now=start):
+        ledger.settle(f["id"], 10.0 if f["token_id"] == "nba1" else 0.0)
+
+    monkeypatch.setattr("time.time", lambda: start)  # CLV only counts once the game has started
+    by = ledger.summary_by_sport("paper")
+    assert list(by) == ["basketball_nba", "mma_mixed_martial_arts"]
+    nba, ufc = by["basketball_nba"], by["mma_mixed_martial_arts"]
+    assert nba["trades"] == 2 and nba["clv_trades"] == 1 and nba["avg_clv_cents"] == pytest.approx(8.0)
+    assert nba["settled_pnl_usd"] == pytest.approx(1.0) and nba["roi_pct"] == pytest.approx(11.1)
+    assert ufc["avg_clv_cents"] == pytest.approx(-3.0) and ufc["roi_pct"] == pytest.approx(-100.0)
+
+
+def test_strategy_api_includes_sports(tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+    from tradeorama.app import create_app
+    from test_app import FakeMarkets
+
+    db = tmp_path / "api.db"
+    Ledger(str(db)).record_fill(mode="paper", sport="icehockey_nhl", event_id="e", commence=0, market_id="m",
+                                token_id="t", label="Bruins", question="q", size=10, cost=5.0, fair=0.55, edge=0.05)
+    monkeypatch.setenv("STRATEGY_DB", str(db))
+    settings = make_settings()
+    body = TestClient(create_app(settings, Trader(settings), FakeMarkets())).get("/api/strategy").json()
+    assert [(r["mode"], r["sport"], r["trades"]) for r in body["by_sport"]] == [("paper", "icehockey_nhl", 1)]

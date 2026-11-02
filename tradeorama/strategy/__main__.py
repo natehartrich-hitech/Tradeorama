@@ -52,22 +52,49 @@ def cmd_run(args) -> None:
         print("\nStopped.")
 
 
+def fmt_cents(v) -> str:
+    return "–" if v is None else f"{v:+.1f}¢"
+
+
+def fmt_usd(v: float) -> str:
+    return f"{'-' if v < 0 else '+'}${abs(v):.2f}"
+
+
+def fmt_pct(v) -> str:
+    return "–" if v is None else f"{v:+.1f}%"
+
+
+def print_sport_table(ledger: Ledger, mode: str) -> None:
+    rows = ledger.summary_by_sport(mode)
+    total = ledger.summary(mode)
+    print(f"{'sport':28} {'trades':>6} {'staked':>9} {'avg edge':>9} {'avg CLV':>8} {'(n)':>5} {'settled P&L':>12} {'ROI':>7}")
+    for sport, r in [*rows.items(), ("ALL", total)]:
+        print(
+            f"{sport:28} {r['trades']:6d} {'$' + format(r['staked_usd'], '.2f'):>9} {fmt_cents(r['avg_edge_cents']):>9} "
+            f"{fmt_cents(r['avg_clv_cents']):>8} {r['clv_trades']:5d} {fmt_usd(r['settled_pnl_usd']):>12} "
+            f"{fmt_pct(r['roi_pct']):>7}"
+        )
+
+
 def cmd_report(args) -> None:
     ledger = Ledger(load_strategy_settings().db_path)
     for mode in ("paper", "live"):
-        s = ledger.summary(mode)
-        if not s["trades"]:
+        if not ledger.summary(mode)["trades"]:
             continue
         print(f"== {mode} ==")
-        for k, v in s.items():
-            print(f"  {k:22} {v}")
+        print_sport_table(ledger, mode)
+        print()
+    print("(n) is how many trades have a closing line yet. Judge a sport on CLV only after ~100 of them.")
     trades = ledger.trades(limit=args.limit)
     if trades:
         print(f"\nLast {len(trades)} trades:")
         for t in trades:
-            clv = f"{100 * t['clv']:+.1f}¢" if t["clv"] is not None else "–"
-            pnl = f"${t['pnl']:+.2f}" if t["pnl"] is not None else "open"
-            print(f"  {t['mode']:5} {t['label'][:40]:40} {t['size']:8.2f} sh ${t['cost']:7.2f}  edge {100 * t['edge']:+.1f}¢  CLV {clv:>7}  {pnl}")
+            pnl = fmt_usd(t["pnl"]) if t["pnl"] is not None else "open"
+            clv = fmt_cents(100 * t["clv"]) if t["clv"] is not None else "–"
+            print(
+                f"  {t['mode']:5} {t['sport'][:20]:20} {t['label'][:36]:36} {t['size']:8.2f} sh ${t['cost']:7.2f}  "
+                f"edge {100 * t['edge']:+.1f}¢  CLV {clv:>7}  {pnl}"
+            )
     else:
         print("No trades yet.")
 

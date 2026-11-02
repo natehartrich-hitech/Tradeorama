@@ -48,3 +48,4 @@ pre#result { white-space: pre-wrap; font-size: 12px; background: var(--panel); p
 }
 #strategy { padding: 0 16px 32px; border-top: 1px solid var(--border); }
 #strategy code { background: var(--panel); padding: 1px 5px; border-radius: 4px; }
+#strategy h4 { font-size: 13px; margin: 16px 0 6px; color: var(--muted); }

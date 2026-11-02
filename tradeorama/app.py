@@ -101,11 +101,16 @@ def create_app(settings: Settings | None = None, trader: Trader | None = None, m
     def strategy_report(mode: Literal["paper", "live"] | None = None, limit: int = 50):
         path = Path(load_strategy_settings().db_path)
         if not path.exists():
-            return {"summary": None, "trades": []}
+            return {"summary": None, "by_sport": [], "trades": []}
         from .strategy.ledger import Ledger
 
         ledger = Ledger(str(path))
-        return {"summary": ledger.summary(mode), "trades": ledger.trades(mode, limit)}
+        by_sport = [
+            {"mode": m, "sport": sport, **row}
+            for m in ([mode] if mode else ["paper", "live"])
+            for sport, row in ledger.summary_by_sport(m).items()
+        ]
+        return {"summary": ledger.summary(mode), "by_sport": by_sport, "trades": ledger.trades(mode, limit)}
 
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 

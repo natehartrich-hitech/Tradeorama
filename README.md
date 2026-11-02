@@ -67,7 +67,7 @@ Profit over a few weeks is mostly luck. The better early signal is **closing lin
 ```bash
 python -m tradeorama.strategy scan     # show matched markets and edges right now; trades nothing
 python -m tradeorama.strategy run      # paper trade every 5 minutes (simulated against the live order book)
-python -m tradeorama.strategy report   # trades, average edge, average CLV, settled P&L
+python -m tradeorama.strategy report   # per-sport trades, average edge, average CLV, settled P&L and ROI
 python -m tradeorama.strategy settle   # record results for finished games (run also does this)
 python -m tradeorama.strategy run --live   # real orders; also needs DRY_RUN=false
 ```
@@ -79,6 +79,7 @@ To stop a running bot, press Ctrl+C or create a file named `tradeorama.stop` in 
 1. Run `scan` and read every row. Each one must be the right game and the right side. A wrong match is the most expensive bug this bot can have.
 2. Paper trade for 2–4 weeks, until there are at least 100 trades.
 3. Go live only if average CLV is clearly positive (a cent or more), with small limits at first.
+4. Check CLV for each sport separately, since `report` and the web panel split results by sport. Pinnacle is sharper in some sports than others. Drop any sport whose CLV stays at zero or below once it has about 100 trades with a closing line (the `(n)` column).
 
 ### Costs and limits
 

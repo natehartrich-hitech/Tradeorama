@@ -105,22 +105,36 @@ class Ledger:
         return out
 
     def summary(self, mode: str | None = None) -> dict:
-        trades = self.trades(mode, limit=100_000)
-        shares = sum(t["size"] for t in trades)
-        with_clv = [t for t in trades if t["clv"] is not None]
-        settled = [t for t in trades if t["pnl"] is not None]
-        return {
-            "trades": len(trades),
-            "staked_usd": round(sum(t["cost"] for t in trades), 2),
-            "open_usd": round(sum(t["cost"] for t in trades if t["payout"] is None), 2),
-            "expected_profit_usd": round(sum(t["edge"] * t["size"] for t in trades), 2),
-            "avg_edge_cents": round(100 * sum(t["edge"] * t["size"] for t in trades) / shares, 2) if shares else None,
-            "avg_clv_cents": (
-                round(100 * sum(t["clv"] * t["size"] for t in with_clv) / sum(t["size"] for t in with_clv), 2)
-                if with_clv
-                else None
-            ),
-            "settled": len(settled),
-            "settled_pnl_usd": round(sum(t["pnl"] for t in settled), 2),
-            "settled_staked_usd": round(sum(t["cost"] for t in settled), 2),
-        }
+        return summarize(self.trades(mode, limit=100_000))
+
+    def summary_by_sport(self, mode: str) -> dict[str, dict]:
+        """Per-sport results, so sports where Pinnacle's edge doesn't hold up can be dropped."""
+        groups: dict[str, list[dict]] = {}
+        for t in self.trades(mode, limit=100_000):
+            groups.setdefault(t["sport"], []).append(t)
+        return {sport: summarize(trades) for sport, trades in sorted(groups.items())}
+
+
+def summarize(trades: list[dict]) -> dict:
+    shares = sum(t["size"] for t in trades)
+    with_clv = [t for t in trades if t["clv"] is not None]
+    settled = [t for t in trades if t["pnl"] is not None]
+    settled_staked = sum(t["cost"] for t in settled)
+    settled_pnl = sum(t["pnl"] for t in settled)
+    return {
+        "trades": len(trades),
+        "staked_usd": round(sum(t["cost"] for t in trades), 2),
+        "open_usd": round(sum(t["cost"] for t in trades if t["payout"] is None), 2),
+        "expected_profit_usd": round(sum(t["edge"] * t["size"] for t in trades), 2),
+        "avg_edge_cents": round(100 * sum(t["edge"] * t["size"] for t in trades) / shares, 2) if shares else None,
+        "clv_trades": len(with_clv),
+        "avg_clv_cents": (
+            round(100 * sum(t["clv"] * t["size"] for t in with_clv) / sum(t["size"] for t in with_clv), 2)
+            if with_clv
+            else None
+        ),
+        "settled": len(settled),
+        "settled_pnl_usd": round(settled_pnl, 2),
+        "settled_staked_usd": round(settled_staked, 2),
+        "roi_pct": round(100 * settled_pnl / settled_staked, 1) if settled_staked else None,
+    }

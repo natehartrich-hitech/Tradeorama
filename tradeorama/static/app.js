@@ -17,6 +17,7 @@ function esc(s) {
 }
 
 const fmt = (n, d = 2) => (n == null || n === "" ? "–" : Number(n).toFixed(d));
+const money = (n) => (n == null ? "–" : `${n < 0 ? "-" : ""}$${Math.abs(Number(n)).toFixed(2)}`);
 const cents = (p) => (p == null ? "–" : `${(Number(p) * 100).toFixed(1)}¢`);
 
 async function loadStatus() {
@@ -193,7 +194,7 @@ async function loadPositions() {
 
 async function loadStrategy() {
   try {
-    const { summary: s, trades } = await api("/api/strategy");
+    const { summary: s, by_sport: sports, trades } = await api("/api/strategy");
     const tbody = $("#strategy-trades");
     tbody.innerHTML = "";
     if (!s || !s.trades) return;
@@ -201,10 +202,21 @@ async function loadStrategy() {
     $("#strategy-summary").textContent =
       `${s.trades} trades · $${fmt(s.staked_usd)} staked · $${fmt(s.open_usd)} open · ` +
       `avg edge ${c(s.avg_edge_cents)} · avg CLV ${c(s.avg_clv_cents)} · ` +
-      `settled P&L $${fmt(s.settled_pnl_usd)} on $${fmt(s.settled_staked_usd)}`;
+      `settled P&L ${money(s.settled_pnl_usd)} on $${fmt(s.settled_staked_usd)}`;
+    const sportBody = $("#strategy-sports");
+    sportBody.innerHTML = "";
+    $("#strategy-sports-table").hidden = !sports.length;
+    const tone = (v) => (v > 0 ? "pos" : v < 0 ? "neg" : "");
+    for (const r of sports) {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${esc(r.sport)}</td><td>${esc(r.mode)}</td><td>${r.trades}</td><td>$${fmt(r.staked_usd)}</td>
+        <td>${c(r.avg_edge_cents)}</td><td class="${tone(r.avg_clv_cents)}">${c(r.avg_clv_cents)}</td><td>${r.clv_trades}</td>
+        <td class="${tone(r.settled_pnl_usd)}">${money(r.settled_pnl_usd)}</td><td>${r.roi_pct == null ? "–" : `${fmt(r.roi_pct, 1)}%`}</td>`;
+      sportBody.appendChild(tr);
+    }
     for (const t of trades) {
       const tr = document.createElement("tr");
-      const result = t.pnl == null ? "open" : `$${fmt(t.pnl)}`;
+      const result = t.pnl == null ? "open" : money(t.pnl);
       tr.innerHTML = `<td>${esc(t.label)}</td><td>${esc(t.mode)}</td><td>${fmt(t.size)}</td><td>$${fmt(t.cost)}</td>
         <td>${cents(t.fair)}</td><td>${c(100 * t.edge)}</td><td class="${t.clv > 0 ? "pos" : t.clv < 0 ? "neg" : ""}">${t.clv == null ? "–" : c(100 * t.clv)}</td>
         <td class="${t.pnl > 0 ? "pos" : t.pnl < 0 ? "neg" : ""}">${result}</td>`;
