@@ -333,3 +333,52 @@ def test_bot_uses_configured_fee_rate(tmp_path):
               book=lambda t: books[t], clock=NOW.timestamp)
     lakers = {d.leg.label: d for d in bot.cycle(execute=False)}["Lakers"]
     assert lakers.edge == pytest.approx(0.06 - 0.05 * 0.54 * 0.46)
+
+
+# --- diagnosis and paging ---------------------------------------------------------------
+
+from tradeorama.strategy.matching import SportsMarkets, candidates, why_unmatched  # noqa: E402
+
+
+def test_why_unmatched_explains_each_rejection():
+    line = nba_line()
+    ev = {}
+    assert why_unmatched(market("Celtics vs. Lakers", ["Celtics", "Lakers"]), ev, line) == "matched"
+    no_time = market("Celtics vs. Lakers", ["Celtics", "Lakers"])
+    no_time.pop("gameStartTime")
+    assert why_unmatched(no_time, ev, line).startswith("no game start time")
+    late = market("Celtics vs. Lakers", ["Celtics", "Lakers"], start=TIP + timedelta(days=1))
+    assert "from Pinnacle's" in why_unmatched(late, ev, line)
+    assert "spread" in why_unmatched(market("Spread: Lakers (-4.5)", ["Lakers", "Celtics"]), ev, line)
+    assert "don't map" in why_unmatched(market("Celtics vs. Knicks", ["Celtics", "Knicks"]), ev, line)
+
+
+def test_candidates_find_related_markets_loosely():
+    events = [{"title": "Celtics vs. Lakers", "markets": [market("Celtics vs. Lakers", ["Celtics", "Lakers"])]},
+              {"title": "Nuggets vs. Jazz", "markets": [market("Nuggets vs. Jazz", ["Nuggets", "Jazz"], id="m2")]}]
+    assert [m["question"] for m, _ in candidates(nba_line(), events)] == ["Celtics vs. Lakers"]
+
+
+def test_events_pages_through_all_results():
+    class Resp:
+        def __init__(self, data):
+            self.data = data
+
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return self.data
+
+    class Http:
+        def __init__(self):
+            self.offsets = []
+
+        def get(self, url, params):
+            self.offsets.append(params["offset"])
+            n = {0: 500, 500: 500, 1000: 3}[params["offset"]]
+            return Resp([{"id": params["offset"] + i} for i in range(n)])
+
+    http = Http()
+    events = SportsMarkets(http).events("americanfootball_nfl")
+    assert len(events) == 1003 and http.offsets == [0, 500, 1000]

@@ -69,6 +69,7 @@ python -m tradeorama.strategy scan     # show matched markets and edges right no
 python -m tradeorama.strategy run      # paper trade every 5 minutes (simulated against the live order book)
 python -m tradeorama.strategy report   # per-sport trades, average edge, average CLV, settled P&L and ROI
 python -m tradeorama.strategy settle   # record results for finished games (run also does this)
+python -m tradeorama.strategy diagnose americanfootball_nfl   # explain why a sport's games do or don't match
 python -m tradeorama.strategy run --live   # real orders; also needs DRY_RUN=false
 ```
 

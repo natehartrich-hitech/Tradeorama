@@ -8,7 +8,7 @@ from ..config import load_settings, load_strategy_settings
 from ..trader import Trader
 from .bot import STOP_FILE, Bot
 from .ledger import Ledger
-from .matching import SportsMarkets
+from .matching import SportsMarkets, candidates, market_start, match, why_unmatched
 from .odds import PinnacleOdds
 
 
@@ -99,6 +99,33 @@ def cmd_report(args) -> None:
         print("No trades yet.")
 
 
+def cmd_diagnose(args) -> None:
+    strat = load_strategy_settings()
+    odds, sports = PinnacleOdds(strat.odds_api_key or ""), SportsMarkets()
+    lines = odds.lines(args.sport)
+    events = sports.events(args.sport)
+    n_markets = sum(len(e.get("markets") or []) for e in events)
+    with_start = sum(1 for e in events for m in e.get("markets") or [] if market_start(m, e))
+    print(f"Pinnacle games: {len(lines)}")
+    print(f"Polymarket events: {len(events)} ({n_markets} markets, {with_start} with a game start time)")
+    for line in sorted(lines, key=lambda l: l.commence)[: args.games]:
+        legs = match(line, events)
+        print(f"\n{line.commence:%m-%d %H:%M} UTC  {line.away} at {line.home}: {len(legs)} outcomes matched")
+        found = candidates(line, events)
+        if not found:
+            print("  no Polymarket market mentions either team")
+        for m, event in found[: args.markets]:
+            print(f"  - {(m.get('question') or '')[:70]}")
+            print(f"      {why_unmatched(m, event, line)}")
+        if len(found) > args.markets:
+            print(f"  ... and {len(found) - args.markets} more markets mentioning these teams")
+    if events and not any(candidates(l, events) for l in lines):
+        print("\nSample of Polymarket events fetched:")
+        for e in events[:10]:
+            print(f"  - {e.get('title')}")
+    print(f"\nOdds credits left: {odds.credits_remaining}")
+
+
 def cmd_settle(args) -> None:
     print(f"Settled {build().settle()} trades.")
 
@@ -120,6 +147,11 @@ def main(argv=None) -> None:
     rep.add_argument("--limit", type=int, default=20)
     rep.set_defaults(fn=cmd_report)
     sub.add_parser("settle", help="record payouts for finished games").set_defaults(fn=cmd_settle)
+    d = sub.add_parser("diagnose", help="explain why a sport's games do or don't match Polymarket markets")
+    d.add_argument("sport", help="an Odds API sport key, e.g. americanfootball_nfl")
+    d.add_argument("--games", type=int, default=5, help="how many upcoming games to explain (default 5)")
+    d.add_argument("--markets", type=int, default=6, help="related markets to show per game (default 6)")
+    d.set_defaults(fn=cmd_diagnose)
     args = p.parse_args(argv)
     try:
         args.fn(args)

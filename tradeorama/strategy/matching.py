@@ -156,17 +156,77 @@ def match(line: Line, events: list[dict]) -> list[Leg]:
     return legs
 
 
+def why_unmatched(m: dict, event: dict, line: Line) -> str:
+    """Plain-language reason `match` skips market `m` for `line`, or 'matched'. Used by the diagnose command."""
+    if m.get("closed"):
+        return "market is closed"
+    if m.get("acceptingOrders") is False or m.get("enableOrderBook") is False:
+        return "market isn't accepting orders"
+    start = market_start(m, event)
+    if start is None:
+        return f"no game start time (gameStartTime={m.get('gameStartTime')!r}, event startTime={event.get('startTime')!r})"
+    gap = abs(start - line.commence)
+    if gap > MAX_START_GAP:
+        return f"starts {start:%m-%d %H:%M} UTC, {gap} from Pinnacle's {line.commence:%m-%d %H:%M}"
+    if m.get("sportsMarketType") and m["sportsMarketType"] != "moneyline":
+        return f"not a moneyline (sportsMarketType={m['sportsMarketType']!r})"
+    question = m.get("question") or ""
+    if NOT_MONEYLINE.search(question):
+        return "question looks like a spread/total/period market"
+    outcomes = _json_list(m.get("outcomes"))
+    if len(outcomes) != 2 or len(_json_list(m.get("clobTokenIds"))) != 2:
+        return f"expected 2 outcomes, got {outcomes}"
+    if legs_for_market(m, line):
+        return "matched"
+    teams = [line.home, line.away]
+    if [o.lower() for o in outcomes] == ["yes", "no"]:
+        named = [t for t in teams if mentions(question, t)]
+        return f"Yes/No question names {named or 'neither team'} by Pinnacle's names {teams}"
+    if "Draw" in line.fair:
+        return "team-vs-team market, but Pinnacle's line has a draw"
+    return f"outcomes {outcomes} don't map one-to-one onto Pinnacle's teams {teams}"
+
+
+def candidates(line: Line, events: list[dict]) -> list[tuple[dict, dict]]:
+    """Markets that look loosely related to `line`'s game, for diagnosis."""
+    keys = {norm(t)[-1] for t in (line.home, line.away) if norm(t)}
+    found = []
+    for event in events:
+        for m in event.get("markets") or []:
+            text = " ".join(norm(" ".join([m.get("question") or "", event.get("title") or "", *map(str, _json_list(m.get("outcomes")))])))
+            if any(f" {k} " in f" {text} " for k in keys):
+                found.append((m, event))
+    return found
+
+
 class SportsMarkets:
     def __init__(self, client: httpx.Client | None = None):
         self.http = client or httpx.Client(timeout=15)
+
+    PAGE = 500
+    MAX_PAGES = 20
 
     def events(self, sport: str) -> list[dict]:
         tag = SPORT_TAGS.get(sport)
         if not tag:
             raise ValueError(f"no Polymarket tag known for {sport}; add it to SPORT_TAGS")
-        r = self.http.get(
-            f"{GAMMA_HOST}/events",
-            params={"tag_slug": tag, "active": "true", "closed": "false", "limit": 500},
-        )
-        r.raise_for_status()
-        return r.json()
+        # Leagues like the NFL have hundreds of season-long markets (MVP, Super Bowl winner, ...),
+        # so the game markets can be several pages in. Gamma requests don't use Odds API credits.
+        events: list[dict] = []
+        for page in range(self.MAX_PAGES):
+            r = self.http.get(
+                f"{GAMMA_HOST}/events",
+                params={
+                    "tag_slug": tag,
+                    "active": "true",
+                    "closed": "false",
+                    "limit": self.PAGE,
+                    "offset": page * self.PAGE,
+                },
+            )
+            r.raise_for_status()
+            batch = r.json()
+            events += batch
+            if len(batch) < self.PAGE:
+                break
+        return events
