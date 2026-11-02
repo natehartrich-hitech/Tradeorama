@@ -93,7 +93,7 @@ To stop a running bot, press Ctrl+C or create a file named `tradeorama.stop` in 
   | no games listed | every 6 hours |
 
   A typical NBA day comes to about 115 requests, roughly 3,400 a month per sport, against 8,640 for checking every 5 minutes around the clock. Add `--fixed` to check every `--interval` regardless. The tiers are set by the `POLL_*` settings in `.env`. The free tier (500 a month) is enough for `scan` and occasional runs.
-- Fees: the bot reads each market's fee rate from Polymarket and subtracts `rate × min(p, 1−p)` per share.
+- Fees: the bot subtracts Polymarket's taker fee, `TAKER_FEE_RATE × p × (1 − p)` per share ([formula](https://docs.polymarket.com/trading/fees)). The default, 0.05, is Polymarket's Sports taker rate; update `TAKER_FEE_RATE` if that page changes. The CLOB's `/fee-rate` endpoint isn't used for this because it returns the maximum signed into each order, not the rate charged.
 - The bot only buys and holds to the end of the game. It doesn't sell early or hedge.
 - Market matching relies on how Polymarket names and times its sports markets. If Polymarket changes that, matches will drop to zero, which is the safe failure.
 - In live mode, the bot's ledger records what each order reported. Your Polymarket positions are the final record.

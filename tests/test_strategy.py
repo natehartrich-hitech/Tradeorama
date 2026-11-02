@@ -63,7 +63,8 @@ def test_parse_events_reads_pinnacle_h2h():
 
 def test_edge_and_kelly():
     assert edge(0.60, 0.55) == pytest.approx(0.05)
-    assert edge(0.60, 0.55, fee_rate_bps=100) == pytest.approx(0.05 - 0.01 * 0.45)
+    # Fee per share = rate * p * (1 - p): 0.05 * 0.55 * 0.45 = 1.2375 cents.
+    assert edge(0.60, 0.55, fee_rate=0.05) == pytest.approx(0.05 - 0.012375)
     assert kelly_fraction(0.60, 0.55) == pytest.approx(0.05 / 0.45)
     assert kelly_fraction(0.50, 0.55) == 0
 
@@ -159,7 +160,7 @@ def make_bot(tmp_path, books, line=None, settings=None, **kw):
     events = [{"markets": [market("Celtics vs. Lakers", ["Celtics", "Lakers"], tokens=("celtics", "lakers"))]}]
     return Bot(
         settings, s, FakeOdds([line or nba_line()]), FakeSports(events), Trader(settings), Ledger(s.db_path),
-        book=lambda token: books[token], fee_rate_bps=lambda token: 0, clock=NOW.timestamp,
+        book=lambda token: books[token], fee_rate=lambda token: 0, clock=NOW.timestamp,
     )
 
 
@@ -312,3 +313,23 @@ def test_strategy_api_includes_sports(tmp_path, monkeypatch):
     settings = make_settings()
     body = TestClient(create_app(settings, Trader(settings), FakeMarkets())).get("/api/strategy").json()
     assert [(r["mode"], r["sport"], r["trades"]) for r in body["by_sport"]] == [("paper", "icehockey_nhl", 1)]
+
+
+def test_fee_matches_polymarket_formula():
+    from tradeorama.strategy.ev import fee_per_share
+
+    # Largest at 50 cents, symmetric, zero at the extremes.
+    assert fee_per_share(0.50, 0.05) == pytest.approx(0.0125)
+    assert fee_per_share(0.33, 0.05) == pytest.approx(fee_per_share(0.67, 0.05))
+    assert fee_per_share(0.99, 0.05) < 0.0005
+
+
+def test_bot_uses_configured_fee_rate(tmp_path):
+    s = strat(tmp_path, taker_fee_rate=0.05)
+    settings = make_settings()
+    events = [{"markets": [market("Celtics vs. Lakers", ["Celtics", "Lakers"], tokens=("celtics", "lakers"))]}]
+    books = {"lakers": book(0.53, 0.54), "celtics": book(0.45, 0.46)}
+    bot = Bot(settings, s, FakeOdds([nba_line()]), FakeSports(events), Trader(settings), Ledger(s.db_path),
+              book=lambda t: books[t], clock=NOW.timestamp)
+    lakers = {d.leg.label: d for d in bot.cycle(execute=False)}["Lakers"]
+    assert lakers.edge == pytest.approx(0.06 - 0.05 * 0.54 * 0.46)

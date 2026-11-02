@@ -3,14 +3,14 @@
 from dataclasses import dataclass
 
 
-def fee_per_share(price: float, fee_rate_bps: float) -> float:
-    # Polymarket taker fee: rate * min(p, 1 - p) per share. Most markets have rate 0.
-    return fee_rate_bps / 10_000 * min(price, 1 - price)
+def fee_per_share(price: float, fee_rate: float) -> float:
+    # Polymarket taker fee per share: feeRate * p * (1 - p), largest at 50¢ (docs.polymarket.com/trading/fees).
+    return fee_rate * price * (1 - price)
 
 
-def edge(fair: float, price: float, fee_rate_bps: float = 0) -> float:
+def edge(fair: float, price: float, fee_rate: float = 0) -> float:
     """Expected profit per share of buying at `price` when the true probability is `fair`."""
-    return fair - price - fee_per_share(price, fee_rate_bps)
+    return fair - price - fee_per_share(price, fee_rate)
 
 
 def kelly_fraction(fair: float, cost: float) -> float:
@@ -34,16 +34,16 @@ def plan_buy(
     asks: list[tuple[float, float]],
     budget: float,
     min_edge: float,
-    fee_rate_bps: float = 0,
+    fee_rate: float = 0,
 ) -> Fill | None:
     """Walk the asks cheapest first, taking only levels whose edge clears `min_edge`, up to `budget` USDC."""
     size = cost = ev = 0.0
     limit = 0.0
     for price, available in sorted(asks):
-        e = edge(fair, price, fee_rate_bps)
+        e = edge(fair, price, fee_rate)
         if e < min_edge or cost >= budget:
             break
-        unit = price + fee_per_share(price, fee_rate_bps)
+        unit = price + fee_per_share(price, fee_rate)
         take = min(available, (budget - cost) / unit)
         take = int(take * 100) / 100  # Polymarket sizes have 2 decimals
         if take <= 0:

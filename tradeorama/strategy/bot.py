@@ -46,7 +46,7 @@ class Bot:
         ledger: Ledger,
         live: bool = False,
         book: Callable[[str], dict] | None = None,
-        fee_rate_bps: Callable[[str], float] | None = None,
+        fee_rate: Callable[[str], float] | None = None,
         clock: Callable[[], float] = time.time,
     ):
         if live and settings.dry_run:
@@ -57,7 +57,9 @@ class Bot:
         self.odds, self.sports, self.trader, self.ledger = odds, sports, trader, ledger
         self.mode = "live" if live else "paper"
         self.book = book or trader.order_book
-        self.fee_rate_bps = fee_rate_bps or trader.public.get_fee_rate_bps
+        # The CLOB's /fee-rate value is the cap signed into each order, not the rate charged,
+        # so the charged rate comes from settings until it's read per market.
+        self.fee_rate = fee_rate or (lambda token_id: strat.taker_fee_rate)
         self.clock = clock
         self.next_start: dict[str, float | None] = {}  # per sport: start time of the next game not yet started
         self.fetch_failed: dict[str, bool] = {}
@@ -116,7 +118,7 @@ class Bot:
         best_ask = min(p for p, _ in asks)
         best_bid = max((p for p, _ in bids), default=None)
         mid = (best_ask + best_bid) / 2 if best_bid is not None else None
-        fee = float(self.fee_rate_bps(leg.token_id) or 0)
+        fee = float(self.fee_rate(leg.token_id) or 0)
         e = edge(leg.fair, best_ask, fee)
         info = dict(ask=best_ask, mid=mid, edge=e)
 
