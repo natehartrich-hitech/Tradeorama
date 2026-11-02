@@ -191,6 +191,30 @@ async function loadPositions() {
   }
 }
 
+async function loadStrategy() {
+  try {
+    const { summary: s, trades } = await api("/api/strategy");
+    const tbody = $("#strategy-trades");
+    tbody.innerHTML = "";
+    if (!s || !s.trades) return;
+    const c = (v) => (v == null ? "–" : `${v > 0 ? "+" : ""}${Number(v).toFixed(1)}¢`);
+    $("#strategy-summary").textContent =
+      `${s.trades} trades · $${fmt(s.staked_usd)} staked · $${fmt(s.open_usd)} open · ` +
+      `avg edge ${c(s.avg_edge_cents)} · avg CLV ${c(s.avg_clv_cents)} · ` +
+      `settled P&L $${fmt(s.settled_pnl_usd)} on $${fmt(s.settled_staked_usd)}`;
+    for (const t of trades) {
+      const tr = document.createElement("tr");
+      const result = t.pnl == null ? "open" : `$${fmt(t.pnl)}`;
+      tr.innerHTML = `<td>${esc(t.label)}</td><td>${esc(t.mode)}</td><td>${fmt(t.size)}</td><td>$${fmt(t.cost)}</td>
+        <td>${cents(t.fair)}</td><td>${c(100 * t.edge)}</td><td class="${t.clv > 0 ? "pos" : t.clv < 0 ? "neg" : ""}">${t.clv == null ? "–" : c(100 * t.clv)}</td>
+        <td class="${t.pnl > 0 ? "pos" : t.pnl < 0 ? "neg" : ""}">${result}</td>`;
+      tbody.appendChild(tr);
+    }
+  } catch (e) {
+    $("#strategy-summary").textContent = `Could not load bot results: ${e.message}`;
+  }
+}
+
 $("#search-form").onsubmit = (ev) => { ev.preventDefault(); loadMarkets($("#search").value.trim()); };
 $("#ticket").onsubmit = submitOrder;
 $("#ticket").oninput = updateCost;
@@ -202,4 +226,6 @@ $("#cancel-all").onclick = async () => {
 
 loadStatus().catch((e) => ($("#mode").textContent = "ERROR"));
 loadMarkets();
+loadStrategy();
+setInterval(loadStrategy, 60000);
 setInterval(() => state.outcome && loadBook(), 10000);

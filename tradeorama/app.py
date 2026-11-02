@@ -9,7 +9,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from .config import Settings, load_settings
+from .config import Settings, load_settings, load_strategy_settings
 from .markets import MarketData
 from .trader import OrderRejected, Trader, TradingDisabled
 
@@ -96,6 +96,16 @@ def create_app(settings: Settings | None = None, trader: Trader | None = None, m
     @app.delete("/api/orders")
     def cancel_all():
         return trader.cancel_all()
+
+    @app.get("/api/strategy")
+    def strategy_report(mode: Literal["paper", "live"] | None = None, limit: int = 50):
+        path = Path(load_strategy_settings().db_path)
+        if not path.exists():
+            return {"summary": None, "trades": []}
+        from .strategy.ledger import Ledger
+
+        ledger = Ledger(str(path))
+        return {"summary": ledger.summary(mode), "trades": ledger.trades(mode, limit)}
 
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 

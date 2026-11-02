@@ -49,3 +49,36 @@ def load_settings() -> Settings:
         dry_run=_bool(env("DRY_RUN"), True),
         max_order_usd=float(env("MAX_ORDER_USD") or 50),
     )
+
+
+@dataclass(frozen=True)
+class StrategySettings:
+    odds_api_key: str | None
+    sports: list[str]
+    bankroll_usd: float
+    kelly_multiplier: float
+    min_edge: float
+    max_game_exposure_usd: float
+    max_daily_spend_usd: float
+    max_odds_age_sec: float
+    min_minutes_before_start: float
+    max_divergence: float
+    db_path: str
+
+
+def load_strategy_settings() -> StrategySettings:
+    load_dotenv()
+    env = os.environ.get
+    return StrategySettings(
+        odds_api_key=env("ODDS_API_KEY") or None,
+        sports=[s.strip() for s in (env("STRATEGY_SPORTS") or "basketball_nba").split(",") if s.strip()],
+        bankroll_usd=float(env("BANKROLL_USD") or 200),
+        kelly_multiplier=float(env("KELLY_MULTIPLIER") or 0.25),
+        min_edge=float(env("MIN_EDGE") or 0.03),
+        max_game_exposure_usd=float(env("MAX_GAME_EXPOSURE_USD") or 25),
+        max_daily_spend_usd=float(env("MAX_DAILY_SPEND_USD") or 100),
+        max_odds_age_sec=float(env("MAX_ODDS_AGE_SEC") or 300),
+        min_minutes_before_start=float(env("MIN_MINUTES_BEFORE_START") or 5),
+        max_divergence=float(env("MAX_DIVERGENCE") or 0.15),
+        db_path=env("STRATEGY_DB") or "tradeorama.db",
+    )

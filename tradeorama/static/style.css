@@ -46,3 +46,5 @@ pre#result { white-space: pre-wrap; font-size: 12px; background: var(--panel); p
   main, .grid, #account { grid-template-columns: 1fr; }
   #markets-pane { max-height: 40vh; border-right: 0; border-bottom: 1px solid var(--border); }
 }
+#strategy { padding: 0 16px 32px; border-top: 1px solid var(--border); }
+#strategy code { background: var(--panel); padding: 1px 5px; border-radius: 4px; }
