@@ -64,6 +64,11 @@ class StrategySettings:
     min_minutes_before_start: float
     max_divergence: float
     db_path: str
+    poll_near_hours: float = 2
+    poll_mid_hours: float = 12
+    poll_mid_sec: float = 900
+    poll_far_sec: float = 3600
+    poll_idle_sec: float = 6 * 3600
 
 
 def load_strategy_settings() -> StrategySettings:
@@ -81,4 +86,9 @@ def load_strategy_settings() -> StrategySettings:
         min_minutes_before_start=float(env("MIN_MINUTES_BEFORE_START") or 5),
         max_divergence=float(env("MAX_DIVERGENCE") or 0.15),
         db_path=env("STRATEGY_DB") or "tradeorama.db",
+        poll_near_hours=float(env("POLL_NEAR_HOURS") or 2),
+        poll_mid_hours=float(env("POLL_MID_HOURS") or 12),
+        poll_mid_sec=float(env("POLL_MID_SEC") or 900),
+        poll_far_sec=float(env("POLL_FAR_SEC") or 3600),
+        poll_idle_sec=float(env("POLL_IDLE_SEC") or 6 * 3600),
     )

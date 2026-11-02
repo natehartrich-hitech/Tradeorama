@@ -232,3 +232,48 @@ def test_clv_and_settlement(tmp_path):
     [t] = ledger.trades(now=start)
     assert t["clv"] == pytest.approx(0.08)
     assert t["pnl"] == pytest.approx(5.0)
+
+
+# --- polling schedule -----------------------------------------------------------------
+
+from tradeorama.strategy.bot import poll_delay  # noqa: E402
+
+
+@pytest.mark.parametrize("hours_to_game,expected_min", [
+    (None, 360),   # no games listed: every 6 hours
+    (1, 5),        # within 2 hours: every 5 minutes
+    (2.1, 6),      # just outside 2 hours: wake when it crosses into the fast tier
+    (6, 15),       # 2-12 hours: every 15 minutes
+    (12.5, 30),    # wake when it crosses into the 12-hour tier
+    (30, 60),      # far out: hourly
+])
+def test_poll_delay_tiers(tmp_path, hours_to_game, expected_min):
+    s = strat(tmp_path)
+    now = NOW.timestamp()
+    start = None if hours_to_game is None else now + hours_to_game * 3600
+    assert poll_delay(start, now, 300, s) == pytest.approx(expected_min * 60)
+
+
+def test_cycle_tracks_next_game_start(tmp_path):
+    bot = make_bot(tmp_path, {"lakers": book(0.53, 0.54), "celtics": book(0.45, 0.46)})
+    bot.cycle(execute=False)
+    assert bot.next_start["basketball_nba"] == TIP.timestamp()
+
+
+def test_nightly_slate_uses_far_fewer_calls(tmp_path):
+    """One NBA-style day: games at 7pm, 7:30pm, 8pm, 10pm and 10:30pm ET. Count odds fetches over 24h."""
+    s = strat(tmp_path)
+    day = datetime(2026, 11, 5, 4, 0, tzinfo=timezone.utc).timestamp()  # midnight ET
+    starts = [day + h * 3600 for h in (19, 19.5, 20, 22, 22.5)] + [day + (24 + 19) * 3600]
+    t, calls = day, 0
+    while t < day + 24 * 3600:
+        calls += 1
+        upcoming = [x for x in starts if x > t + 5 * 60]
+        t += poll_delay(min(upcoming), t, 300, s)
+    assert calls < 288 / 2  # fixed 5-minute polling would be 288
+
+
+def test_run_loop_single_cycle(tmp_path):
+    bot = make_bot(tmp_path, {"lakers": book(0.53, 0.54), "celtics": book(0.45, 0.46)})
+    bot.run(interval=300, max_cycles=1)
+    assert bot.ledger.summary("paper")["trades"] == 1

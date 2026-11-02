@@ -59,27 +59,40 @@ class Bot:
         self.book = book or trader.order_book
         self.fee_rate_bps = fee_rate_bps or trader.public.get_fee_rate_bps
         self.clock = clock
+        self.next_start: dict[str, float | None] = {}  # per sport: start time of the next game not yet started
+        self.fetch_failed: dict[str, bool] = {}
 
     # --- one pass over all sports -----------------------------------------------
 
-    def cycle(self, execute: bool = True) -> list[Decision]:
+    def cycle(self, execute: bool = True, sports: list[str] | None = None) -> list[Decision]:
         decisions = []
-        for sport in self.strat.sports:
-            try:
-                lines = self.odds.lines(sport)
-                events = self.sports.events(sport)
-            except Exception as exc:  # one bad feed shouldn't stop the others
-                log.warning("skipping %s: %s", sport, exc)
-                continue
-            for line in lines:
-                for leg in match(line, events):
-                    try:
-                        decisions.append(self.evaluate(sport, leg, execute))
-                    except Exception as exc:  # e.g. a book request or order failing; keep going
-                        log.warning("error on %s: %s", leg.label, exc)
-                        decisions.append(Decision(leg, None, None, None, "skip", f"error: {exc}"))
+        for sport in sports or self.strat.sports:
+            decisions += self.cycle_sport(sport, execute)
         if execute:
             self.settle()
+        return decisions
+
+    def cycle_sport(self, sport: str, execute: bool = True) -> list[Decision]:
+        decisions = []
+        try:
+            lines = self.odds.lines(sport)
+            events = self.sports.events(sport)
+        except Exception as exc:  # one bad feed shouldn't stop the others
+            log.warning("skipping %s: %s", sport, exc)
+            self.next_start[sport] = None
+            self.fetch_failed[sport] = True
+            return decisions
+        self.fetch_failed[sport] = False
+        cutoff = self.clock() + self.strat.min_minutes_before_start * 60
+        upcoming = [line.commence.timestamp() for line in lines if line.commence.timestamp() > cutoff]
+        self.next_start[sport] = min(upcoming, default=None)
+        for line in lines:
+            for leg in match(line, events):
+                try:
+                    decisions.append(self.evaluate(sport, leg, execute))
+                except Exception as exc:  # e.g. a book request or order failing; keep going
+                    log.warning("error on %s: %s", leg.label, exc)
+                    decisions.append(Decision(leg, None, None, None, "skip", f"error: {exc}"))
         return decisions
 
     def evaluate(self, sport: str, leg: Leg, execute: bool) -> Decision:
@@ -195,23 +208,53 @@ class Bot:
 
     # --- loop --------------------------------------------------------------------
 
-    def run(self, interval: float, max_cycles: int | None = None) -> None:
+    def run(self, interval: float, max_cycles: int | None = None, adaptive: bool = True) -> None:
+        """Poll each sport on its own schedule: every `interval` seconds close to game time, less often otherwise."""
+        due = {sport: self.clock() for sport in self.strat.sports}
         n = 0
         while max_cycles is None or n < max_cycles:
             if STOP_FILE.exists():
                 log.warning("%s exists; stopping", STOP_FILE)
                 return
-            started = self.clock()
-            decisions = self.cycle()
+            now = self.clock()
+            ready = [sport for sport, t in due.items() if t <= now]
+            if not ready:
+                # Sleep in short steps so the stop file is noticed promptly.
+                time.sleep(min(30.0, min(due.values()) - now))
+                continue
+            decisions = self.cycle(sports=ready)
             buys = [d for d in decisions if d.action == "buy"]
+            plans = []
+            for sport in ready:
+                if adaptive and not self.fetch_failed.get(sport):
+                    delay = poll_delay(self.next_start.get(sport), self.clock(), interval, self.strat)
+                else:
+                    delay = interval
+                due[sport] = self.clock() + delay
+                plans.append(f"{sport} again in {delay / 60:.0f} min")
             log.info(
-                "%s cycle: %d outcomes checked, %d buys, odds credits left: %s",
+                "%s: %d outcomes checked, %d buys, odds credits left: %s; %s",
                 datetime.now(timezone.utc).strftime("%H:%M:%S"),
                 len(decisions),
                 len(buys),
                 self.odds.credits_remaining,
+                ", ".join(plans),
             )
             n += 1
-            if max_cycles is not None and n >= max_cycles:
-                return
-            time.sleep(max(0.0, interval - (self.clock() - started)))
+
+
+def poll_delay(next_start: float | None, now: float, near_interval: float, strat: StrategySettings) -> float:
+    """Seconds until a sport's odds are worth fetching again, given its next game's start time.
+
+    Prices move most in the last hours before a game, so poll fast then and slowly otherwise.
+    Never sleep past the moment the next game moves into a faster tier.
+    """
+    if next_start is None:
+        return strat.poll_idle_sec
+    until = next_start - now
+    near, mid = strat.poll_near_hours * 3600, strat.poll_mid_hours * 3600
+    if until <= near:
+        return near_interval
+    if until <= mid:
+        return max(near_interval, min(strat.poll_mid_sec, until - near))
+    return max(near_interval, min(strat.poll_far_sec, until - mid))

@@ -47,7 +47,7 @@ def cmd_run(args) -> None:
     else:
         print("Paper mode: trades are simulated against the live order book and recorded, nothing is sent.")
     try:
-        bot.run(args.interval, args.cycles)
+        bot.run(args.interval, args.cycles, adaptive=not args.fixed)
     except KeyboardInterrupt:
         print("\nStopped.")
 
@@ -83,7 +83,10 @@ def main(argv=None) -> None:
     sub.add_parser("scan", help="show matched markets and current edges; trades nothing").set_defaults(fn=cmd_scan)
     r = sub.add_parser("run", help="trade on a loop (paper by default)")
     r.add_argument("--live", action="store_true", help="place real orders (also needs DRY_RUN=false)")
-    r.add_argument("--interval", type=float, default=300, help="seconds between cycles (default 300)")
+    r.add_argument("--interval", type=float, default=300,
+                   help="seconds between checks in the hours before a game (default 300)")
+    r.add_argument("--fixed", action="store_true",
+                   help="check every --interval seconds regardless of game times (uses more Odds API credits)")
     r.add_argument("--cycles", type=int, default=None, help="stop after this many cycles")
     r.set_defaults(fn=cmd_run)
     rep = sub.add_parser("report", help="results so far, including closing line value")

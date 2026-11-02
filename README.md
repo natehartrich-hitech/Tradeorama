@@ -82,7 +82,16 @@ To stop a running bot, press Ctrl+C or create a file named `tradeorama.stop` in 
 
 ### Costs and limits
 
-- Each cycle uses one Odds API request per sport. A 5-minute interval on one sport is about 290 requests a day, which needs a paid Odds API plan. The free tier (500 a month) is enough for `scan` and occasional runs.
+- Each check uses one Odds API request per sport. To save credits, `run` checks each sport on its own schedule, based on when that sport's next game starts:
+
+  | Next game starts in | Checks |
+  |---|---|
+  | under 2 hours | every `--interval` (default 5 minutes) |
+  | 2–12 hours | every 15 minutes |
+  | more than 12 hours | hourly |
+  | no games listed | every 6 hours |
+
+  A typical NBA day comes to about 115 requests, roughly 3,400 a month per sport, against 8,640 for checking every 5 minutes around the clock. Add `--fixed` to check every `--interval` regardless. The tiers are set by the `POLL_*` settings in `.env`. The free tier (500 a month) is enough for `scan` and occasional runs.
 - Fees: the bot reads each market's fee rate from Polymarket and subtracts `rate × min(p, 1−p)` per share.
 - The bot only buys and holds to the end of the game. It doesn't sell early or hedge.
 - Market matching relies on how Polymarket names and times its sports markets. If Polymarket changes that, matches will drop to zero, which is the safe failure.
