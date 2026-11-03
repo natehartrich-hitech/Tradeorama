@@ -89,7 +89,7 @@ def load_config(path: str | Path) -> Config:
     path = Path(path)
     if not path.exists():
         raise ConfigError(f"{path} not found. Copy config.example.yaml to {path.name} and edit it.")
-    raw = yaml.safe_load(path.read_text()) or {}
+    raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}  # Windows would default to cp1252
     return parse_config(raw, base_dir=path.parent)
 
 
