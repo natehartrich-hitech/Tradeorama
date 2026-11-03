@@ -66,8 +66,8 @@ Saved as run 1 in wxbrackets.db
 ## How the probabilities are built
 
 1. **Climate day.** The official high covers midnight to midnight **local standard time**, even during daylight saving time. In summer, Chicago's climate day runs from 1:00 AM to 1:00 AM on the clock. Ensemble times are requested as Unix timestamps and converted using the zone's standard offset (`climate_day.py`).
-2. **Member maxima.** For each ensemble member, the bot takes the highest hourly 2 m temperature inside that window, including both boundary hours. Members with fewer than `min_valid_hours` values in the window are dropped.
-3. **Pooling.** Each model gets a weight (default equal), split evenly across its members. So ECMWF's 51 members don't outvote GEM's 21 just by number.
+2. **Member maxima.** For each ensemble member, the bot takes the highest hourly 2 m temperature inside that window, including both boundary hours. A member is dropped if it has fewer than `min_valid_hours` values in the window, or if its data doesn't reach within `edge_tolerance_hours` of both ends of the day. A run that stops mid-afternoon would otherwise report a high that's too low.
+3. **Pooling.** Each model gets a weight (default equal), split evenly across its members. So ECMWF's 51 members don't outvote GEM's 21 just by number. A deterministic model like HRRR counts as one member that carries its model's whole weight, so it starts at 0.5 rather than 1.
 4. **Smoothing.** Each member max is moved away from the pooled mean by `spread_inflation` (raw ensembles are usually too narrow), then shifted by `bias_f`. A weighted Gaussian kernel is placed on each one. The kernel width is `bandwidth_f`, or a weighted Silverman rule if that's set to `auto`.
 5. **Rounding.** The NWS reports whole °F, so a bracket "46-47" is the probability the true high falls in [45.5, 47.5).
 6. **Same day.** If the date is today's climate day, the distribution is cut off below the highest temperature observed so far, minus `obs_tolerance_f`, and renormalised.
@@ -87,6 +87,7 @@ All runs are stored in SQLite (`database` in the config):
 - the multi-category Brier score (the sum over brackets of (p − hit)², averaged over runs; 0 is perfect)
 - a reliability table of bracket probabilities against how often those brackets hit
 - the mean bias and mean absolute error of the raw pooled ensemble mean against the official high, plus the NWS point forecast's bias for comparison
+- each model's own bias and mean absolute error, to guide the model weights
 
 Use `--min-lead` and `--max-lead` to score day-ahead and same-day runs separately. Once there are a few weeks of data, set `bias_f` from the reported bias, and adjust `spread_inflation` until the reliability table lines up.
 
@@ -97,6 +98,10 @@ Use `--min-lead` and `--max-lead` to score day-ahead and same-day runs separatel
   - Model IDs and member counts change over time; `check-models` verifies them. Each model covers a different number of days ahead (ICON's ensemble is the shortest), and members that don't cover the date are dropped.
   - The control run's key is `temperature_2m`, and members are `temperature_2m_memberNN`. With several models, each key also carries the model ID. The parser accepts the model ID before or after the member number.
   - Hourly values can miss a peak between hours. That's one reason for `bias_f`.
+- **NOAA HRRR via Open-Meteo** (`api.open-meteo.com/v1/forecast`, model `ncep_hrrr_conus`): the 3 km High-Resolution Rapid Refresh, updated hourly. It's set as `source: forecast` because it's a single deterministic run, not an ensemble.
+  - Runs reach 18 hours ahead, or 48 hours for the 00/06/12/18 UTC runs. So HRRR usually covers today and sometimes tomorrow. Runs that don't cover the whole climate day are skipped automatically.
+  - Only the latest run is used. Older runs aren't combined into a time-lagged ensemble.
+  - Covers the contiguous US only.
 - **NWS API** (`api.weather.gov`): the point forecast high (daytime period) and station observations for today's running max. Hourly and 5-minute observations can miss the true peak, so the official high can come in a degree or so above the observed running max. `obs_tolerance_f` allows for rounding in the other direction. Observations reported in °C are converted to °F.
 - **NWS Daily Climate Report (CLI)**: the settlement source. The report issued after midnight is final for the previous day. Same-day reports ("VALID TODAY AS OF …") are kept only when nothing final exists, and are flagged.
   - `api.weather.gov/products/types/CLI/locations/{loc}` only keeps recent products, roughly the last week.
@@ -114,7 +119,10 @@ This was built in an environment that couldn't reach Open-Meteo, api.weather.gov
 
 ## Not included yet
 
-NOAA NBM probabilistic guidance (via Herbie and AWS GRIB2) is the planned stretch goal. It needs the `herbie-data` package and its GRIB dependencies, which aren't in the dependency list, so it's left out until you approve adding them.
+Neither of these is on Open-Meteo, so both mean downloading NOAA's GRIB2 files. That needs `herbie-data` and its GRIB decoding dependencies (`cfgrib`/`eccodes`, `xarray`), which aren't in the dependency list. They're left out until you approve adding those.
+
+- **NOAA NBM** probabilistic guidance (via Herbie and AWS GRIB2), the planned stretch goal.
+- **RRFS / REFS:** NOAA's new Rapid Refresh Forecast System, with a deterministic run plus a 5-member ensemble (REFS). NWS notices scheduled its operational launch for November 3, 2026, after several delays.
 
 ## Tests
 

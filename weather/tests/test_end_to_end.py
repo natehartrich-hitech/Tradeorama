@@ -14,6 +14,9 @@ from wxbrackets.http import Http
 
 def fake_network(request: httpx.Request) -> httpx.Response:
     url = str(request.url)
+    if "api.open-meteo.com/v1/forecast" in url:
+        assert request.url.params["models"] == "ncep_hrrr_conus"
+        return httpx.Response(200, json=fixture_json("openmeteo_hrrr.json"))
     if "ensemble-api.open-meteo.com" in url:
         assert request.url.params["timeformat"] == "unixtime"
         assert request.url.params["temperature_unit"] == "fahrenheit"
@@ -29,6 +32,15 @@ def fake_network(request: httpx.Request) -> httpx.Response:
     if "/products/types/CLI/" in url:
         return httpx.Response(200, json={"@graph": []})
     return httpx.Response(404)
+
+
+HRRR = """
+  - id: ncep_hrrr_conus
+    name: HRRR
+    source: forecast
+    weight: 0.5
+    expected_members: 1
+"""
 
 
 @pytest.fixture
@@ -49,7 +61,9 @@ def run(cfg, tmp_path, monkeypatch):
 distribution:""" + text.split("distribution:")[1]
     config_path.write_text(text)
 
-    def _run(*args):
+    def _run(*args, hrrr=False):
+        if hrrr and "ncep_hrrr_conus" not in config_path.read_text():
+            config_path.write_text(config_path.read_text().replace("distribution:", HRRR.lstrip("\n") + "distribution:", 1))
         cli.main(["--config", str(config_path), *args])
     return _run
 
@@ -104,3 +118,27 @@ def test_placeholder_user_agent_is_rejected(tmp_path):
     path.write_text(text)
     with pytest.raises(SystemExit, match="user_agent"):
         cli.main(["--config", str(path), "observe", "--station", "CHI"])
+
+
+def test_hrrr_is_pooled_as_one_weighted_member(run, cfg, capsys):
+    run("forecast", "--station", "CHI", "--date", "2026-11-03", "--brackets", "51,53,55,57", hrrr=True)
+    out = capsys.readouterr().out
+    [hrrr_line] = [line for line in out.splitlines() if line.strip().startswith("HRRR")]
+    assert hrrr_line.split()[1:4] == ["1", "of", "1"] and "mean max 58.0°F  weight 0.5" in hrrr_line
+    db = DB(cfg.database)
+    w = dict(db.conn.execute("SELECT model, weight FROM forecast_members WHERE member = 0").fetchall())
+    # Weights 1, 1, 0.5 -> ECMWF 0.4 over 3 members, GFS 0.4 over 2, HRRR 0.2 alone.
+    assert w["ncep_hrrr_conus"] == pytest.approx(0.2)
+    assert w["ecmwf_ifs025"] == pytest.approx(0.4 / 3)
+    mean = db.conn.execute("SELECT pooled_mean_f FROM forecast_runs").fetchone()[0]
+    assert mean == pytest.approx(0.4 * 56 + 0.4 * 53 + 0.2 * 58)
+
+    run("backfill-outcomes", "--station", "CHI", "--days", "3")
+    run("calibration", "--station", "CHI")
+    out = capsys.readouterr().out
+    # Official high was 62: each model's own mean vs. that.
+    by_model = {line.split()[0]: line.split()[1:] for line in out.splitlines()
+                if line.split() and line.split()[0] in ("ncep_hrrr_conus", "gfs025", "ecmwf_ifs025")}
+    assert by_model["ncep_hrrr_conus"][:2] == ["1", "-4.00°"]
+    assert by_model["gfs025"][:2] == ["1", "-9.00°"]
+    assert by_model["ecmwf_ifs025"][:2] == ["1", "-6.00°"]

@@ -7,7 +7,7 @@ from datetime import date, datetime
 import numpy as np
 
 from .climate_day import climate_day_window
-from .config import Config, Station
+from .config import Config, Model, Station
 from .http import Http
 
 VARIABLE = "temperature_2m"
@@ -72,13 +72,23 @@ def parse_members(payload: dict, model_ids: list[str], variable: str = VARIABLE)
     return sorted(out, key=lambda s: (s.model, s.member))
 
 
-def member_daily_max(series: MemberSeries, start: datetime, end: datetime, min_valid: int) -> float | None:
-    """Max over hourly values with start <= t <= end (both climate-day boundaries count)."""
+def member_daily_max(
+    series: MemberSeries, start: datetime, end: datetime, min_valid: int, edge_tolerance_hours: float = 3.0
+) -> float | None:
+    """Max over hourly values with start <= t <= end (both climate-day boundaries count).
+
+    None unless the member has at least `min_valid` values AND its data reaches within
+    `edge_tolerance_hours` of both ends of the day. A run that stops mid-afternoon (HRRR's
+    18-hour runs, or any model at the end of its range) would otherwise report a max that
+    is too low.
+    """
     lo, hi = int(start.timestamp()), int(end.timestamp())
-    mask = (series.times >= lo) & (series.times <= hi)
-    vals = series.values[mask]
-    vals = vals[~np.isnan(vals)]
+    mask = (series.times >= lo) & (series.times <= hi) & ~np.isnan(series.values)
+    times, vals = series.times[mask], series.values[mask]
     if len(vals) < min_valid:
+        return None
+    slack = edge_tolerance_hours * 3600
+    if times.min() > lo + slack or times.max() < hi - slack:
         return None
     return float(vals.max())
 
@@ -106,17 +116,28 @@ class OpenMeteo:
             params["apikey"] = self.cfg.open_meteo_key
         return params
 
-    def fetch(self, station: Station, day: date, model_ids: list[str]) -> dict:
-        return self.http.json(self.cfg.open_meteo_url, self.request_params(station, day, model_ids))
+    def url(self, source: str) -> str:
+        return self.cfg.open_meteo_forecast_url if source == "forecast" else self.cfg.open_meteo_url
 
-    def member_maxes(self, station: Station, day: date, model_ids: list[str]) -> tuple[dict[tuple[str, int], float], dict]:
-        """{(model, member): daily max °F} for members covering the climate day, plus the raw payload."""
-        payload = self.fetch(station, day, model_ids)
+    def fetch(self, station: Station, day: date, model_ids: list[str], source: str = "ensemble") -> dict:
+        return self.http.json(self.url(source), self.request_params(station, day, model_ids))
+
+    def member_maxes(self, station: Station, day: date, models: list[Model]) -> tuple[dict[tuple[str, int], float], dict]:
+        """{(model, member): daily max °F} for members covering the climate day, plus raw payloads by source.
+
+        Ensemble models go in one request to the Ensemble API; deterministic models (HRRR)
+        in one request to the Forecast API, where each model is a single member 0.
+        """
         start, end = climate_day_window(day, station.tz)
-        maxes = {}
-        for s in parse_members(payload, model_ids):
-            mx = member_daily_max(s, start, end, self.cfg.distribution.min_valid_hours)
-            if mx is not None:
-                maxes[(s.model, s.member)] = mx
-        return maxes, payload
-
+        d = self.cfg.distribution
+        maxes, payloads = {}, {}
+        for source in ("ensemble", "forecast"):
+            ids = [m.id for m in models if m.source == source]
+            if not ids:
+                continue
+            payload = payloads[source] = self.fetch(station, day, ids, source)
+            for s in parse_members(payload, ids):
+                mx = member_daily_max(s, start, end, d.min_valid_hours, d.edge_tolerance_hours)
+                if mx is not None:
+                    maxes[(s.model, s.member)] = mx
+        return maxes, payloads

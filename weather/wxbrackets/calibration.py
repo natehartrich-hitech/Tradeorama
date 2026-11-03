@@ -19,6 +19,7 @@ class CalibrationResult:
     dist_bias_f: float | None  # final distribution mean minus official high
     nws_bias_f: float | None
     reliability: pd.DataFrame
+    per_model: pd.DataFrame  # model, runs, bias_f, mae_f: each model's own mean vs. the official high
 
 
 def reliability_table(pairs: list[tuple[float, int]], bins: int = 10) -> pd.DataFrame:
@@ -51,6 +52,17 @@ def calibrate(db: DB, station: str, min_lead: float | None = None, max_lead: flo
     def mean(xs):
         return float(np.mean(xs)) if xs else None
 
+    rows = [dict(r) for r in db.member_errors(station, min_lead, max_lead)]
+    if rows:
+        errs = pd.DataFrame(rows).assign(err=lambda d: d.mean_max_f - d.official_f)
+        per_model = (
+            errs.groupby("model")
+            .agg(runs=("err", "size"), bias_f=("err", "mean"), mae_f=("err", lambda e: e.abs().mean()))
+            .reset_index()
+        )
+    else:
+        per_model = pd.DataFrame(columns=["model", "runs", "bias_f", "mae_f"])
+
     return CalibrationResult(
         runs=len(runs),
         days=len({r["target_date"] for r in runs}),
@@ -60,4 +72,5 @@ def calibrate(db: DB, station: str, min_lead: float | None = None, max_lead: flo
         dist_bias_f=mean(dist_err),
         nws_bias_f=mean(nws_err),
         reliability=reliability_table(pairs),
+        per_model=per_model,
     )

@@ -33,6 +33,7 @@ def make_http(cfg: Config, needs_nws: bool = True) -> Http:
             "api.weather.gov": cfg.nws_min_interval,
             "mesonet.agron.iastate.edu": 1.0,
             httpx.URL(cfg.open_meteo_url).host: cfg.open_meteo_min_interval,
+            httpx.URL(cfg.open_meteo_forecast_url).host: cfg.open_meteo_min_interval,
         },
     )
 
@@ -59,8 +60,7 @@ def cmd_forecast(cfg: Config, args) -> None:
     if day < today:
         print(f"Note: {day} is already over at {station.name}. Use backfill-outcomes for the official high.")
 
-    model_ids = [m.id for m in cfg.models if m.weight > 0]
-    maxes, _ = OpenMeteo(cfg, http).member_maxes(station, day, model_ids)
+    maxes, _ = OpenMeteo(cfg, http).member_maxes(station, day, [m for m in cfg.models if m.weight > 0])
 
     observed = None
     if day == today:
@@ -178,6 +178,11 @@ def cmd_calibration(cfg: Config, args) -> None:
     print(f"Distribution mean bias (after bias_f):    {res.dist_bias_f:+.2f}°F")
     if res.nws_bias_f is not None:
         print(f"NWS point forecast bias:                  {res.nws_bias_f:+.2f}°F")
+    if not res.per_model.empty:
+        print("\nBy model (each model's own mean max vs. official):")
+        print(f"{'model':24} {'runs':>5} {'bias':>8} {'MAE':>7}")
+        for row in res.per_model.itertuples():
+            print(f"{row.model:24} {row.runs:5d} {row.bias_f:+7.2f}° {row.mae_f:6.2f}°")
     print(f"\nTo remove the raw bias, set distribution.bias_f to about {-res.mean_bias_f:+.1f}"
           " (needs many days to be meaningful).")
     print("\nReliability (bracket probabilities vs. how often they hit):")
@@ -196,7 +201,7 @@ def cmd_check_models(cfg: Config, args) -> None:
     ok = True
     for m in cfg.models:
         try:
-            payload = om.fetch(station, day, [m.id])
+            payload = om.fetch(station, day, [m.id], m.source)
         except httpx.HTTPStatusError as exc:
             print(f"{m.id:24} ERROR {exc.response.status_code}: {exc.response.text[:200]}")
             ok = False
@@ -210,18 +215,21 @@ def cmd_check_models(cfg: Config, args) -> None:
         if args.dump:
             Path(args.dump).mkdir(parents=True, exist_ok=True)
             (Path(args.dump) / f"{m.id}.json").write_text(json.dumps(payload))
-    # Also check a combined request, which is what `forecast` sends.
-    ids = [m.id for m in cfg.models]
-    combined = om.fetch(station, day, ids)
-    try:
-        total = len(parse_members(combined, ids))
-        print(f"\nCombined request: {total} members parsed from {len(combined.get('hourly', {})) - 1} keys")
-    except ValueError as exc:
-        ok = False
-        print(f"\nCombined request: keys couldn't be assigned to models ({exc}). Sample keys: "
-              f"{list(combined.get('hourly', {}))[:6]}")
-    if args.dump:
-        (Path(args.dump) / "combined.json").write_text(json.dumps(combined))
+    # Also check the combined requests `forecast` sends: one per API.
+    for source in ("ensemble", "forecast"):
+        ids = [m.id for m in cfg.models if m.source == source]
+        if not ids:
+            continue
+        combined = om.fetch(station, day, ids, source)
+        try:
+            total = len(parse_members(combined, ids))
+            print(f"Combined {source} request: {total} members parsed from {len(combined.get('hourly', {})) - 1} keys")
+        except ValueError as exc:
+            ok = False
+            print(f"Combined {source} request: keys couldn't be assigned to models ({exc}). Sample keys: "
+                  f"{list(combined.get('hourly', {}))[:6]}")
+        if args.dump:
+            (Path(args.dump) / f"combined_{source}.json").write_text(json.dumps(combined))
     if not ok:
         sys.exit("Fix the model ids or expected_members in config.yaml (see https://open-meteo.com/en/docs/ensemble-api).")
 

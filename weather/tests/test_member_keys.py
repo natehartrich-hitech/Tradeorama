@@ -38,3 +38,10 @@ def test_key_without_model_is_ambiguous_for_multi_model_requests():
         parse_members(payload, ["ecmwf_ifs025", "gfs025"])
     [only] = parse_members(payload, ["gfs025"])
     assert (only.model, only.member) == ("gfs025", 1)
+
+
+def test_forecast_api_keys_for_deterministic_models():
+    # Forecast API: no member numbers; a model suffix only when several models are requested.
+    assert parse_member_key("temperature_2m_ncep_hrrr_conus", "temperature_2m", ["ncep_hrrr_conus"]) == ("ncep_hrrr_conus", 0)
+    [hrrr] = parse_members(fixture_json("openmeteo_hrrr.json"), ["ncep_hrrr_conus"])
+    assert (hrrr.model, hrrr.member) == ("ncep_hrrr_conus", 0)

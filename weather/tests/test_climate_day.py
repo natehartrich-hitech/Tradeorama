@@ -54,3 +54,18 @@ def test_member_max_needs_enough_data():
              for s in parse_members(payload, ["ecmwf_ifs025", "gfs025"])}
     assert maxes[("ecmwf_ifs025", 2)] == 57.0  # the 70°F at 05Z belongs to Nov 2
     assert maxes[("gfs025", 2)] is None  # all nulls
+
+
+def test_run_that_stops_before_the_day_ends_is_dropped():
+    # HRRR's 18-hour runs often end mid-afternoon; their "max" would be too low.
+    start, end = climate_day_window(date(2026, 11, 3), CHI)  # 06Z to 06Z
+    t0 = int(start.timestamp())
+    times = np.array([t0 + 3600 * h for h in range(25)])
+    full = MemberSeries("m", 0, times, np.full(25, 50.0))
+    assert member_daily_max(full, start, end, min_valid=8) == 50.0
+    cut = MemberSeries("m", 0, times, np.where(np.arange(25) <= 14, 50.0, np.nan))  # ends 20Z
+    assert member_daily_max(cut, start, end, min_valid=8) is None
+    late = MemberSeries("m", 0, times, np.where(np.arange(25) >= 5, 50.0, np.nan))  # starts 11Z
+    assert member_daily_max(late, start, end, min_valid=8) is None
+    three_hourly = MemberSeries("m", 0, times, np.where(np.arange(25) % 3 == 0, 50.0, np.nan))
+    assert member_daily_max(three_hourly, start, end, min_valid=8) == 50.0

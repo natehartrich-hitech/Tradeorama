@@ -11,7 +11,9 @@ open_meteo:
   # endpoint and set your key, e.g.
   #   base_url: https://customer-ensemble-api.open-meteo.com/v1/ensemble
   #   api_key: "..."
-  base_url: https://ensemble-api.open-meteo.com/v1/ensemble
+  #   forecast_url: https://customer-api.open-meteo.com/v1/forecast
+  base_url: https://ensemble-api.open-meteo.com/v1/ensemble   # ensemble models
+  forecast_url: https://api.open-meteo.com/v1/forecast        # deterministic models (HRRR)
   api_key: null
   min_interval_sec: 0.5
 
@@ -19,6 +21,8 @@ open_meteo:
 # best-effort: run `python -m wxbrackets check-models --station CHI` to confirm
 # each returns the expected member count, and fix any that don't.
 # Weights are per MODEL (each model's members share its weight equally).
+# source: ensemble (default) uses the Ensemble API; source: forecast uses the regular
+# Forecast API, where a model is one deterministic run counted as a single member.
 models:
   - id: ecmwf_ifs025
     name: ECMWF IFS 0.25° ensemble
@@ -36,12 +40,22 @@ models:
     name: GEM global ensemble
     weight: 1.0
     expected_members: 21
+  # NOAA HRRR, 3 km, updated hourly. Runs reach 18 hours ahead (48 hours for the
+  # 00/06/12/18 UTC runs), so it only covers today and sometimes tomorrow; on other
+  # days it's skipped automatically. As ONE run, it gets a smaller weight than a
+  # whole ensemble so it can't create a lump in the distribution by itself.
+  - id: ncep_hrrr_conus
+    name: NOAA HRRR (deterministic)
+    source: forecast
+    weight: 0.5
+    expected_members: 1
 
 distribution:
   bias_f: 0.0            # added to every member max (positive = warmer). Set from `calibration`.
   spread_inflation: 1.3  # scales member deviations from the pooled mean (>1 widens)
   bandwidth_f: auto      # kernel width in °F, or "auto" (weighted Silverman rule)
   min_valid_hours: 8     # a member needs this many non-missing hourly values in the climate day
+  edge_tolerance_hours: 3  # ...and data within this many hours of both ends of the day
   obs_tolerance_f: 0.5   # same-day conditioning: high must be >= observed max minus this
 
 # Market brackets used when --brackets isn't given (upper edges, inclusive).

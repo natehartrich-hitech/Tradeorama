@@ -104,5 +104,21 @@ class DB:
             args.append(max_lead)
         return self.conn.execute(sql + " ORDER BY r.target_date, r.created_utc", args).fetchall()
 
+    def member_errors(self, station: str, min_lead: float | None = None, max_lead: float | None = None) -> list[sqlite3.Row]:
+        """Each model's mean member max per scored run, with the official high."""
+        sql = """SELECT m.model, m.run_id, AVG(m.member_max_f) AS mean_max_f, COUNT(*) AS members, o.max_f AS official_f
+                 FROM forecast_members m
+                 JOIN forecast_runs r ON r.run_id = m.run_id
+                 JOIN outcomes o ON o.station = m.station AND o.climate_date = m.target_date AND o.final = 1
+                 WHERE m.station = ?"""
+        args: list = [station]
+        if min_lead is not None:
+            sql += " AND r.lead_hours >= ?"
+            args.append(min_lead)
+        if max_lead is not None:
+            sql += " AND r.lead_hours <= ?"
+            args.append(max_lead)
+        return self.conn.execute(sql + " GROUP BY m.model, m.run_id", args).fetchall()
+
     def brackets_for(self, run_id: int) -> list[sqlite3.Row]:
         return self.conn.execute("SELECT * FROM bracket_probs WHERE run_id = ? ORDER BY idx", (run_id,)).fetchall()

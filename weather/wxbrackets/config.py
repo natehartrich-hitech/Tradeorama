@@ -33,6 +33,7 @@ class Model:
     name: str
     weight: float = 1.0
     expected_members: int | None = None
+    source: str = "ensemble"  # "ensemble" API (many members) or "forecast" API (one deterministic run)
 
 
 @dataclass(frozen=True)
@@ -41,6 +42,7 @@ class DistributionSettings:
     spread_inflation: float = 1.0
     bandwidth_f: float | None = None  # None = automatic
     min_valid_hours: int = 8
+    edge_tolerance_hours: float = 3.0  # a member's data must reach this close to both ends of the climate day
     obs_tolerance_f: float = 0.5
 
 
@@ -54,6 +56,7 @@ class Config:
     nws_user_agent: str
     nws_min_interval: float = 1.0
     open_meteo_url: str = "https://ensemble-api.open-meteo.com/v1/ensemble"
+    open_meteo_forecast_url: str = "https://api.open-meteo.com/v1/forecast"
     open_meteo_key: str | None = None
     open_meteo_min_interval: float = 0.5
 
@@ -99,9 +102,13 @@ def parse_config(raw: dict, base_dir: Path = Path(".")) -> Config:
             name=m.get("name", m["id"]),
             weight=float(m.get("weight", 1.0)),
             expected_members=m.get("expected_members"),
+            source=m.get("source", "ensemble"),
         )
         for m in raw.get("models") or []
     ]
+    bad = [m.id for m in models if m.source not in ("ensemble", "forecast")]
+    if bad:
+        raise ConfigError(f"model source must be 'ensemble' or 'forecast': {', '.join(bad)}")
     if not models:
         raise ConfigError("no models configured")
     if any(m.weight < 0 for m in models) or sum(m.weight for m in models) <= 0:
@@ -114,6 +121,7 @@ def parse_config(raw: dict, base_dir: Path = Path(".")) -> Config:
         spread_inflation=float(d.get("spread_inflation", 1.0)),
         bandwidth_f=None if bw in (None, "auto") else float(bw),
         min_valid_hours=int(d.get("min_valid_hours", 8)),
+        edge_tolerance_hours=float(d.get("edge_tolerance_hours", 3.0)),
         obs_tolerance_f=float(d.get("obs_tolerance_f", 0.5)),
     )
     if dist.spread_inflation <= 0:
@@ -131,6 +139,7 @@ def parse_config(raw: dict, base_dir: Path = Path(".")) -> Config:
         nws_user_agent=nws.get("user_agent", ""),
         nws_min_interval=float(nws.get("min_interval_sec", 1.0)),
         open_meteo_url=om.get("base_url") or "https://ensemble-api.open-meteo.com/v1/ensemble",
+        open_meteo_forecast_url=om.get("forecast_url") or "https://api.open-meteo.com/v1/forecast",
         open_meteo_key=om.get("api_key") or None,
         open_meteo_min_interval=float(om.get("min_interval_sec", 0.5)),
     )
