@@ -1,0 +1,898 @@
+{
+ "type": "sport",
+ "typeTitle": "Games",
+ "section": "general",
+ "sectionTitle": "Sport",
+ "events": [
+  {
+   "id": "209095",
+   "chatChannel": {
+    "id": "nhl-min-phi-2026-11-03",
+    "type": "CHAT_CHANNEL_TYPE_MESSAGING",
+    "chatMemberCount": 3893
+   },
+   "ticker": "nhl-min-phi-2026-11-03",
+   "slug": "nhl-min-phi-2026-11-03",
+   "title": "MIN Wild vs. PHI Flyers",
+   "description": "MIN Wild vs. PHI Flyers",
+   "startDate": "2026-11-04T00:00:00Z",
+   "endDate": "2026-11-04T04:59:00Z",
+   "active": true,
+   "closed": false,
+   "archived": false,
+   "category": "sports",
+   "createdAt": "2026-10-30T05:00:20Z",
+   "updatedAt": "2026-11-03T23:01:49Z",
+   "startTime": "2026-11-04T00:00:00Z",
+   "seriesSlug": "nhl-2025",
+   "period": "NS",
+   "markets": [
+    {
+     "id": "1960967",
+     "question": "Who will win in the upcoming hockey event MIN Wild vs PHI Flyers scheduled for November 4, 2026 at 12:00 AM UTC?",
+     "slug": "aec-nhl-min-phi-2026-11-03",
+     "endDate": "2026-11-18T05:00:00Z",
+     "category": "sports",
+     "startDate": "2026-10-30T05:00:20Z",
+     "description": "This market will settle to the winner of the MIN Wild vs PHI Flyers NHL game scheduled for November 3, 2026 at 7:00PM ET (as of the listing of the event's first instrument). Overtime and any shootout are included if played. If the game is delayed, postponed, suspended or otherwise rescheduled to a date and time not within two days of the originally scheduled date and time, the market will settle to the last fair market price. Outcome sourced from NHL.",
+     "active": true,
+     "marketType": "moneyline",
+     "closed": false,
+     "createdAt": "2026-10-30T05:00:20Z",
+     "updatedAt": "2026-11-03T23:00:13Z",
+     "archived": false,
+     "orderPriceMinTickSize": 0.01,
+     "gameStartTime": "2026-11-04T00:00:00Z",
+     "manualActivation": false,
+     "sportsMarketType": "hockey_team_full_game_winner",
+     "marketSides": [
+      {
+       "id": "3921396",
+       "marketSideType": "MARKET_SIDE_TYPE_INSTRUMENT",
+       "identifier": "aec-nhl-min-phi-2026-11-03",
+       "createdAt": "2026-10-30T05:00:20Z",
+       "updatedAt": "2026-10-30T05:00:20Z",
+       "description": "Wild",
+       "price": "0.6300",
+       "marketId": 1960967,
+       "long": true,
+       "teamId": 1506,
+       "team": {
+        "id": 1506,
+        "name": "Wild",
+        "abbreviation": "min",
+        "league": "nhl",
+        "record": "46-24-12",
+        "logo": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-logos/NHL/variant/MIN_dark.png",
+        "alias": "Wild",
+        "safeName": "Minnesota Wild",
+        "homeIcon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-logos/NHL/variant/MIN_dark.png",
+        "awayIcon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-logos/NHL/variant/MIN_dark.png",
+        "colorPrimary": "#008a54",
+        "providerId": 23,
+        "ordering": "away",
+        "longIcon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-logos/NHL/variant/MIN_light.png",
+        "shortIcon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-logos/NHL/variant/MIN_light.png",
+        "displayAbbreviation": "MIN",
+        "providerIds": [
+         {
+          "provider": "PROVIDER_SPORTSDATAIO",
+          "providerId": "23"
+         },
+         {
+          "provider": "PROVIDER_SPORTRADAR",
+          "providerId": "4416091c-0f24-11e2-8525-18a905767e44"
+         },
+         {
+          "provider": "PROVIDER_OPTICODDS",
+          "providerId": "8D53759CDE8E"
+         }
+        ],
+        "longIconDark": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-logos/NHL/variant/MIN_dark.png",
+        "shortIconDark": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-logos/NHL/variant/MIN_dark.png",
+        "color": {
+         "light": "#008A54",
+         "dark": "#338262"
+        },
+        "imageDisplayType": "IMAGE_DISPLAY_TYPE_LOGO"
+       },
+       "quote": {
+        "value": "0.6400",
+        "currency": "USD"
+       },
+       "tradable": true
+      },
+      {
+       "id": "3921397",
+       "marketSideType": "MARKET_SIDE_TYPE_INSTRUMENT",
+       "identifier": "aec-nhl-min-phi-2026-11-03",
+       "createdAt": "2026-10-30T05:00:20Z",
+       "updatedAt": "2026-10-30T05:00:20Z",
+       "description": "Flyers",
+       "price": "0.6400",
+       "marketId": 1960967,
+       "long": false,
+       "teamId": 1496,
+       "team": {
+        "id": 1496,
+        "name": "Flyers",
+        "abbreviation": "phi",
+        "league": "nhl",
+        "record": "43-27-12",
+        "logo": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-logos/NHL/variant/PHI_dark.png",
+        "alias": "Flyers",
+        "safeName": "Philadelphia Flyers",
+        "homeIcon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-logos/NHL/variant/PHI_dark.png",
+        "awayIcon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-logos/NHL/variant/PHI_dark.png",
+        "colorPrimary": "#fa6115",
+        "providerId": 13,
+        "ordering": "home",
+        "longIcon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-logos/NHL/variant/PHI_light.png",
+        "shortIcon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-logos/NHL/variant/PHI_light.png",
+        "displayAbbreviation": "PHI",
+        "providerIds": [
+         {
+          "provider": "PROVIDER_SPORTSDATAIO",
+          "providerId": "13"
+         },
+         {
+          "provider": "PROVIDER_SPORTRADAR",
+          "providerId": "44179d47-0f24-11e2-8525-18a905767e44"
+         },
+         {
+          "provider": "PROVIDER_OPTICODDS",
+          "providerId": "4BF7B4862E12"
+         }
+        ],
+        "longIconDark": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-logos/NHL/variant/PHI_dark.png",
+        "shortIconDark": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-logos/NHL/variant/PHI_dark.png",
+        "color": {
+         "light": "#F25902",
+         "dark": "#E36D28"
+        },
+        "imageDisplayType": "IMAGE_DISPLAY_TYPE_LOGO"
+       },
+       "quote": {
+        "value": "0.37",
+        "currency": "USD"
+       },
+       "tradable": true
+      }
+     ],
+     "outcomes": "[\"Wild\",\"Flyers\"]",
+     "outcomePrices": "[\"0.6300\",\"0.6400\"]",
+     "ep3Status": "OPEN",
+     "status": "MARKET_STATUS_OPEN",
+     "assetPriceTerms": null,
+     "sportsMarketTypeV2": "SPORTS_MARKET_TYPE_MONEYLINE",
+     "hidden": false,
+     "tags": [],
+     "title": "Wild vs Flyers",
+     "feeCoefficient": 0.0695,
+     "bestBidQuote": {
+      "value": "0.6300",
+      "currency": "USD"
+     },
+     "bestAskQuote": {
+      "value": "0.6400",
+      "currency": "USD"
+     },
+     "titleShort": "MIN vs PHI",
+     "ep3SyncedAt": "2026-10-30T05:00:20Z",
+     "minimumTradeQty": 0.01,
+     "comboEnabled": true,
+     "politics": null,
+     "eventSubcategory": "HOCKEY"
+    }
+   ],
+   "sportradarGameId": "213b6228-4153-4229-88dd-fb5e4e393df7",
+   "participants": [],
+   "hidden": false,
+   "tags": [
+    {
+     "id": "2",
+     "label": "Sports",
+     "slug": "sports",
+     "createdAt": "2025-09-25T16:13:27Z",
+     "updatedAt": "2026-11-03T23:02:00Z",
+     "subtags": [],
+     "hub": null,
+     "featuredEventIds": []
+    },
+    {
+     "id": "3",
+     "label": "Games",
+     "slug": "games",
+     "createdAt": "2025-09-25T16:13:27Z",
+     "updatedAt": "2026-11-03T23:02:00Z",
+     "subtags": [],
+     "hub": null,
+     "featuredEventIds": []
+    },
+    {
+     "id": "7",
+     "label": "NHL",
+     "slug": "nhl",
+     "createdAt": "2025-12-02T21:54:38Z",
+     "updatedAt": "2026-11-03T23:02:00Z",
+     "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-images/nhl-new.png",
+     "tradable": false,
+     "league": {
+      "id": 3,
+      "name": "NHL",
+      "sportId": 4,
+      "tagId": 7,
+      "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-images/nhl-new.png",
+      "resolution": "https://www.nhl.com/",
+      "ordering": "away",
+      "activeSeriesId": 6,
+      "isOperational": true,
+      "automaticResolution": false,
+      "createdAt": "2026-03-05T18:30:42Z",
+      "slug": "nhl",
+      "abbreviation": "NHL"
+     },
+     "parentId": 14,
+     "subtags": [],
+     "hub": null,
+     "featuredEventIds": []
+    },
+    {
+     "id": "14",
+     "label": "Hockey",
+     "slug": "ice-hockey",
+     "createdAt": "2026-03-05T18:30:42Z",
+     "updatedAt": "2026-11-03T23:02:00Z",
+     "tradable": false,
+     "sport": {
+      "id": 4,
+      "name": "Hockey",
+      "tagId": 14,
+      "createdAt": "2026-03-05T18:30:42Z",
+      "slug": "ice-hockey",
+      "image": "https://static.polymarket.us/images/category-icons/hockey-stick.png"
+     },
+     "subtags": [
+      {
+       "id": "7",
+       "label": "NHL",
+       "slug": "nhl",
+       "createdAt": "2025-12-02T21:54:38Z",
+       "updatedAt": "2026-11-03T23:02:00Z",
+       "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-images/nhl-new.png",
+       "tradable": false,
+       "league": {
+        "id": 3,
+        "name": "NHL",
+        "sportId": 4,
+        "tagId": 7,
+        "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-images/nhl-new.png",
+        "resolution": "https://www.nhl.com/",
+        "ordering": "away",
+        "activeSeriesId": 6,
+        "isOperational": true,
+        "automaticResolution": false,
+        "createdAt": "2026-03-05T18:30:42Z",
+        "slug": "nhl",
+        "abbreviation": "NHL"
+       },
+       "parentId": 14,
+       "subtags": [],
+       "hub": null,
+       "featuredEventIds": []
+      },
+      {
+       "id": "1551",
+       "label": "Liiga",
+       "slug": "liiga",
+       "updatedAt": "2026-10-21T18:32:16Z",
+       "image": "https://static.polymarket.us/images/Random/Liiga_logo.png",
+       "tradable": false,
+       "league": {
+        "id": 334,
+        "name": "Liiga",
+        "sportId": 4,
+        "tagId": 1551,
+        "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-images/liiga.png",
+        "ordering": "home",
+        "activeSeriesId": 453,
+        "isOperational": true,
+        "automaticResolution": false,
+        "createdAt": "2026-09-29T00:39:42Z",
+        "slug": "liiga"
+       },
+       "parentId": 14,
+       "subtags": [],
+       "hub": null,
+       "featuredEventIds": []
+      },
+      {
+       "id": "1357",
+       "label": "KHL",
+       "slug": "khl",
+       "updatedAt": "2026-11-03T20:46:30Z",
+       "image": "https://static.polymarket.us/images/sports/pbp/hockey/khl2.png",
+       "tradable": false,
+       "league": {
+        "id": 258,
+        "name": "KHL",
+        "sportId": 4,
+        "tagId": 1357,
+        "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-images/khl.png",
+        "ordering": "home",
+        "activeSeriesId": 338,
+        "isOperational": true,
+        "automaticResolution": false,
+        "createdAt": "2026-09-17T23:32:56Z",
+        "slug": "khl"
+       },
+       "parentId": 14,
+       "subtags": [],
+       "hub": null,
+       "featuredEventIds": []
+      },
+      {
+       "id": "1463",
+       "label": "SHL",
+       "slug": "shl",
+       "updatedAt": "2026-10-31T19:48:48Z",
+       "image": "https://static.polymarket.us/images/Random/SHL-logo-black-1028.png",
+       "tradable": false,
+       "league": {
+        "id": 288,
+        "name": "SHL",
+        "sportId": 4,
+        "tagId": 1463,
+        "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-images/shl.png",
+        "ordering": "home",
+        "activeSeriesId": 390,
+        "isOperational": true,
+        "automaticResolution": false,
+        "createdAt": "2026-09-23T16:42:23Z",
+        "slug": "shl"
+       },
+       "parentId": 14,
+       "subtags": [],
+       "hub": null,
+       "featuredEventIds": []
+      },
+      {
+       "id": "1465",
+       "label": "National League",
+       "slug": "snhl",
+       "updatedAt": "2026-10-31T21:33:29Z",
+       "image": "https://static.polymarket.us/images/Random/e79d8317-3869-4a45-a209-007abccd917e.png",
+       "tradable": false,
+       "league": {
+        "id": 289,
+        "name": "National League",
+        "sportId": 4,
+        "tagId": 1465,
+        "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-images/snhl.png",
+        "ordering": "home",
+        "activeSeriesId": 391,
+        "isOperational": true,
+        "automaticResolution": false,
+        "createdAt": "2026-09-23T19:07:16Z",
+        "slug": "snhl"
+       },
+       "parentId": 14,
+       "subtags": [],
+       "hub": null,
+       "featuredEventIds": []
+      },
+      {
+       "id": "1468",
+       "label": "Czech Extraliga",
+       "slug": "cehl",
+       "updatedAt": "2026-10-30T19:44:53Z",
+       "image": "https://static.polymarket.us/images/Random/Hokejove-karty-z-ceskych-lig-540x540.png",
+       "tradable": false,
+       "league": {
+        "id": 290,
+        "name": "Czech Extraliga",
+        "sportId": 4,
+        "tagId": 1468,
+        "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-images/cehl.png",
+        "ordering": "home",
+        "activeSeriesId": 392,
+        "isOperational": true,
+        "automaticResolution": false,
+        "createdAt": "2026-09-23T20:55:53Z",
+        "slug": "cehl"
+       },
+       "parentId": 14,
+       "subtags": [],
+       "hub": null,
+       "featuredEventIds": []
+      },
+      {
+       "id": "1456",
+       "label": "DEL",
+       "slug": "del",
+       "updatedAt": "2026-10-30T21:15:27Z",
+       "image": "https://static.polymarket.us/images/7a364eba-97f8-42e5-bfeb-c909d957e995.png",
+       "tradable": false,
+       "league": {
+        "id": 286,
+        "name": "DEL",
+        "sportId": 4,
+        "tagId": 1456,
+        "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-images/del.png",
+        "ordering": "home",
+        "activeSeriesId": 386,
+        "isOperational": true,
+        "automaticResolution": false,
+        "createdAt": "2026-09-23T02:26:55Z",
+        "slug": "del"
+       },
+       "parentId": 14,
+       "subtags": [],
+       "hub": null,
+       "featuredEventIds": []
+      }
+     ],
+     "hub": null,
+     "featuredEventIds": []
+    }
+   ],
+   "teams": [
+    {
+     "id": 1506,
+     "name": "Wild",
+     "abbreviation": "min",
+     "league": "nhl",
+     "record": "46-24-12",
+     "logo": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-logos/NHL/variant/MIN_dark.png",
+     "alias": "Wild",
+     "safeName": "Minnesota Wild",
+     "homeIcon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-logos/NHL/variant/MIN_dark.png",
+     "awayIcon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-logos/NHL/variant/MIN_dark.png",
+     "colorPrimary": "#008a54",
+     "providerId": 23,
+     "longIcon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-logos/NHL/variant/MIN_light.png",
+     "shortIcon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-logos/NHL/variant/MIN_light.png",
+     "displayAbbreviation": "MIN",
+     "providerIds": [
+      {
+       "provider": "PROVIDER_SPORTSDATAIO",
+       "providerId": "23"
+      },
+      {
+       "provider": "PROVIDER_SPORTRADAR",
+       "providerId": "4416091c-0f24-11e2-8525-18a905767e44"
+      },
+      {
+       "provider": "PROVIDER_OPTICODDS",
+       "providerId": "8D53759CDE8E"
+      }
+     ],
+     "longIconDark": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-logos/NHL/variant/MIN_dark.png",
+     "shortIconDark": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-logos/NHL/variant/MIN_dark.png",
+     "color": {
+      "light": "#008A54",
+      "dark": "#338262"
+     },
+     "imageDisplayType": "IMAGE_DISPLAY_TYPE_LOGO"
+    },
+    {
+     "id": 1496,
+     "name": "Flyers",
+     "abbreviation": "phi",
+     "league": "nhl",
+     "record": "43-27-12",
+     "logo": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-logos/NHL/variant/PHI_dark.png",
+     "alias": "Flyers",
+     "safeName": "Philadelphia Flyers",
+     "homeIcon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-logos/NHL/variant/PHI_dark.png",
+     "awayIcon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-logos/NHL/variant/PHI_dark.png",
+     "colorPrimary": "#fa6115",
+     "providerId": 13,
+     "longIcon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-logos/NHL/variant/PHI_light.png",
+     "shortIcon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-logos/NHL/variant/PHI_light.png",
+     "displayAbbreviation": "PHI",
+     "providerIds": [
+      {
+       "provider": "PROVIDER_SPORTSDATAIO",
+       "providerId": "13"
+      },
+      {
+       "provider": "PROVIDER_SPORTRADAR",
+       "providerId": "44179d47-0f24-11e2-8525-18a905767e44"
+      },
+      {
+       "provider": "PROVIDER_OPTICODDS",
+       "providerId": "4BF7B4862E12"
+      }
+     ],
+     "longIconDark": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-logos/NHL/variant/PHI_dark.png",
+     "shortIconDark": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-logos/NHL/variant/PHI_dark.png",
+     "color": {
+      "light": "#F25902",
+      "dark": "#E36D28"
+     },
+     "imageDisplayType": "IMAGE_DISPLAY_TYPE_LOGO"
+    }
+   ],
+   "sortType": "price",
+   "marketGroups": [],
+   "streamProvider": "",
+   "streamRequiresAuth": false,
+   "combos": {
+    "enabled": true,
+    "numMarkets": 177,
+    "numSpreadsAndTotalsMarkets": 32
+   },
+   "marketCounts": {
+    "numMarkets": 177,
+    "numSpreadsAndTotalsMarkets": 32
+   },
+   "fixtureId": "",
+   "insiderTradingRules": null,
+   "payoutEstimateMessage": "",
+   "payoutEstimateTime": ""
+  },
+  {
+   "id": "209156",
+   "chatChannel": {
+    "id": "nhl-wpg-mon-2026-11-03",
+    "type": "CHAT_CHANNEL_TYPE_MESSAGING",
+    "chatMemberCount": 1425
+   },
+   "ticker": "nhl-wpg-mon-2026-11-03",
+   "slug": "nhl-wpg-mon-2026-11-03",
+   "title": "WPG Jets vs. MTL Canadiens",
+   "description": "WPG Jets vs. MTL Canadiens",
+   "startDate": "2026-11-04T00:00:00Z",
+   "endDate": "2026-11-04T04:59:00Z",
+   "active": true,
+   "closed": false,
+   "archived": false,
+   "category": "sports",
+   "createdAt": "2026-10-30T05:01:24Z",
+   "updatedAt": "2026-11-03T23:01:50Z",
+   "startTime": "2026-11-04T00:00:00Z",
+   "seriesSlug": "nhl-2025",
+   "period": "NS",
+   "markets": [
+    {
+     "id": "1961084",
+     "question": "Who will win in the upcoming hockey event WPG Jets vs MTL Canadiens scheduled for November 4, 2026 at 12:00 AM UTC?",
+     "slug": "aec-nhl-wpg-mon-2026-11-03",
+     "endDate": "2026-11-18T05:00:00Z",
+     "category": "sports",
+     "startDate": "2026-10-30T05:01:24Z",
+     "description": "This market will settle to the winner of the WPG Jets vs MTL Canadiens NHL game scheduled for November 3, 2026 at 7:00PM ET (as of the listing of the event's first instrument). Overtime and any shootout are included if played. If the game is delayed, postponed, suspended or otherwise rescheduled to a date and time not within two days of the originally scheduled date and time, the market will settle to the last fair market price. Outcome sourced from NHL.",
+     "active": true,
+     "marketType": "moneyline",
+     "closed": false,
+     "createdAt": "2026-10-30T05:01:24Z",
+     "updatedAt": "2026-11-03T23:00:13Z",
+     "archived": false,
+     "orderPriceMinTickSize": 0.01,
+     "gameStartTime": "2026-11-04T00:00:00Z",
+     "manualActivation": false,
+     "sportsMarketType": "hockey_team_full_game_winner",
+     "marketSides": [
+      {
+       "id": "3921630",
+       "marketSideType": "MARKET_SIDE_TYPE_INSTRUMENT",
+       "identifier": "aec-nhl-wpg-mon-2026-11-03",
+       "createdAt": "2026-10-30T05:01:24Z",
+       "updatedAt": "2026-10-30T05:01:24Z",
+       "description": "Jets",
+       "price": "0.3900",
+       "marketId": 1961084,
+       "long": true,
+       "teamId": 1505,
+       "team": {
+        "id": 1505,
+        "name": "Jets",
+        "abbreviation": "wpg",
+        "league": "nhl",
+        "record": "35-35-12",
+        "logo": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-logos/NHL/variant/WPG_dark.png",
+        "alias": "Jets",
+        "safeName": "Winnipeg Jets",
+        "homeIcon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-logos/NHL/variant/WPG_dark.png",
+        "awayIcon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-logos/NHL/variant/WPG_dark.png",
+        "colorPrimary": "#067aee",
+        "providerId": 22,
+        "ordering": "away",
+        "longIcon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-logos/NHL/variant/WPG_light.png",
+        "shortIcon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-logos/NHL/variant/WPG_light.png",
+        "displayAbbreviation": "WPG",
+        "providerIds": [
+         {
+          "provider": "PROVIDER_SPORTSDATAIO",
+          "providerId": "22"
+         },
+         {
+          "provider": "PROVIDER_SPORTRADAR",
+          "providerId": "44180e55-0f24-11e2-8525-18a905767e44"
+         },
+         {
+          "provider": "PROVIDER_OPTICODDS",
+          "providerId": "BACAD4FFEF91"
+         }
+        ],
+        "longIconDark": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-logos/NHL/variant/WPG_dark.png",
+        "shortIconDark": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-logos/NHL/variant/WPG_dark.png",
+        "color": {
+         "light": "#067AEE",
+         "dark": "#067AEE"
+        },
+        "imageDisplayType": "IMAGE_DISPLAY_TYPE_LOGO"
+       },
+       "quote": {
+        "value": "0.4000",
+        "currency": "USD"
+       },
+       "tradable": true
+      },
+      {
+       "id": "3921631",
+       "marketSideType": "MARKET_SIDE_TYPE_INSTRUMENT",
+       "identifier": "aec-nhl-wpg-mon-2026-11-03",
+       "createdAt": "2026-10-30T05:01:24Z",
+       "updatedAt": "2026-10-30T05:01:24Z",
+       "description": "Canadiens",
+       "price": "0.4000",
+       "marketId": 1961084,
+       "long": false,
+       "teamId": 1487,
+       "team": {
+        "id": 1487,
+        "name": "Canadiens",
+        "abbreviation": "mon",
+        "league": "nhl",
+        "record": "48-24-10",
+        "logo": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-logos/NHL/variant/MON_dark.png",
+        "alias": "Canadiens",
+        "safeName": "Montreal Canadiens",
+        "homeIcon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-logos/NHL/variant/MON_dark.png",
+        "awayIcon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-logos/NHL/variant/MON_dark.png",
+        "colorPrimary": "#d71823",
+        "providerId": 4,
+        "ordering": "home",
+        "longIcon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-logos/NHL/variant/MON_light.png",
+        "shortIcon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-logos/NHL/variant/MON_light.png",
+        "displayAbbreviation": "MTL",
+        "providerIds": [
+         {
+          "provider": "PROVIDER_SPORTSDATAIO",
+          "providerId": "4"
+         },
+         {
+          "provider": "PROVIDER_SPORTRADAR",
+          "providerId": "441713b7-0f24-11e2-8525-18a905767e44"
+         },
+         {
+          "provider": "PROVIDER_OPTICODDS",
+          "providerId": "5BF7015DF08F"
+         }
+        ],
+        "longIconDark": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-logos/NHL/variant/MON_dark.png",
+        "shortIconDark": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-logos/NHL/variant/MON_dark.png",
+        "color": {
+         "light": "#001E62",
+         "dark": "#CD434D"
+        },
+        "imageDisplayType": "IMAGE_DISPLAY_TYPE_LOGO"
+       },
+       "quote": {
+        "value": "0.61",
+        "currency": "USD"
+       },
+       "tradable": true
+      }
+     ],
+     "outcomes": "[\"Jets\",\"Canadiens\"]",
+     "outcomePrices": "[\"0.3900\",\"0.4000\"]",
+     "ep3Status": "OPEN",
+     "status": "MARKET_STATUS_OPEN",
+     "assetPriceTerms": null,
+     "sportsMarketTypeV2": "SPORTS_MARKET_TYPE_MONEYLINE",
+     "hidden": false,
+     "tags": [],
+     "title": "Jets vs Canadiens",
+     "feeCoefficient": 0.0695,
+     "bestBidQuote": {
+      "value": "0.3900",
+      "currency": "USD"
+     },
+     "bestAskQuote": {
+      "value": "0.4000",
+      "currency": "USD"
+     },
+     "titleShort": "WPG vs MTL",
+     "ep3SyncedAt": "2026-10-30T05:01:24Z",
+     "minimumTradeQty": 0.01,
+     "comboEnabled": true,
+     "politics": null,
+     "eventSubcategory": "HOCKEY"
+    }
+   ],
+   "sportradarGameId": "4788050e-deb8-43a8-beb7-3e12fae7022b",
+   "participants": [],
+   "hidden": false,
+   "tags": [
+    {
+     "id": "2",
+     "label": "Sports",
+     "slug": "sports",
+     "createdAt": "2025-09-25T16:13:27Z",
+     "updatedAt": "2026-11-03T23:02:00Z",
+     "subtags": [],
+     "hub": null,
+     "featuredEventIds": []
+    },
+    {
+     "id": "3",
+     "label": "Games",
+     "slug": "games",
+     "createdAt": "2025-09-25T16:13:27Z",
+     "updatedAt": "2026-11-03T23:02:00Z",
+     "subtags": [],
+     "hub": null,
+     "featuredEventIds": []
+    },
+    {
+     "id": "7",
+     "label": "NHL",
+     "slug": "nhl",
+     "createdAt": "2025-12-02T21:54:38Z",
+     "updatedAt": "2026-11-03T23:02:00Z",
+     "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-images/nhl-new.png",
+     "tradable": false,
+     "league": {
+      "id": 3,
+      "name": "NHL",
+      "sportId": 4,
+      "tagId": 7,
+      "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-images/nhl-new.png",
+      "resolution": "https://www.nhl.com/",
+      "ordering": "away",
+      "activeSeriesId": 6,
+      "isOperational": true,
+      "automaticResolution": false,
+      "createdAt": "2026-03-05T18:30:42Z",
+      "slug": "nhl",
+      "abbreviation": "NHL"
+     },
+     "subtags": [],
+     "hub": null,
+     "featuredEventIds": []
+    },
+    {
+     "id": "14",
+     "label": "Hockey",
+     "slug": "ice-hockey",
+     "createdAt": "2026-03-05T18:30:42Z",
+     "updatedAt": "2026-11-03T23:02:00Z",
+     "tradable": false,
+     "sport": {
+      "id": 4,
+      "name": "Hockey",
+      "tagId": 14,
+      "createdAt": "2026-03-05T18:30:42Z",
+      "slug": "ice-hockey",
+      "image": "https://static.polymarket.us/images/category-icons/hockey-stick.png"
+     },
+     "subtags": [],
+     "hub": null,
+     "featuredEventIds": []
+    }
+   ],
+   "teams": [
+    {
+     "id": 1505,
+     "name": "Jets",
+     "abbreviation": "wpg",
+     "league": "nhl",
+     "record": "35-35-12",
+     "logo": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-logos/NHL/variant/WPG_dark.png",
+     "alias": "Jets",
+     "safeName": "Winnipeg Jets",
+     "homeIcon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-logos/NHL/variant/WPG_dark.png",
+     "awayIcon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-logos/NHL/variant/WPG_dark.png",
+     "colorPrimary": "#067aee",
+     "providerId": 22,
+     "longIcon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-logos/NHL/variant/WPG_light.png",
+     "shortIcon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-logos/NHL/variant/WPG_light.png",
+     "displayAbbreviation": "WPG",
+     "providerIds": [
+      {
+       "provider": "PROVIDER_SPORTSDATAIO",
+       "providerId": "22"
+      },
+      {
+       "provider": "PROVIDER_SPORTRADAR",
+       "providerId": "44180e55-0f24-11e2-8525-18a905767e44"
+      },
+      {
+       "provider": "PROVIDER_OPTICODDS",
+       "providerId": "BACAD4FFEF91"
+      }
+     ],
+     "longIconDark": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-logos/NHL/variant/WPG_dark.png",
+     "shortIconDark": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-logos/NHL/variant/WPG_dark.png",
+     "color": {
+      "light": "#067AEE",
+      "dark": "#067AEE"
+     },
+     "imageDisplayType": "IMAGE_DISPLAY_TYPE_LOGO"
+    },
+    {
+     "id": 1487,
+     "name": "Canadiens",
+     "abbreviation": "mon",
+     "league": "nhl",
+     "record": "48-24-10",
+     "logo": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-logos/NHL/variant/MON_dark.png",
+     "alias": "Canadiens",
+     "safeName": "Montreal Canadiens",
+     "homeIcon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-logos/NHL/variant/MON_dark.png",
+     "awayIcon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-logos/NHL/variant/MON_dark.png",
+     "colorPrimary": "#d71823",
+     "providerId": 4,
+     "longIcon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-logos/NHL/variant/MON_light.png",
+     "shortIcon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-logos/NHL/variant/MON_light.png",
+     "displayAbbreviation": "MTL",
+     "providerIds": [
+      {
+       "provider": "PROVIDER_SPORTSDATAIO",
+       "providerId": "4"
+      },
+      {
+       "provider": "PROVIDER_SPORTRADAR",
+       "providerId": "441713b7-0f24-11e2-8525-18a905767e44"
+      },
+      {
+       "provider": "PROVIDER_OPTICODDS",
+       "providerId": "5BF7015DF08F"
+      }
+     ],
+     "longIconDark": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-logos/NHL/variant/MON_dark.png",
+     "shortIconDark": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-logos/NHL/variant/MON_dark.png",
+     "color": {
+      "light": "#001E62",
+      "dark": "#CD434D"
+     },
+     "imageDisplayType": "IMAGE_DISPLAY_TYPE_LOGO"
+    }
+   ],
+   "sortType": "price",
+   "marketGroups": [],
+   "streamProvider": "",
+   "streamRequiresAuth": false,
+   "combos": {
+    "enabled": true,
+    "numMarkets": 173,
+    "numSpreadsAndTotalsMarkets": 32
+   },
+   "marketCounts": {
+    "numMarkets": 173,
+    "numSpreadsAndTotalsMarkets": 32
+   },
+   "fixtureId": "",
+   "insiderTradingRules": null,
+   "payoutEstimateMessage": "",
+   "payoutEstimateTime": ""
+  }
+ ],
+ "league": {
+  "name": "NHL",
+  "slug": "nhl",
+  "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-images/nhl-new.png",
+  "isOperational": true,
+  "id": 3,
+  "sportId": 4,
+  "tagId": 7,
+  "resolution": "https://www.nhl.com/",
+  "ordering": "away",
+  "activeSeriesId": 6,
+  "createdAt": "2026-03-05T18:30:42Z",
+  "abbreviation": "NHL"
+ }
+}

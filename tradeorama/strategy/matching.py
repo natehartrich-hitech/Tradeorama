@@ -6,6 +6,7 @@ ambiguous is skipped, and every match is visible in `scan` output before going l
 
 import re
 from dataclasses import dataclass
+from typing import Callable
 from datetime import datetime, timedelta
 
 import httpx
@@ -56,6 +57,7 @@ class Leg:
     market_id: str
     question: str
     line: Line
+    fee_rate: float | None = None  # taker fee coefficient, when the venue publishes it per market
 
 
 def norm(name: str) -> list[str]:
@@ -230,3 +232,36 @@ class SportsMarkets:
             if not batch:
                 break
         return events
+
+
+class PolymarketIntl:
+    """The international Polymarket site (gamma-api / CLOB) as a venue. Closed to US residents."""
+
+    name = "polymarket"
+
+    def __init__(self, sports, book: Callable[[str], dict], fee_rate: Callable[[str], float]):
+        self.sports = sports
+        self._book = book
+        self._fee_rate = fee_rate
+
+    def events(self, sport: str) -> list[dict]:
+        return self.sports.events(sport)
+
+    def match(self, line: Line, events: list[dict]) -> list[Leg]:
+        return match(line, events)
+
+    def book(self, token_id: str) -> dict:
+        return self._book(token_id)
+
+    def fee_rate(self, leg: Leg) -> float:
+        return float(self._fee_rate(leg.token_id) or 0)
+
+    def payout_per_share(self, token_id: str, market_id: str) -> float | None:
+        m = self.sports.http.get(f"{GAMMA_HOST}/markets/{market_id}").json()
+        if not m.get("closed"):
+            return None
+        prices = [float(p) for p in _json_list(m.get("outcomePrices"))]
+        tokens = _json_list(m.get("clobTokenIds"))
+        if token_id not in tokens or not prices or max(prices) < 0.99:
+            return None
+        return prices[tokens.index(token_id)]

@@ -7,12 +7,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
-from ..config import GAMMA_HOST, Settings, StrategySettings
-from ..markets import _json_list
+from ..config import Settings, StrategySettings
 from ..trader import Trader
 from .ev import edge, fee_per_share, kelly_fraction, plan_buy
 from .ledger import Ledger
-from .matching import Leg, SportsMarkets, match
+from .matching import Leg, PolymarketIntl
 from .odds import PinnacleOdds
 
 log = logging.getLogger("tradeorama.strategy")
@@ -41,7 +40,7 @@ class Bot:
         settings: Settings,
         strat: StrategySettings,
         odds: PinnacleOdds,
-        sports: SportsMarkets,
+        venue,
         trader: Trader,
         ledger: Ledger,
         live: bool = False,
@@ -49,17 +48,17 @@ class Bot:
         fee_rate: Callable[[str], float] | None = None,
         clock: Callable[[], float] = time.time,
     ):
+        if not hasattr(venue, "match"):  # a bare SportsMarkets: the international site
+            venue = PolymarketIntl(venue, book or trader.order_book, fee_rate or (lambda token_id: strat.taker_fee_rate))
+        if live and venue.name != "polymarket":
+            raise RuntimeError(f"live trading isn't supported on {venue.name} yet; this bot only paper trades there")
         if live and settings.dry_run:
             raise RuntimeError("live trading needs DRY_RUN=false in .env as well as --live")
         if live and not settings.can_trade:
             raise RuntimeError("live trading needs POLY_PRIVATE_KEY")
         self.settings, self.strat = settings, strat
-        self.odds, self.sports, self.trader, self.ledger = odds, sports, trader, ledger
+        self.odds, self.venue, self.trader, self.ledger = odds, venue, trader, ledger
         self.mode = "live" if live else "paper"
-        self.book = book or trader.order_book
-        # The CLOB's /fee-rate value is the cap signed into each order, not the rate charged,
-        # so the charged rate comes from settings until it's read per market.
-        self.fee_rate = fee_rate or (lambda token_id: strat.taker_fee_rate)
         self.clock = clock
         self.next_start: dict[str, float | None] = {}  # per sport: start time of the next game not yet started
         self.fetch_failed: dict[str, bool] = {}
@@ -78,7 +77,7 @@ class Bot:
         decisions = []
         try:
             lines = self.odds.lines(sport)
-            events = self.sports.events(sport)
+            events = self.venue.events(sport)
         except Exception as exc:  # one bad feed shouldn't stop the others
             log.warning("skipping %s: %s", sport, exc)
             self.next_start[sport] = None
@@ -89,7 +88,7 @@ class Bot:
         upcoming = [line.commence.timestamp() for line in lines if line.commence.timestamp() > cutoff]
         self.next_start[sport] = min(upcoming, default=None)
         for line in lines:
-            for leg in match(line, events):
+            for leg in self.venue.match(line, events):
                 try:
                     decisions.append(self.evaluate(sport, leg, execute))
                 except Exception as exc:  # e.g. a book request or order failing; keep going
@@ -111,19 +110,19 @@ class Bot:
         if commence - now < self.strat.min_minutes_before_start * 60:
             return skip("game starting or started")
 
-        book = self.book(leg.token_id)
+        book = self.venue.book(leg.token_id)
         asks, bids = levels(book.get("asks")), levels(book.get("bids"))
         if not asks:
             return skip("no asks")
         best_ask = min(p for p, _ in asks)
         best_bid = max((p for p, _ in bids), default=None)
         mid = (best_ask + best_bid) / 2 if best_bid is not None else None
-        fee = float(self.fee_rate(leg.token_id) or 0)
+        fee = self.venue.fee_rate(leg)
         e = edge(leg.fair, best_ask, fee)
         info = dict(ask=best_ask, mid=mid, edge=e)
 
         if mid is not None and abs(mid - leg.fair) > self.strat.max_divergence:
-            return skip("Polymarket and Pinnacle disagree too much; likely a bad match", **info)
+            return skip("market and Pinnacle disagree too much; likely a bad match", **info)
         if e < self.strat.min_edge:
             return skip("edge below threshold", **info)
 
@@ -132,8 +131,8 @@ class Bot:
         budget = min(
             kelly_usd,
             self.settings.max_order_usd,
-            s.max_game_exposure_usd - self.ledger.game_exposure(self.mode, line.event_id),
-            s.max_daily_spend_usd - self.ledger.spent_today(self.mode, now),
+            s.max_game_exposure_usd - self.ledger.game_exposure(self.mode, line.event_id, self.venue.name),
+            s.max_daily_spend_usd - self.ledger.spent_today(self.mode, now, self.venue.name),
         )
         if budget < 1:
             return skip("risk limit reached or bet too small", **info)
@@ -168,6 +167,7 @@ class Bot:
 
         self.ledger.record_fill(
             ts=now,
+            venue=self.venue.name,
             mode=self.mode,
             sport=sport,
             event_id=line.event_id,
@@ -188,23 +188,20 @@ class Bot:
     # --- settlement --------------------------------------------------------------
 
     def settle(self) -> int:
-        """Record payouts for resolved markets. In live mode this mirrors, not replaces, Polymarket's own redemption."""
+        """Record payouts for resolved markets. In live mode this mirrors, not replaces, the exchange's own settlement."""
         settled = 0
-        markets = {}
-        for f in self.ledger.unsettled(self.clock()):
-            try:
-                m = markets.get(f["market_id"]) or self.sports.http.get(f"{GAMMA_HOST}/markets/{f['market_id']}").json()
-            except Exception as exc:
-                log.warning("could not check market %s: %s", f["market_id"], exc)
-                continue
-            markets[f["market_id"]] = m
-            if not m.get("closed"):
-                continue
-            prices = [float(p) for p in _json_list(m.get("outcomePrices"))]
-            tokens = _json_list(m.get("clobTokenIds"))
-            if f["token_id"] not in tokens or not prices or max(prices) < 0.99:
-                continue  # not resolved cleanly yet
-            self.ledger.settle(f["id"], f["size"] * prices[tokens.index(f["token_id"])])
+        seen: dict[str, float | None] = {}
+        for f in self.ledger.unsettled(self.clock(), self.venue.name):
+            if f["token_id"] not in seen:
+                try:
+                    seen[f["token_id"]] = self.venue.payout_per_share(f["token_id"], f["market_id"])
+                except Exception as exc:
+                    log.warning("could not check market %s: %s", f["market_id"], exc)
+                    continue
+            per_share = seen[f["token_id"]]
+            if per_share is None:
+                continue  # not resolved yet
+            self.ledger.settle(f["id"], f["size"] * per_share)
             settled += 1
         return settled
 

@@ -307,7 +307,7 @@ def test_strategy_api_includes_sports(tmp_path, monkeypatch):
     from test_app import FakeMarkets
 
     db = tmp_path / "api.db"
-    Ledger(str(db)).record_fill(mode="paper", sport="icehockey_nhl", event_id="e", commence=0, market_id="m",
+    Ledger(str(db)).record_fill(venue="polymarket-us", mode="paper", sport="icehockey_nhl", event_id="e", commence=0, market_id="m",
                                 token_id="t", label="Bruins", question="q", size=10, cost=5.0, fair=0.55, edge=0.05)
     monkeypatch.setenv("STRATEGY_DB", str(db))
     settings = make_settings()

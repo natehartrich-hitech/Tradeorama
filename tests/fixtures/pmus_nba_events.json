@@ -1,0 +1,1991 @@
+{
+ "type": "sport",
+ "typeTitle": "Games",
+ "section": "general",
+ "sectionTitle": "Sport",
+ "events": [
+  {
+   "id": "175488",
+   "chatChannel": {
+    "id": "nba-phi-det-2026-11-04",
+    "type": "CHAT_CHANNEL_TYPE_MESSAGING",
+    "chatMemberCount": 11384
+   },
+   "ticker": "nba-phi-det-2026-11-04",
+   "slug": "nba-phi-det-2026-11-04",
+   "title": "PHI 76ers vs. DET Pistons",
+   "description": "PHI 76ers vs. DET Pistons",
+   "startDate": "2026-11-05T00:00:00Z",
+   "endDate": "2026-11-05T04:59:00Z",
+   "active": true,
+   "closed": false,
+   "archived": false,
+   "category": "sports",
+   "createdAt": "2026-10-21T05:00:30Z",
+   "updatedAt": "2026-11-03T23:01:43Z",
+   "startTime": "2026-11-05T00:00:00Z",
+   "seriesSlug": "nba-2025",
+   "period": "NS",
+   "markets": [
+    {
+     "id": "1642685",
+     "question": "Who will win in the upcoming basketball event PHI 76ers vs DET Pistons scheduled for November 5, 2026 at 12:00 AM UTC?",
+     "slug": "aec-nba-phi-det-2026-11-04",
+     "endDate": "2026-11-19T00:00:00Z",
+     "category": "sports",
+     "startDate": "2026-10-21T05:00:29Z",
+     "description": "This market will settle to the winner of the PHI 76ers vs DET Pistons professional basketball game scheduled for November 4, 2026 at 7:00PM ET (as of the listing of the event's first instrument). Overtime is included if played. If the game is delayed, postponed, suspended or otherwise rescheduled to a date and time not within two days of the originally scheduled date and time, the market will settle to the last fair market price. Outcome sourced from the relevant governing body.",
+     "active": true,
+     "marketType": "moneyline",
+     "closed": false,
+     "createdAt": "2026-10-21T05:00:30Z",
+     "updatedAt": "2026-11-03T23:00:13Z",
+     "archived": false,
+     "orderPriceMinTickSize": 0.01,
+     "gameStartTime": "2026-11-05T00:00:00Z",
+     "manualActivation": false,
+     "sportsMarketType": "basketball_team_full_game_winner",
+     "marketSides": [
+      {
+       "id": "3284844",
+       "marketSideType": "MARKET_SIDE_TYPE_INSTRUMENT",
+       "identifier": "aec-nba-phi-det-2026-11-04",
+       "createdAt": "2026-10-21T05:00:30Z",
+       "updatedAt": "2026-10-21T05:00:30Z",
+       "description": "76ers",
+       "price": "0.4800",
+       "marketId": 1642685,
+       "long": true,
+       "teamId": 29,
+       "team": {
+        "id": 29,
+        "name": "Philadelphia 76ers",
+        "abbreviation": "phi",
+        "league": "nba",
+        "record": "7-1",
+        "logo": "https://static.polymarket.us/images/teams/nba-phi/PHI_light_inset6.png",
+        "alias": "Philadelphia 76ers",
+        "safeName": "76ers",
+        "homeIcon": "https://static.polymarket.us/images/teams/nba-phi/PHI_light_inset6.png",
+        "awayIcon": "https://static.polymarket.us/images/teams/nba-phi/PHI_light_inset6.png",
+        "colorPrimary": "#eb174c",
+        "providerId": 7,
+        "ordering": "away",
+        "longIcon": "https://static.polymarket.us/images/teams/nba-phi/PHI_light_inset6.png",
+        "shortIcon": "https://static.polymarket.us/images/teams/nba-phi/PHI_light_inset6.png",
+        "displayAbbreviation": "PHI",
+        "providerIds": [
+         {
+          "provider": "PROVIDER_SPORTSDATAIO",
+          "providerId": "7"
+         },
+         {
+          "provider": "PROVIDER_SPORTRADAR",
+          "providerId": "583ec87d-fb46-11e1-82cb-f4ce4684ea4c"
+         },
+         {
+          "provider": "PROVIDER_OPTICODDS",
+          "providerId": "EDF03AD3C346"
+         }
+        ],
+        "longIconDark": "https://static.polymarket.us/images/teams/nba-phi/PHI_dark_inset6.png",
+        "shortIconDark": "https://static.polymarket.us/images/teams/nba-phi/PHI_dark_inset6.png",
+        "color": {
+         "light": "#EB174C",
+         "dark": "#A8383A"
+        },
+        "imageDisplayType": "IMAGE_DISPLAY_TYPE_LOGO"
+       },
+       "quote": {
+        "value": "0.4900",
+        "currency": "USD"
+       },
+       "tradable": true
+      },
+      {
+       "id": "3284845",
+       "marketSideType": "MARKET_SIDE_TYPE_INSTRUMENT",
+       "identifier": "aec-nba-phi-det-2026-11-04",
+       "createdAt": "2026-10-21T05:00:30Z",
+       "updatedAt": "2026-10-21T05:00:30Z",
+       "description": "Pistons",
+       "price": "0.4900",
+       "marketId": 1642685,
+       "long": false,
+       "teamId": 23,
+       "team": {
+        "id": 23,
+        "name": "Detroit Pistons",
+        "abbreviation": "det",
+        "league": "nba",
+        "record": "6-1",
+        "logo": "https://static.polymarket.us/images/teams/nba-det/DET_light_inset6.png",
+        "alias": "Detroit Pistons",
+        "safeName": "Pistons",
+        "homeIcon": "https://static.polymarket.us/images/teams/nba-det/DET_light_inset6.png",
+        "awayIcon": "https://static.polymarket.us/images/teams/nba-det/DET_light_inset6.png",
+        "colorPrimary": "#006bcc",
+        "providerId": 14,
+        "ordering": "home",
+        "longIcon": "https://static.polymarket.us/images/teams/nba-det/DET_light_inset6.png",
+        "shortIcon": "https://static.polymarket.us/images/teams/nba-det/DET_light_inset6.png",
+        "displayAbbreviation": "DET",
+        "providerIds": [
+         {
+          "provider": "PROVIDER_SPORTSDATAIO",
+          "providerId": "14"
+         },
+         {
+          "provider": "PROVIDER_SPORTRADAR",
+          "providerId": "583ec928-fb46-11e1-82cb-f4ce4684ea4c"
+         },
+         {
+          "provider": "PROVIDER_OPTICODDS",
+          "providerId": "5988658C6B9B"
+         }
+        ],
+        "longIconDark": "https://static.polymarket.us/images/teams/nba-det/DET_dark_inset6.png",
+        "shortIconDark": "https://static.polymarket.us/images/teams/nba-det/DET_dark_inset6.png",
+        "color": {
+         "light": "#006BCC",
+         "dark": "#446BE7"
+        },
+        "imageDisplayType": "IMAGE_DISPLAY_TYPE_LOGO"
+       },
+       "quote": {
+        "value": "0.52",
+        "currency": "USD"
+       },
+       "tradable": true
+      }
+     ],
+     "outcomes": "[\"76ers\",\"Pistons\"]",
+     "outcomePrices": "[\"0.4800\",\"0.4900\"]",
+     "ep3Status": "OPEN",
+     "status": "MARKET_STATUS_OPEN",
+     "assetPriceTerms": null,
+     "sportsMarketTypeV2": "SPORTS_MARKET_TYPE_MONEYLINE",
+     "hidden": false,
+     "tags": [],
+     "title": "Philadelphia 76ers vs Detroit Pistons",
+     "feeCoefficient": 0.0695,
+     "bestBidQuote": {
+      "value": "0.4800",
+      "currency": "USD"
+     },
+     "bestAskQuote": {
+      "value": "0.4900",
+      "currency": "USD"
+     },
+     "titleShort": "PHI vs DET",
+     "ep3SyncedAt": "2026-10-29T11:59:06Z",
+     "minimumTradeQty": 0.01,
+     "comboEnabled": true,
+     "politics": null,
+     "eventSubcategory": "BASKETBALL"
+    }
+   ],
+   "gameId": 20024050,
+   "sportradarGameId": "551a0f60-032b-4feb-a57e-bb91ac329806",
+   "eventState": {
+    "id": 141289221,
+    "gameId": 20024050,
+    "sportradarGameId": "551a0f60-032b-4feb-a57e-bb91ac329806",
+    "type": "basketball",
+    "createdAt": "2026-11-03T04:14:13.937056Z",
+    "updatedAt": "2026-11-03T21:29:28.737905Z",
+    "mainSpreadLine": 2.5,
+    "mainTotalLine": 217.5,
+    "marketGroupStats": [
+     {
+      "marketGroupId": "game-lines/spread/full-game",
+      "line": 2.5
+     },
+     {
+      "marketGroupId": "game-lines/totals/full-game",
+      "line": 217.5
+     }
+    ],
+    "periodScores": [],
+    "eventId": 175488
+   },
+   "participants": [],
+   "hidden": false,
+   "tags": [
+    {
+     "id": "2",
+     "label": "Sports",
+     "slug": "sports",
+     "createdAt": "2025-09-25T16:13:27Z",
+     "updatedAt": "2026-11-03T23:02:00Z",
+     "subtags": [],
+     "hub": null,
+     "featuredEventIds": []
+    },
+    {
+     "id": "3",
+     "label": "Games",
+     "slug": "games",
+     "createdAt": "2025-09-25T16:13:27Z",
+     "updatedAt": "2026-11-03T23:02:00Z",
+     "subtags": [],
+     "hub": null,
+     "featuredEventIds": []
+    },
+    {
+     "id": "5",
+     "label": "NBA",
+     "slug": "nba",
+     "createdAt": "2025-10-21T18:23:05Z",
+     "updatedAt": "2026-11-03T23:02:00Z",
+     "image": "https://static-preprod.polymarket.us/images/leagues/nba/NBA_dark.png",
+     "tradable": false,
+     "league": {
+      "id": 2,
+      "name": "NBA",
+      "sportId": 1,
+      "tagId": 5,
+      "image": "https://static-preprod.polymarket.us/images/leagues/nba/NBA_dark.png",
+      "resolution": "https://www.nba.com/",
+      "ordering": "away",
+      "activeSeriesId": 4,
+      "isOperational": true,
+      "automaticResolution": false,
+      "createdAt": "2026-03-05T18:30:42Z",
+      "slug": "nba",
+      "abbreviation": "NBA"
+     },
+     "parentId": 11,
+     "subtags": [],
+     "hub": null,
+     "featuredEventIds": []
+    },
+    {
+     "id": "11",
+     "label": "Basketball",
+     "slug": "basketball",
+     "createdAt": "2026-03-05T18:30:42Z",
+     "updatedAt": "2026-11-03T23:02:00Z",
+     "image": "https://static.polymarket.us/images/new-category-icons/Icon-Basketball.png",
+     "tradable": false,
+     "sport": {
+      "id": 1,
+      "name": "Basketball",
+      "tagId": 11,
+      "createdAt": "2026-03-05T18:30:42Z",
+      "slug": "basketball",
+      "image": "https://static.polymarket.us/images/new-category-icons/Icon-Basketball.png"
+     },
+     "subtags": [
+      {
+       "id": "5",
+       "label": "NBA",
+       "slug": "nba",
+       "createdAt": "2025-10-21T18:23:05Z",
+       "updatedAt": "2026-11-03T23:02:00Z",
+       "image": "https://static-preprod.polymarket.us/images/leagues/nba/NBA_dark.png",
+       "tradable": false,
+       "league": {
+        "id": 2,
+        "name": "NBA",
+        "sportId": 1,
+        "tagId": 5,
+        "image": "https://static-preprod.polymarket.us/images/leagues/nba/NBA_dark.png",
+        "resolution": "https://www.nba.com/",
+        "ordering": "away",
+        "activeSeriesId": 4,
+        "isOperational": true,
+        "automaticResolution": false,
+        "createdAt": "2026-03-05T18:30:42Z",
+        "slug": "nba",
+        "abbreviation": "NBA"
+       },
+       "parentId": 11,
+       "subtags": [],
+       "hub": null,
+       "featuredEventIds": []
+      },
+      {
+       "id": "94",
+       "label": "WNBA",
+       "slug": "wnba",
+       "updatedAt": "2026-11-01T05:16:22Z",
+       "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-logos/CBB/Polymarket_NCAAMB_SYRA_L%40320x320.png",
+       "tradable": false,
+       "league": {
+        "id": 28,
+        "name": "WNBA",
+        "sportId": 1,
+        "tagId": 94,
+        "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-images/wcbb.png",
+        "ordering": "away",
+        "activeSeriesId": 49,
+        "isOperational": true,
+        "automaticResolution": false,
+        "createdAt": "2026-05-06T12:55:52Z",
+        "slug": "wnba"
+       },
+       "parentId": 11,
+       "subtags": [],
+       "hub": null,
+       "featuredEventIds": []
+      },
+      {
+       "id": "1359",
+       "label": "EuroLeague",
+       "slug": "eurolg",
+       "updatedAt": "2026-11-03T23:02:00Z",
+       "image": "https://static.polymarket.us/images/euroleague.png",
+       "tradable": false,
+       "league": {
+        "id": 255,
+        "name": "EuroLeague",
+        "sportId": 1,
+        "tagId": 1359,
+        "image": "https://static.polymarket.us/images/euroleague.png",
+        "ordering": "home",
+        "activeSeriesId": 340,
+        "isOperational": true,
+        "automaticResolution": false,
+        "createdAt": "2026-09-17T19:46:10Z",
+        "slug": "eurolg"
+       },
+       "parentId": 11,
+       "subtags": [],
+       "hub": null,
+       "featuredEventIds": []
+      },
+      {
+       "id": "1495",
+       "label": "CBA",
+       "slug": "cba",
+       "updatedAt": "2026-11-03T15:00:20Z",
+       "image": "https://static.polymarket.us/images/Random/CBA.png",
+       "tradable": false,
+       "league": {
+        "id": 314,
+        "name": "China CBA",
+        "sportId": 1,
+        "tagId": 1495,
+        "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-images/cba.png",
+        "ordering": "home",
+        "activeSeriesId": 416,
+        "isOperational": true,
+        "automaticResolution": false,
+        "createdAt": "2026-09-24T02:28:48Z",
+        "slug": "cba"
+       },
+       "parentId": 11,
+       "subtags": [],
+       "hub": null,
+       "featuredEventIds": []
+      },
+      {
+       "id": "8",
+       "label": "CBB",
+       "slug": "cbb",
+       "createdAt": "2025-12-02T21:55:00Z",
+       "updatedAt": "2026-11-03T23:02:00Z",
+       "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-logos/CBB/Polymarket_NCAAMB_NCAR_L%40320x320.png",
+       "tradable": false,
+       "league": {
+        "id": 4,
+        "name": "CBB",
+        "sportId": 1,
+        "tagId": 8,
+        "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-images/NCAAMB.png",
+        "resolution": "https://www.ncaa.com/",
+        "ordering": "away",
+        "activeSeriesId": 7,
+        "isOperational": true,
+        "automaticResolution": false,
+        "createdAt": "2026-03-05T18:30:42Z",
+        "slug": "cbb",
+        "abbreviation": "CBB"
+       },
+       "parentId": 11,
+       "subtags": [],
+       "hub": null,
+       "featuredEventIds": []
+      },
+      {
+       "id": "1702",
+       "label": "BSKT Cup 3x3",
+       "slug": "bskt3x3",
+       "updatedAt": "2026-11-03T23:02:00Z",
+       "image": "https://static.polymarket.us/images/6734d5d86d31fd5cd9ee3b15_bskt-logo_Colorful_Chakra_Set_01_by_MissChatz-copy-3-min-1-.png",
+       "tradable": false,
+       "league": {
+        "id": 385,
+        "name": "BSKT Cup 3x3",
+        "sportId": 1,
+        "tagId": 1702,
+        "ordering": "home",
+        "activeSeriesId": 568,
+        "isOperational": true,
+        "automaticResolution": false,
+        "createdAt": "2026-10-08T20:20:12Z",
+        "slug": "bskt3x3"
+       },
+       "parentId": 11,
+       "subtags": [],
+       "hub": null,
+       "featuredEventIds": []
+      },
+      {
+       "id": "1341",
+       "label": "NBL",
+       "slug": "nbl",
+       "updatedAt": "2026-11-03T20:01:14Z",
+       "image": "https://static.polymarket.us/images/Random/NBL_-Australia-_logo.svg.webp",
+       "tradable": false,
+       "league": {
+        "id": 250,
+        "name": "Australia NBL",
+        "sportId": 1,
+        "tagId": 1341,
+        "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-images/nbl.png",
+        "ordering": "home",
+        "activeSeriesId": 329,
+        "isOperational": true,
+        "automaticResolution": false,
+        "createdAt": "2026-09-16T06:30:14Z",
+        "slug": "nbl"
+       },
+       "parentId": 11,
+       "subtags": [],
+       "hub": null,
+       "featuredEventIds": []
+      },
+      {
+       "id": "1384",
+       "label": "LNB Elite",
+       "slug": "lnb",
+       "updatedAt": "2026-11-03T21:33:59Z",
+       "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-images/lnb.png",
+       "tradable": false,
+       "league": {
+        "id": 269,
+        "name": "France LNB Elite",
+        "sportId": 1,
+        "tagId": 1384,
+        "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-images/lnb.png",
+        "ordering": "home",
+        "activeSeriesId": 357,
+        "isOperational": true,
+        "automaticResolution": false,
+        "createdAt": "2026-09-19T06:30:32Z",
+        "slug": "lnb"
+       },
+       "parentId": 11,
+       "subtags": [],
+       "hub": null,
+       "featuredEventIds": []
+      },
+      {
+       "id": "1388",
+       "label": "LBA",
+       "slug": "lba",
+       "updatedAt": "2026-11-02T21:45:37Z",
+       "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-images/lba.png",
+       "tradable": false,
+       "league": {
+        "id": 271,
+        "name": "Italy LBA Serie A",
+        "sportId": 1,
+        "tagId": 1388,
+        "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-images/lba.png",
+        "ordering": "home",
+        "activeSeriesId": 359,
+        "isOperational": true,
+        "automaticResolution": false,
+        "createdAt": "2026-09-19T06:31:04Z",
+        "slug": "lba"
+       },
+       "parentId": 11,
+       "subtags": [],
+       "hub": null,
+       "featuredEventIds": []
+      },
+      {
+       "id": "1354",
+       "label": "Champions League",
+       "slug": "bcl",
+       "updatedAt": "2026-11-03T21:33:59Z",
+       "image": "https://static.polymarket.us/images/Champions-League.png",
+       "tradable": false,
+       "league": {
+        "id": 254,
+        "name": "Basketball Champions League",
+        "sportId": 1,
+        "tagId": 1354,
+        "ordering": "home",
+        "activeSeriesId": 337,
+        "isOperational": true,
+        "automaticResolution": false,
+        "createdAt": "2026-09-17T15:26:00Z",
+        "slug": "bcl"
+       },
+       "parentId": 11,
+       "subtags": [],
+       "hub": null,
+       "featuredEventIds": []
+      },
+      {
+       "id": "1353",
+       "label": "LNBP",
+       "slug": "lnbp",
+       "updatedAt": "2026-11-03T23:02:00Z",
+       "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-images/lnbp.png",
+       "tradable": false,
+       "league": {
+        "id": 253,
+        "name": "LNBP",
+        "sportId": 1,
+        "tagId": 1353,
+        "ordering": "home",
+        "activeSeriesId": 336,
+        "isOperational": true,
+        "automaticResolution": false,
+        "createdAt": "2026-09-17T15:25:58Z",
+        "slug": "lnbp"
+       },
+       "parentId": 11,
+       "subtags": [],
+       "hub": null,
+       "featuredEventIds": []
+      },
+      {
+       "id": "28",
+       "label": "WCBB",
+       "slug": "wcbb",
+       "updatedAt": "2026-11-03T23:02:00Z",
+       "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-logos/CBB/Polymarket_NCAAMB_STMN_L%40320x320.png",
+       "tradable": false,
+       "league": {
+        "id": 17,
+        "name": "WCBB",
+        "sportId": 1,
+        "tagId": 28,
+        "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-images/wcbb.png",
+        "ordering": "away",
+        "activeSeriesId": 21,
+        "isOperational": true,
+        "automaticResolution": false,
+        "createdAt": "2026-03-27T14:52:26Z",
+        "slug": "wcbb"
+       },
+       "parentId": 11,
+       "subtags": [],
+       "hub": null,
+       "featuredEventIds": []
+      },
+      {
+       "id": "1537",
+       "label": "Korean Basketball League",
+       "slug": "kbl",
+       "updatedAt": "2026-11-03T12:29:58Z",
+       "league": {
+        "id": 323,
+        "name": "Korean Basketball League",
+        "sportId": 1,
+        "tagId": 1537,
+        "ordering": "home",
+        "activeSeriesId": 438,
+        "isOperational": true,
+        "automaticResolution": false,
+        "createdAt": "2026-09-28T17:48:14Z",
+        "slug": "kbl",
+        "abbreviation": "kbl"
+       },
+       "parentId": 11,
+       "subtags": [],
+       "hub": null,
+       "featuredEventIds": []
+      },
+      {
+       "id": "1386",
+       "label": "BSL",
+       "slug": "bsl",
+       "updatedAt": "2026-11-02T19:29:54Z",
+       "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-images/bsl.png",
+       "tradable": false,
+       "league": {
+        "id": 270,
+        "name": "Turkey BSL",
+        "sportId": 1,
+        "tagId": 1386,
+        "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-images/bsl.png",
+        "ordering": "home",
+        "activeSeriesId": 358,
+        "isOperational": true,
+        "automaticResolution": false,
+        "createdAt": "2026-09-19T06:30:48Z",
+        "slug": "bsl"
+       },
+       "parentId": 11,
+       "subtags": [],
+       "hub": null,
+       "featuredEventIds": []
+      },
+      {
+       "id": "1497",
+       "label": "B.League Premier",
+       "slug": "jpbl",
+       "updatedAt": "2026-11-01T12:43:23Z",
+       "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-images/jpbl.png",
+       "league": {
+        "id": 315,
+        "name": "Japan B.League Premier",
+        "sportId": 1,
+        "tagId": 1497,
+        "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-images/jpbl.png",
+        "ordering": "home",
+        "activeSeriesId": 417,
+        "isOperational": true,
+        "automaticResolution": false,
+        "createdAt": "2026-09-24T06:30:22Z",
+        "slug": "jpbl"
+       },
+       "parentId": 11,
+       "subtags": [],
+       "hub": null,
+       "featuredEventIds": []
+      },
+      {
+       "id": "1648",
+       "label": "Adriatic ABA League",
+       "slug": "aba",
+       "updatedAt": "2026-11-02T20:13:22Z",
+       "league": {
+        "id": 374,
+        "name": "Adriatic ABA League",
+        "sportId": 1,
+        "tagId": 1648,
+        "ordering": "home",
+        "activeSeriesId": 555,
+        "isOperational": true,
+        "automaticResolution": false,
+        "createdAt": "2026-10-05T16:05:18Z",
+        "slug": "aba"
+       },
+       "parentId": 11,
+       "subtags": [],
+       "hub": null,
+       "featuredEventIds": []
+      },
+      {
+       "id": "1347",
+       "label": "Germany BBL",
+       "slug": "bbl",
+       "updatedAt": "2026-11-03T21:02:41Z",
+       "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-images/bbl.png",
+       "tradable": false,
+       "league": {
+        "id": 252,
+        "name": "Basketball Bundesliga",
+        "sportId": 1,
+        "tagId": 1347,
+        "ordering": "home",
+        "activeSeriesId": 331,
+        "isOperational": true,
+        "automaticResolution": false,
+        "createdAt": "2026-09-16T18:05:39Z",
+        "slug": "bbl"
+       },
+       "parentId": 11,
+       "subtags": [],
+       "hub": null,
+       "featuredEventIds": []
+      },
+      {
+       "id": "1405",
+       "label": "GBL",
+       "slug": "gbl",
+       "updatedAt": "2026-11-01T17:44:06Z",
+       "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-images/gbl.png",
+       "tradable": false,
+       "league": {
+        "id": 273,
+        "name": "Greece GBL",
+        "sportId": 1,
+        "tagId": 1405,
+        "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-images/gbl.png",
+        "ordering": "home",
+        "activeSeriesId": 361,
+        "isOperational": true,
+        "automaticResolution": false,
+        "createdAt": "2026-09-21T06:30:23Z",
+        "slug": "gbl"
+       },
+       "parentId": 11,
+       "subtags": [],
+       "hub": null,
+       "featuredEventIds": []
+      },
+      {
+       "id": "1382",
+       "label": "VTB United League",
+       "slug": "vtb",
+       "updatedAt": "2026-11-03T16:45:41Z",
+       "image": "https://static.polymarket.us/images/league-logos/vtb-ae04ce6da11f.png",
+       "league": {
+        "id": 266,
+        "name": "VTB United League",
+        "sportId": 1,
+        "tagId": 1382,
+        "ordering": "home",
+        "activeSeriesId": 356,
+        "isOperational": true,
+        "automaticResolution": false,
+        "createdAt": "2026-09-19T00:10:08Z",
+        "slug": "vtb"
+       },
+       "parentId": 11,
+       "subtags": [],
+       "hub": null,
+       "featuredEventIds": []
+      },
+      {
+       "id": "614",
+       "label": "ACB",
+       "slug": "acb",
+       "updatedAt": "2026-11-01T20:15:48Z",
+       "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-images/acb.png",
+       "tradable": false,
+       "league": {
+        "id": 74,
+        "name": "Spain Liga ACB",
+        "sportId": 1,
+        "tagId": 614,
+        "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-images/acb.png",
+        "ordering": "home",
+        "activeSeriesId": 345,
+        "isOperational": true,
+        "automaticResolution": false,
+        "createdAt": "2026-07-06T23:14:40Z",
+        "slug": "acb"
+       },
+       "parentId": 11,
+       "subtags": [],
+       "hub": null,
+       "featuredEventIds": []
+      },
+      {
+       "id": "1390",
+       "label": "LKL",
+       "slug": "lkl",
+       "updatedAt": "2026-11-02T19:44:30Z",
+       "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-images/lkl.png",
+       "tradable": false,
+       "league": {
+        "id": 272,
+        "name": "Lithuania LKL",
+        "sportId": 1,
+        "tagId": 1390,
+        "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-images/lkl.png",
+        "ordering": "home",
+        "activeSeriesId": 360,
+        "isOperational": true,
+        "automaticResolution": false,
+        "createdAt": "2026-09-19T06:31:19Z",
+        "slug": "lkl"
+       },
+       "parentId": 11,
+       "subtags": [],
+       "hub": null,
+       "featuredEventIds": []
+      },
+      {
+       "id": "1413",
+       "label": "Liga OTP banka",
+       "slug": "slnbl",
+       "updatedAt": "2026-11-03T17:47:06Z",
+       "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-images/slnbl.jpg",
+       "league": {
+        "id": 275,
+        "name": "Slovenia Liga OTP banka",
+        "sportId": 1,
+        "tagId": 1413,
+        "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-images/slnbl.jpg",
+        "ordering": "home",
+        "activeSeriesId": 363,
+        "isOperational": true,
+        "automaticResolution": false,
+        "createdAt": "2026-09-21T17:57:46Z",
+        "slug": "slnbl"
+       },
+       "parentId": 11,
+       "subtags": [],
+       "hub": null,
+       "featuredEventIds": []
+      },
+      {
+       "id": "1411",
+       "label": "Basketligaen",
+       "slug": "denbl",
+       "updatedAt": "2026-11-03T22:32:17Z",
+       "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-images/denbl.png",
+       "league": {
+        "id": 274,
+        "name": "Denmark Basketligaen",
+        "sportId": 1,
+        "tagId": 1411,
+        "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-images/denbl.png",
+        "ordering": "home",
+        "activeSeriesId": 362,
+        "isOperational": true,
+        "automaticResolution": false,
+        "createdAt": "2026-09-21T17:57:43Z",
+        "slug": "denbl"
+       },
+       "parentId": 11,
+       "subtags": [],
+       "hub": null,
+       "featuredEventIds": []
+      },
+      {
+       "id": "1415",
+       "label": "SBL",
+       "slug": "svkbl",
+       "updatedAt": "2026-10-31T20:17:04Z",
+       "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-images/svkbl.png",
+       "league": {
+        "id": 276,
+        "name": "Slovakia SBL",
+        "sportId": 1,
+        "tagId": 1415,
+        "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-images/svkbl.png",
+        "ordering": "home",
+        "activeSeriesId": 364,
+        "isOperational": true,
+        "automaticResolution": false,
+        "createdAt": "2026-09-21T17:57:51Z",
+        "slug": "svkbl"
+       },
+       "parentId": 11,
+       "subtags": [],
+       "hub": null,
+       "featuredEventIds": []
+      },
+      {
+       "id": "1417",
+       "label": "NB I/A",
+       "slug": "hunbl",
+       "updatedAt": "2026-10-31T19:16:16Z",
+       "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-images/hunbl.png",
+       "league": {
+        "id": 277,
+        "name": "Hungary NB I/A",
+        "sportId": 1,
+        "tagId": 1417,
+        "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-images/hunbl.png",
+        "ordering": "home",
+        "activeSeriesId": 365,
+        "isOperational": true,
+        "automaticResolution": false,
+        "createdAt": "2026-09-21T17:57:58Z",
+        "slug": "hunbl"
+       },
+       "parentId": 11,
+       "subtags": [],
+       "hub": null,
+       "featuredEventIds": []
+      },
+      {
+       "id": "1499",
+       "label": "SLB",
+       "slug": "slb",
+       "updatedAt": "2026-11-01T19:28:22Z",
+       "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-images/slb.png",
+       "tradable": false,
+       "league": {
+        "id": 316,
+        "name": "British Super League Basketball",
+        "sportId": 1,
+        "tagId": 1499,
+        "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-images/slb.png",
+        "ordering": "home",
+        "activeSeriesId": 418,
+        "isOperational": true,
+        "automaticResolution": false,
+        "createdAt": "2026-09-24T06:30:33Z",
+        "slug": "slb"
+       },
+       "parentId": 11,
+       "subtags": [],
+       "hub": null,
+       "featuredEventIds": []
+      },
+      {
+       "id": "1649",
+       "label": "Czech NBL",
+       "slug": "cznbl",
+       "updatedAt": "2026-11-03T22:32:17Z",
+       "league": {
+        "id": 375,
+        "name": "Czech NBL",
+        "sportId": 1,
+        "tagId": 1649,
+        "ordering": "home",
+        "activeSeriesId": 556,
+        "isOperational": true,
+        "automaticResolution": false,
+        "createdAt": "2026-10-05T16:05:18Z",
+        "slug": "cznbl"
+       },
+       "parentId": 11,
+       "subtags": [],
+       "hub": null,
+       "featuredEventIds": []
+      },
+      {
+       "id": "1650",
+       "label": "Korisliiga",
+       "slug": "koris",
+       "updatedAt": "2026-11-03T19:01:52Z",
+       "league": {
+        "id": 376,
+        "name": "Korisliiga",
+        "sportId": 1,
+        "tagId": 1650,
+        "ordering": "home",
+        "activeSeriesId": 557,
+        "isOperational": true,
+        "automaticResolution": false,
+        "createdAt": "2026-10-05T18:50:59Z",
+        "slug": "koris"
+       },
+       "parentId": 11,
+       "subtags": [],
+       "hub": null,
+       "featuredEventIds": []
+      },
+      {
+       "id": "1500",
+       "label": "Italian Serie A2",
+       "slug": "ita2",
+       "updatedAt": "2026-10-31T22:02:55Z",
+       "league": {
+        "id": 317,
+        "name": "Italian Serie A2",
+        "sportId": 1,
+        "tagId": 1500,
+        "ordering": "home",
+        "activeSeriesId": 419,
+        "isOperational": true,
+        "automaticResolution": false,
+        "createdAt": "2026-09-24T13:43:24Z",
+        "slug": "ita2"
+       },
+       "parentId": 11,
+       "subtags": [],
+       "hub": null,
+       "featuredEventIds": []
+      },
+      {
+       "id": "1501",
+       "label": "Austrian Superliga",
+       "slug": "autbl",
+       "updatedAt": "2026-11-01T19:28:22Z",
+       "image": "https://static.polymarket.us/images/league-logos/autbl-2138daa1062c.png",
+       "league": {
+        "id": 318,
+        "name": "Austrian Superliga",
+        "sportId": 1,
+        "tagId": 1501,
+        "ordering": "home",
+        "activeSeriesId": 420,
+        "isOperational": true,
+        "automaticResolution": false,
+        "createdAt": "2026-09-24T13:45:27Z",
+        "slug": "autbl"
+       },
+       "parentId": 11,
+       "subtags": [],
+       "hub": null,
+       "featuredEventIds": []
+      },
+      {
+       "id": "1418",
+       "label": "Elite 2",
+       "slug": "fra2",
+       "updatedAt": "2026-11-03T21:33:59Z",
+       "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-images/fra.png",
+       "tradable": false,
+       "league": {
+        "id": 278,
+        "name": "France Elite 2",
+        "sportId": 1,
+        "tagId": 1418,
+        "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-images/fra.png",
+        "ordering": "home",
+        "activeSeriesId": 366,
+        "isOperational": true,
+        "automaticResolution": false,
+        "createdAt": "2026-09-21T17:58:04Z",
+        "slug": "fra2"
+       },
+       "parentId": 11,
+       "subtags": [],
+       "hub": null,
+       "featuredEventIds": []
+      },
+      {
+       "id": "1294",
+       "label": "FIBA Women's World Cup",
+       "slug": "fibawwc",
+       "updatedAt": "2026-09-13T21:04:36Z",
+       "league": {
+        "id": 233,
+        "name": "FIBA Women's World Cup",
+        "sportId": 1,
+        "tagId": 1294,
+        "ordering": "home",
+        "activeSeriesId": 307,
+        "isOperational": true,
+        "automaticResolution": false,
+        "createdAt": "2026-09-11T22:28:26Z",
+        "slug": "fibawwc"
+       },
+       "parentId": 11,
+       "subtags": [],
+       "hub": null,
+       "featuredEventIds": []
+      }
+     ],
+     "hub": null,
+     "featuredEventIds": []
+    }
+   ],
+   "teams": [
+    {
+     "id": 29,
+     "name": "Philadelphia 76ers",
+     "abbreviation": "phi",
+     "league": "nba",
+     "record": "7-1",
+     "logo": "https://static.polymarket.us/images/teams/nba-phi/PHI_light_inset6.png",
+     "alias": "Philadelphia 76ers",
+     "safeName": "76ers",
+     "homeIcon": "https://static.polymarket.us/images/teams/nba-phi/PHI_light_inset6.png",
+     "awayIcon": "https://static.polymarket.us/images/teams/nba-phi/PHI_light_inset6.png",
+     "colorPrimary": "#eb174c",
+     "providerId": 7,
+     "longIcon": "https://static.polymarket.us/images/teams/nba-phi/PHI_light_inset6.png",
+     "shortIcon": "https://static.polymarket.us/images/teams/nba-phi/PHI_light_inset6.png",
+     "displayAbbreviation": "PHI",
+     "providerIds": [
+      {
+       "provider": "PROVIDER_SPORTSDATAIO",
+       "providerId": "7"
+      },
+      {
+       "provider": "PROVIDER_SPORTRADAR",
+       "providerId": "583ec87d-fb46-11e1-82cb-f4ce4684ea4c"
+      },
+      {
+       "provider": "PROVIDER_OPTICODDS",
+       "providerId": "EDF03AD3C346"
+      }
+     ],
+     "longIconDark": "https://static.polymarket.us/images/teams/nba-phi/PHI_dark_inset6.png",
+     "shortIconDark": "https://static.polymarket.us/images/teams/nba-phi/PHI_dark_inset6.png",
+     "color": {
+      "light": "#EB174C",
+      "dark": "#A8383A"
+     },
+     "imageDisplayType": "IMAGE_DISPLAY_TYPE_LOGO"
+    },
+    {
+     "id": 23,
+     "name": "Detroit Pistons",
+     "abbreviation": "det",
+     "league": "nba",
+     "record": "6-1",
+     "logo": "https://static.polymarket.us/images/teams/nba-det/DET_light_inset6.png",
+     "alias": "Detroit Pistons",
+     "safeName": "Pistons",
+     "homeIcon": "https://static.polymarket.us/images/teams/nba-det/DET_light_inset6.png",
+     "awayIcon": "https://static.polymarket.us/images/teams/nba-det/DET_light_inset6.png",
+     "colorPrimary": "#006bcc",
+     "providerId": 14,
+     "longIcon": "https://static.polymarket.us/images/teams/nba-det/DET_light_inset6.png",
+     "shortIcon": "https://static.polymarket.us/images/teams/nba-det/DET_light_inset6.png",
+     "displayAbbreviation": "DET",
+     "providerIds": [
+      {
+       "provider": "PROVIDER_SPORTSDATAIO",
+       "providerId": "14"
+      },
+      {
+       "provider": "PROVIDER_SPORTRADAR",
+       "providerId": "583ec928-fb46-11e1-82cb-f4ce4684ea4c"
+      },
+      {
+       "provider": "PROVIDER_OPTICODDS",
+       "providerId": "5988658C6B9B"
+      }
+     ],
+     "longIconDark": "https://static.polymarket.us/images/teams/nba-det/DET_dark_inset6.png",
+     "shortIconDark": "https://static.polymarket.us/images/teams/nba-det/DET_dark_inset6.png",
+     "color": {
+      "light": "#006BCC",
+      "dark": "#446BE7"
+     },
+     "imageDisplayType": "IMAGE_DISPLAY_TYPE_LOGO"
+    }
+   ],
+   "metadata": {
+    "politics": null,
+    "gameState": {
+     "id": 141289221,
+     "gameId": 20024050,
+     "sportradarGameId": "551a0f60-032b-4feb-a57e-bb91ac329806",
+     "type": "basketball",
+     "createdAt": "2026-11-03T04:14:13.937056Z",
+     "updatedAt": "2026-11-03T21:29:28.737905Z",
+     "mainSpreadLine": 2.5,
+     "mainTotalLine": 217.5,
+     "marketGroupStats": [
+      {
+       "marketGroupId": "game-lines/spread/full-game",
+       "line": 2.5
+      },
+      {
+       "marketGroupId": "game-lines/totals/full-game",
+       "line": 217.5
+      }
+     ],
+     "periodScores": [],
+     "eventId": 0
+    }
+   },
+   "sortType": "price",
+   "marketGroups": [],
+   "streamProvider": "",
+   "streamRequiresAuth": false,
+   "combos": {
+    "enabled": true,
+    "numMarkets": 242,
+    "numSpreadsAndTotalsMarkets": 63
+   },
+   "marketCounts": {
+    "numMarkets": 242,
+    "numSpreadsAndTotalsMarkets": 63
+   },
+   "fixtureId": "UPUrFKKqnhpqiOx7bhvw",
+   "insiderTradingRules": null,
+   "payoutEstimateMessage": "",
+   "payoutEstimateTime": ""
+  },
+  {
+   "id": "175489",
+   "chatChannel": {
+    "id": "nba-atl-was-2026-11-04",
+    "type": "CHAT_CHANNEL_TYPE_MESSAGING",
+    "chatMemberCount": 3472
+   },
+   "ticker": "nba-atl-was-2026-11-04",
+   "slug": "nba-atl-was-2026-11-04",
+   "title": "ATL Hawks vs. WAS Wizards",
+   "description": "ATL Hawks vs. WAS Wizards",
+   "startDate": "2026-11-05T00:00:00Z",
+   "endDate": "2026-11-05T04:59:00Z",
+   "active": true,
+   "closed": false,
+   "archived": false,
+   "category": "sports",
+   "createdAt": "2026-10-21T05:00:32Z",
+   "updatedAt": "2026-11-03T23:01:41Z",
+   "startTime": "2026-11-05T00:00:00Z",
+   "seriesSlug": "nba-2025",
+   "period": "NS",
+   "markets": [
+    {
+     "id": "1642688",
+     "question": "Who will win in the upcoming basketball event ATL Hawks vs WAS Wizards scheduled for November 5, 2026 at 12:00 AM UTC?",
+     "slug": "aec-nba-atl-was-2026-11-04",
+     "endDate": "2026-11-19T00:00:00Z",
+     "category": "sports",
+     "startDate": "2026-10-21T05:00:32Z",
+     "description": "This market will settle to the winner of the ATL Hawks vs WAS Wizards professional basketball game scheduled for November 4, 2026 at 7:00PM ET (as of the listing of the event's first instrument). Overtime is included if played. If the game is delayed, postponed, suspended or otherwise rescheduled to a date and time not within two days of the originally scheduled date and time, the market will settle to the last fair market price. Outcome sourced from the relevant governing body.",
+     "active": true,
+     "marketType": "moneyline",
+     "closed": false,
+     "createdAt": "2026-10-21T05:00:32Z",
+     "updatedAt": "2026-11-03T23:00:13Z",
+     "archived": false,
+     "orderPriceMinTickSize": 0.01,
+     "gameStartTime": "2026-11-05T00:00:00Z",
+     "manualActivation": false,
+     "sportsMarketType": "basketball_team_full_game_winner",
+     "marketSides": [
+      {
+       "id": "3284850",
+       "marketSideType": "MARKET_SIDE_TYPE_INSTRUMENT",
+       "identifier": "aec-nba-atl-was-2026-11-04",
+       "createdAt": "2026-10-21T05:00:32Z",
+       "updatedAt": "2026-10-21T05:00:32Z",
+       "description": "Hawks",
+       "price": "0.5200",
+       "marketId": 1642688,
+       "long": true,
+       "teamId": 25,
+       "team": {
+        "id": 25,
+        "name": "Atlanta Hawks",
+        "abbreviation": "atl",
+        "league": "nba",
+        "record": "4-4",
+        "logo": "https://static.polymarket.us/images/teams/nba-atl/ATL_light_inset6.png",
+        "alias": "Atlanta Hawks",
+        "safeName": "Hawks",
+        "homeIcon": "https://static.polymarket.us/images/teams/nba-atl/ATL_light_inset6.png",
+        "awayIcon": "https://static.polymarket.us/images/teams/nba-atl/ATL_light_inset6.png",
+        "colorPrimary": "#e21937",
+        "providerId": 3,
+        "ordering": "away",
+        "longIcon": "https://static.polymarket.us/images/teams/nba-atl/ATL_light_inset6.png",
+        "shortIcon": "https://static.polymarket.us/images/teams/nba-atl/ATL_light_inset6.png",
+        "displayAbbreviation": "ATL",
+        "providerIds": [
+         {
+          "provider": "PROVIDER_SPORTSDATAIO",
+          "providerId": "3"
+         },
+         {
+          "provider": "PROVIDER_SPORTRADAR",
+          "providerId": "583ecb8f-fb46-11e1-82cb-f4ce4684ea4c"
+         },
+         {
+          "provider": "PROVIDER_OPTICODDS",
+          "providerId": "B59C1C735494"
+         }
+        ],
+        "longIconDark": "https://static.polymarket.us/images/teams/nba-atl/ATL_dark_inset6.png",
+        "shortIconDark": "https://static.polymarket.us/images/teams/nba-atl/ATL_dark_inset6.png",
+        "color": {
+         "light": "#919191",
+         "dark": "#FFFFFF"
+        },
+        "imageDisplayType": "IMAGE_DISPLAY_TYPE_LOGO"
+       },
+       "quote": {
+        "value": "0.5300",
+        "currency": "USD"
+       },
+       "tradable": true
+      },
+      {
+       "id": "3284851",
+       "marketSideType": "MARKET_SIDE_TYPE_INSTRUMENT",
+       "identifier": "aec-nba-atl-was-2026-11-04",
+       "createdAt": "2026-10-21T05:00:32Z",
+       "updatedAt": "2026-10-21T05:00:32Z",
+       "description": "Wizards",
+       "price": "0.5300",
+       "marketId": 1642688,
+       "long": false,
+       "teamId": 36,
+       "team": {
+        "id": 36,
+        "name": "Washington Wizards",
+        "abbreviation": "was",
+        "league": "nba",
+        "record": "4-3",
+        "logo": "https://static.polymarket.us/images/teams/nba-was/WAS_light_inset6.png",
+        "alias": "Washington Wizards",
+        "safeName": "Wizards",
+        "homeIcon": "https://static.polymarket.us/images/teams/nba-was/WAS_light_inset6.png",
+        "awayIcon": "https://static.polymarket.us/images/teams/nba-was/WAS_light_inset6.png",
+        "colorPrimary": "#e20e38",
+        "providerId": 1,
+        "ordering": "home",
+        "longIcon": "https://static.polymarket.us/images/teams/nba-was/WAS_light_inset6.png",
+        "shortIcon": "https://static.polymarket.us/images/teams/nba-was/WAS_light_inset6.png",
+        "displayAbbreviation": "WAS",
+        "providerIds": [
+         {
+          "provider": "PROVIDER_SPORTSDATAIO",
+          "providerId": "1"
+         },
+         {
+          "provider": "PROVIDER_SPORTRADAR",
+          "providerId": "583ec8d4-fb46-11e1-82cb-f4ce4684ea4c"
+         },
+         {
+          "provider": "PROVIDER_OPTICODDS",
+          "providerId": "8F17F23FB753"
+         }
+        ],
+        "longIconDark": "https://static.polymarket.us/images/teams/nba-was/WAS_dark_inset6.png",
+        "shortIconDark": "https://static.polymarket.us/images/teams/nba-was/WAS_dark_inset6.png",
+        "color": {
+         "light": "#152956",
+         "dark": "#C04244"
+        },
+        "imageDisplayType": "IMAGE_DISPLAY_TYPE_LOGO"
+       },
+       "quote": {
+        "value": "0.48",
+        "currency": "USD"
+       },
+       "tradable": true
+      }
+     ],
+     "outcomes": "[\"Hawks\",\"Wizards\"]",
+     "outcomePrices": "[\"0.5200\",\"0.5300\"]",
+     "ep3Status": "OPEN",
+     "status": "MARKET_STATUS_OPEN",
+     "assetPriceTerms": null,
+     "sportsMarketTypeV2": "SPORTS_MARKET_TYPE_MONEYLINE",
+     "hidden": false,
+     "tags": [],
+     "title": "Atlanta Hawks vs Washington Wizards",
+     "feeCoefficient": 0.0695,
+     "bestBidQuote": {
+      "value": "0.5200",
+      "currency": "USD"
+     },
+     "bestAskQuote": {
+      "value": "0.5300",
+      "currency": "USD"
+     },
+     "titleShort": "ATL vs WAS",
+     "ep3SyncedAt": "2026-10-29T11:59:15Z",
+     "minimumTradeQty": 0.01,
+     "comboEnabled": true,
+     "politics": null,
+     "eventSubcategory": "BASKETBALL"
+    }
+   ],
+   "gameId": 20024051,
+   "sportradarGameId": "7e4d3b4f-832d-48c5-abc5-868556475393",
+   "eventState": {
+    "id": 141474084,
+    "gameId": 20024051,
+    "sportradarGameId": "7e4d3b4f-832d-48c5-abc5-868556475393",
+    "type": "basketball",
+    "createdAt": "2026-11-03T21:18:58.627390Z",
+    "updatedAt": "2026-11-03T21:21:13.414578Z",
+    "mainSpreadLine": -1.5,
+    "mainTotalLine": 234.5,
+    "marketGroupStats": [
+     {
+      "marketGroupId": "game-lines/spread/full-game",
+      "line": -1.5
+     },
+     {
+      "marketGroupId": "game-lines/totals/full-game",
+      "line": 234.5
+     }
+    ],
+    "periodScores": [],
+    "eventId": 175489
+   },
+   "participants": [],
+   "hidden": false,
+   "tags": [
+    {
+     "id": "2",
+     "label": "Sports",
+     "slug": "sports",
+     "createdAt": "2025-09-25T16:13:27Z",
+     "updatedAt": "2026-11-03T23:02:00Z",
+     "subtags": [],
+     "hub": null,
+     "featuredEventIds": []
+    },
+    {
+     "id": "3",
+     "label": "Games",
+     "slug": "games",
+     "createdAt": "2025-09-25T16:13:27Z",
+     "updatedAt": "2026-11-03T23:02:00Z",
+     "subtags": [],
+     "hub": null,
+     "featuredEventIds": []
+    },
+    {
+     "id": "5",
+     "label": "NBA",
+     "slug": "nba",
+     "createdAt": "2025-10-21T18:23:05Z",
+     "updatedAt": "2026-11-03T23:02:00Z",
+     "image": "https://static-preprod.polymarket.us/images/leagues/nba/NBA_dark.png",
+     "tradable": false,
+     "league": {
+      "id": 2,
+      "name": "NBA",
+      "sportId": 1,
+      "tagId": 5,
+      "image": "https://static-preprod.polymarket.us/images/leagues/nba/NBA_dark.png",
+      "resolution": "https://www.nba.com/",
+      "ordering": "away",
+      "activeSeriesId": 4,
+      "isOperational": true,
+      "automaticResolution": false,
+      "createdAt": "2026-03-05T18:30:42Z",
+      "slug": "nba",
+      "abbreviation": "NBA"
+     },
+     "subtags": [],
+     "hub": null,
+     "featuredEventIds": []
+    },
+    {
+     "id": "11",
+     "label": "Basketball",
+     "slug": "basketball",
+     "createdAt": "2026-03-05T18:30:42Z",
+     "updatedAt": "2026-11-03T23:02:00Z",
+     "image": "https://static.polymarket.us/images/new-category-icons/Icon-Basketball.png",
+     "tradable": false,
+     "sport": {
+      "id": 1,
+      "name": "Basketball",
+      "tagId": 11,
+      "createdAt": "2026-03-05T18:30:42Z",
+      "slug": "basketball",
+      "image": "https://static.polymarket.us/images/new-category-icons/Icon-Basketball.png"
+     },
+     "subtags": [],
+     "hub": null,
+     "featuredEventIds": []
+    }
+   ],
+   "teams": [
+    {
+     "id": 25,
+     "name": "Atlanta Hawks",
+     "abbreviation": "atl",
+     "league": "nba",
+     "record": "4-4",
+     "logo": "https://static.polymarket.us/images/teams/nba-atl/ATL_light_inset6.png",
+     "alias": "Atlanta Hawks",
+     "safeName": "Hawks",
+     "homeIcon": "https://static.polymarket.us/images/teams/nba-atl/ATL_light_inset6.png",
+     "awayIcon": "https://static.polymarket.us/images/teams/nba-atl/ATL_light_inset6.png",
+     "colorPrimary": "#e21937",
+     "providerId": 3,
+     "longIcon": "https://static.polymarket.us/images/teams/nba-atl/ATL_light_inset6.png",
+     "shortIcon": "https://static.polymarket.us/images/teams/nba-atl/ATL_light_inset6.png",
+     "displayAbbreviation": "ATL",
+     "providerIds": [
+      {
+       "provider": "PROVIDER_SPORTSDATAIO",
+       "providerId": "3"
+      },
+      {
+       "provider": "PROVIDER_SPORTRADAR",
+       "providerId": "583ecb8f-fb46-11e1-82cb-f4ce4684ea4c"
+      },
+      {
+       "provider": "PROVIDER_OPTICODDS",
+       "providerId": "B59C1C735494"
+      }
+     ],
+     "longIconDark": "https://static.polymarket.us/images/teams/nba-atl/ATL_dark_inset6.png",
+     "shortIconDark": "https://static.polymarket.us/images/teams/nba-atl/ATL_dark_inset6.png",
+     "color": {
+      "light": "#919191",
+      "dark": "#FFFFFF"
+     },
+     "imageDisplayType": "IMAGE_DISPLAY_TYPE_LOGO"
+    },
+    {
+     "id": 36,
+     "name": "Washington Wizards",
+     "abbreviation": "was",
+     "league": "nba",
+     "record": "4-3",
+     "logo": "https://static.polymarket.us/images/teams/nba-was/WAS_light_inset6.png",
+     "alias": "Washington Wizards",
+     "safeName": "Wizards",
+     "homeIcon": "https://static.polymarket.us/images/teams/nba-was/WAS_light_inset6.png",
+     "awayIcon": "https://static.polymarket.us/images/teams/nba-was/WAS_light_inset6.png",
+     "colorPrimary": "#e20e38",
+     "providerId": 1,
+     "longIcon": "https://static.polymarket.us/images/teams/nba-was/WAS_light_inset6.png",
+     "shortIcon": "https://static.polymarket.us/images/teams/nba-was/WAS_light_inset6.png",
+     "displayAbbreviation": "WAS",
+     "providerIds": [
+      {
+       "provider": "PROVIDER_SPORTSDATAIO",
+       "providerId": "1"
+      },
+      {
+       "provider": "PROVIDER_SPORTRADAR",
+       "providerId": "583ec8d4-fb46-11e1-82cb-f4ce4684ea4c"
+      },
+      {
+       "provider": "PROVIDER_OPTICODDS",
+       "providerId": "8F17F23FB753"
+      }
+     ],
+     "longIconDark": "https://static.polymarket.us/images/teams/nba-was/WAS_dark_inset6.png",
+     "shortIconDark": "https://static.polymarket.us/images/teams/nba-was/WAS_dark_inset6.png",
+     "color": {
+      "light": "#152956",
+      "dark": "#C04244"
+     },
+     "imageDisplayType": "IMAGE_DISPLAY_TYPE_LOGO"
+    }
+   ],
+   "metadata": {
+    "politics": null,
+    "gameState": {
+     "id": 141474084,
+     "gameId": 20024051,
+     "sportradarGameId": "7e4d3b4f-832d-48c5-abc5-868556475393",
+     "type": "basketball",
+     "createdAt": "2026-11-03T21:18:58.627390Z",
+     "updatedAt": "2026-11-03T21:21:13.414578Z",
+     "mainSpreadLine": -1.5,
+     "mainTotalLine": 234.5,
+     "marketGroupStats": [
+      {
+       "marketGroupId": "game-lines/spread/full-game",
+       "line": -1.5
+      },
+      {
+       "marketGroupId": "game-lines/totals/full-game",
+       "line": 234.5
+      }
+     ],
+     "periodScores": [],
+     "eventId": 0
+    }
+   },
+   "sortType": "price",
+   "marketGroups": [],
+   "streamProvider": "",
+   "streamRequiresAuth": false,
+   "combos": {
+    "enabled": true,
+    "numMarkets": 63,
+    "numSpreadsAndTotalsMarkets": 62
+   },
+   "marketCounts": {
+    "numMarkets": 85,
+    "numSpreadsAndTotalsMarkets": 62
+   },
+   "fixtureId": "Y8FWtVDE7wUtFcNJoVxg",
+   "insiderTradingRules": null,
+   "payoutEstimateMessage": "",
+   "payoutEstimateTime": ""
+  },
+  {
+   "id": "175490",
+   "chatChannel": {
+    "id": "nba-chi-ny-2026-11-04",
+    "type": "CHAT_CHANNEL_TYPE_MESSAGING",
+    "chatMemberCount": 2880
+   },
+   "ticker": "nba-chi-ny-2026-11-04",
+   "slug": "nba-chi-ny-2026-11-04",
+   "title": "CHI Bulls vs. NY Knicks",
+   "description": "CHI Bulls vs. NY Knicks",
+   "startDate": "2026-11-05T00:30:00Z",
+   "endDate": "2026-11-05T04:59:00Z",
+   "active": true,
+   "closed": false,
+   "archived": false,
+   "category": "sports",
+   "createdAt": "2026-10-21T05:00:33Z",
+   "updatedAt": "2026-11-03T23:01:41Z",
+   "startTime": "2026-11-05T00:30:00Z",
+   "seriesSlug": "nba-2025",
+   "period": "NS",
+   "markets": [
+    {
+     "id": "1642690",
+     "question": "Who will win in the upcoming basketball event CHI Bulls vs NY Knicks scheduled for November 5, 2026 at 12:30 AM UTC?",
+     "slug": "aec-nba-chi-ny-2026-11-04",
+     "endDate": "2026-11-19T00:30:00Z",
+     "category": "sports",
+     "startDate": "2026-10-21T05:00:33Z",
+     "description": "This market will settle to the winner of the CHI Bulls vs NY Knicks professional basketball game scheduled for November 4, 2026 at 7:30PM ET (as of the listing of the event's first instrument). Overtime is included if played. If the game is delayed, postponed, suspended or otherwise rescheduled to a date and time not within two days of the originally scheduled date and time, the market will settle to the last fair market price. Outcome sourced from the relevant governing body.",
+     "active": true,
+     "marketType": "moneyline",
+     "closed": false,
+     "createdAt": "2026-10-21T05:00:33Z",
+     "updatedAt": "2026-11-03T23:00:13Z",
+     "archived": false,
+     "orderPriceMinTickSize": 0.01,
+     "gameStartTime": "2026-11-05T00:30:00Z",
+     "manualActivation": false,
+     "sportsMarketType": "basketball_team_full_game_winner",
+     "marketSides": [
+      {
+       "id": "3284854",
+       "marketSideType": "MARKET_SIDE_TYPE_INSTRUMENT",
+       "identifier": "aec-nba-chi-ny-2026-11-04",
+       "createdAt": "2026-10-21T05:00:33Z",
+       "updatedAt": "2026-10-21T05:00:33Z",
+       "description": "Bulls",
+       "price": "0.1600",
+       "marketId": 1642690,
+       "long": true,
+       "teamId": 37,
+       "team": {
+        "id": 37,
+        "name": "Chicago Bulls",
+        "abbreviation": "chi",
+        "league": "nba",
+        "record": "1-6",
+        "logo": "https://static.polymarket.us/images/teams/nba-chi/CHI_light_inset6.png",
+        "alias": "Chicago Bulls",
+        "safeName": "Bulls",
+        "homeIcon": "https://static.polymarket.us/images/teams/nba-chi/CHI_light_inset6.png",
+        "awayIcon": "https://static.polymarket.us/images/teams/nba-chi/CHI_light_inset6.png",
+        "colorPrimary": "#d5021f",
+        "providerId": 11,
+        "ordering": "away",
+        "longIcon": "https://static.polymarket.us/images/teams/nba-chi/CHI_light_inset6.png",
+        "shortIcon": "https://static.polymarket.us/images/teams/nba-chi/CHI_light_inset6.png",
+        "displayAbbreviation": "CHI",
+        "providerIds": [
+         {
+          "provider": "PROVIDER_SPORTSDATAIO",
+          "providerId": "11"
+         },
+         {
+          "provider": "PROVIDER_SPORTRADAR",
+          "providerId": "583ec5fd-fb46-11e1-82cb-f4ce4684ea4c"
+         },
+         {
+          "provider": "PROVIDER_OPTICODDS",
+          "providerId": "CA98E3A931AE"
+         }
+        ],
+        "longIconDark": "https://static.polymarket.us/images/teams/nba-chi/CHI_dark_inset6.png",
+        "shortIconDark": "https://static.polymarket.us/images/teams/nba-chi/CHI_dark_inset6.png",
+        "color": {
+         "light": "#D5021F",
+         "dark": "#C24151"
+        },
+        "imageDisplayType": "IMAGE_DISPLAY_TYPE_LOGO"
+       },
+       "quote": {
+        "value": "0.1800",
+        "currency": "USD"
+       },
+       "tradable": true
+      },
+      {
+       "id": "3284855",
+       "marketSideType": "MARKET_SIDE_TYPE_INSTRUMENT",
+       "identifier": "aec-nba-chi-ny-2026-11-04",
+       "createdAt": "2026-10-21T05:00:33Z",
+       "updatedAt": "2026-10-21T05:00:33Z",
+       "description": "Knicks",
+       "price": "0.1800",
+       "marketId": 1642690,
+       "long": false,
+       "teamId": 43,
+       "team": {
+        "id": 43,
+        "name": "New York Knicks",
+        "abbreviation": "ny",
+        "league": "nba",
+        "record": "3-4",
+        "logo": "https://static.polymarket.us/images/teams/nba-ny/NYK_light_inset6.png",
+        "alias": "New York Knicks",
+        "safeName": "Knicks",
+        "homeIcon": "https://static.polymarket.us/images/teams/nba-ny/NYK_light_inset6.png",
+        "awayIcon": "https://static.polymarket.us/images/teams/nba-ny/NYK_light_inset6.png",
+        "colorPrimary": "#ee760c",
+        "providerId": 6,
+        "ordering": "home",
+        "longIcon": "https://static.polymarket.us/images/teams/nba-ny/NYK_light_inset6.png",
+        "shortIcon": "https://static.polymarket.us/images/teams/nba-ny/NYK_light_inset6.png",
+        "displayAbbreviation": "NY",
+        "providerIds": [
+         {
+          "provider": "PROVIDER_SPORTRADAR",
+          "providerId": "583ec70e-fb46-11e1-82cb-f4ce4684ea4c"
+         },
+         {
+          "provider": "PROVIDER_OPTICODDS",
+          "providerId": "6A36E386117E"
+         },
+         {
+          "provider": "PROVIDER_SPORTSDATAIO",
+          "providerId": "6"
+         }
+        ],
+        "longIconDark": "https://static.polymarket.us/images/teams/nba-ny/NYK_dark_inset6.png",
+        "shortIconDark": "https://static.polymarket.us/images/teams/nba-ny/NYK_dark_inset6.png",
+        "color": {
+         "light": "#E57000",
+         "dark": "#C77C3E"
+        },
+        "imageDisplayType": "IMAGE_DISPLAY_TYPE_LOGO"
+       },
+       "quote": {
+        "value": "0.84",
+        "currency": "USD"
+       },
+       "tradable": true
+      }
+     ],
+     "outcomes": "[\"Bulls\",\"Knicks\"]",
+     "outcomePrices": "[\"0.1600\",\"0.1800\"]",
+     "ep3Status": "OPEN",
+     "status": "MARKET_STATUS_OPEN",
+     "assetPriceTerms": null,
+     "sportsMarketTypeV2": "SPORTS_MARKET_TYPE_MONEYLINE",
+     "hidden": false,
+     "tags": [],
+     "title": "Chicago Bulls vs New York Knicks",
+     "feeCoefficient": 0.0695,
+     "bestBidQuote": {
+      "value": "0.1600",
+      "currency": "USD"
+     },
+     "bestAskQuote": {
+      "value": "0.1800",
+      "currency": "USD"
+     },
+     "titleShort": "CHI vs NY",
+     "ep3SyncedAt": "2026-10-29T11:59:14Z",
+     "minimumTradeQty": 0.01,
+     "comboEnabled": true,
+     "politics": null,
+     "eventSubcategory": "BASKETBALL"
+    }
+   ],
+   "gameId": 20024054,
+   "sportradarGameId": "52e054af-4541-4e0c-b1ef-192eb87f78c4",
+   "eventState": {
+    "id": 141458327,
+    "gameId": 20024054,
+    "sportradarGameId": "52e054af-4541-4e0c-b1ef-192eb87f78c4",
+    "type": "basketball",
+    "createdAt": "2026-11-03T20:01:14.228336Z",
+    "updatedAt": "2026-11-03T20:35:43.813654Z",
+    "mainSpreadLine": 12.5,
+    "mainTotalLine": 232.5,
+    "marketGroupStats": [
+     {
+      "marketGroupId": "game-lines/spread/full-game",
+      "line": 12.5
+     },
+     {
+      "marketGroupId": "game-lines/totals/full-game",
+      "line": 232.5
+     }
+    ],
+    "periodScores": [],
+    "eventId": 175490
+   },
+   "participants": [],
+   "hidden": false,
+   "tags": [
+    {
+     "id": "2",
+     "label": "Sports",
+     "slug": "sports",
+     "createdAt": "2025-09-25T16:13:27Z",
+     "updatedAt": "2026-11-03T23:02:00Z",
+     "subtags": [],
+     "hub": null,
+     "featuredEventIds": []
+    },
+    {
+     "id": "3",
+     "label": "Games",
+     "slug": "games",
+     "createdAt": "2025-09-25T16:13:27Z",
+     "updatedAt": "2026-11-03T23:02:00Z",
+     "subtags": [],
+     "hub": null,
+     "featuredEventIds": []
+    },
+    {
+     "id": "5",
+     "label": "NBA",
+     "slug": "nba",
+     "createdAt": "2025-10-21T18:23:05Z",
+     "updatedAt": "2026-11-03T23:02:00Z",
+     "image": "https://static-preprod.polymarket.us/images/leagues/nba/NBA_dark.png",
+     "tradable": false,
+     "league": {
+      "id": 2,
+      "name": "NBA",
+      "sportId": 1,
+      "tagId": 5,
+      "image": "https://static-preprod.polymarket.us/images/leagues/nba/NBA_dark.png",
+      "resolution": "https://www.nba.com/",
+      "ordering": "away",
+      "activeSeriesId": 4,
+      "isOperational": true,
+      "automaticResolution": false,
+      "createdAt": "2026-03-05T18:30:42Z",
+      "slug": "nba",
+      "abbreviation": "NBA"
+     },
+     "subtags": [],
+     "hub": null,
+     "featuredEventIds": []
+    },
+    {
+     "id": "11",
+     "label": "Basketball",
+     "slug": "basketball",
+     "createdAt": "2026-03-05T18:30:42Z",
+     "updatedAt": "2026-11-03T23:02:00Z",
+     "image": "https://static.polymarket.us/images/new-category-icons/Icon-Basketball.png",
+     "tradable": false,
+     "sport": {
+      "id": 1,
+      "name": "Basketball",
+      "tagId": 11,
+      "createdAt": "2026-03-05T18:30:42Z",
+      "slug": "basketball",
+      "image": "https://static.polymarket.us/images/new-category-icons/Icon-Basketball.png"
+     },
+     "subtags": [],
+     "hub": null,
+     "featuredEventIds": []
+    }
+   ],
+   "teams": [
+    {
+     "id": 37,
+     "name": "Chicago Bulls",
+     "abbreviation": "chi",
+     "league": "nba",
+     "record": "1-6",
+     "logo": "https://static.polymarket.us/images/teams/nba-chi/CHI_light_inset6.png",
+     "alias": "Chicago Bulls",
+     "safeName": "Bulls",
+     "homeIcon": "https://static.polymarket.us/images/teams/nba-chi/CHI_light_inset6.png",
+     "awayIcon": "https://static.polymarket.us/images/teams/nba-chi/CHI_light_inset6.png",
+     "colorPrimary": "#d5021f",
+     "providerId": 11,
+     "longIcon": "https://static.polymarket.us/images/teams/nba-chi/CHI_light_inset6.png",
+     "shortIcon": "https://static.polymarket.us/images/teams/nba-chi/CHI_light_inset6.png",
+     "displayAbbreviation": "CHI",
+     "providerIds": [
+      {
+       "provider": "PROVIDER_SPORTSDATAIO",
+       "providerId": "11"
+      },
+      {
+       "provider": "PROVIDER_SPORTRADAR",
+       "providerId": "583ec5fd-fb46-11e1-82cb-f4ce4684ea4c"
+      },
+      {
+       "provider": "PROVIDER_OPTICODDS",
+       "providerId": "CA98E3A931AE"
+      }
+     ],
+     "longIconDark": "https://static.polymarket.us/images/teams/nba-chi/CHI_dark_inset6.png",
+     "shortIconDark": "https://static.polymarket.us/images/teams/nba-chi/CHI_dark_inset6.png",
+     "color": {
+      "light": "#D5021F",
+      "dark": "#C24151"
+     },
+     "imageDisplayType": "IMAGE_DISPLAY_TYPE_LOGO"
+    },
+    {
+     "id": 43,
+     "name": "New York Knicks",
+     "abbreviation": "ny",
+     "league": "nba",
+     "record": "3-4",
+     "logo": "https://static.polymarket.us/images/teams/nba-ny/NYK_light_inset6.png",
+     "alias": "New York Knicks",
+     "safeName": "Knicks",
+     "homeIcon": "https://static.polymarket.us/images/teams/nba-ny/NYK_light_inset6.png",
+     "awayIcon": "https://static.polymarket.us/images/teams/nba-ny/NYK_light_inset6.png",
+     "colorPrimary": "#ee760c",
+     "providerId": 6,
+     "longIcon": "https://static.polymarket.us/images/teams/nba-ny/NYK_light_inset6.png",
+     "shortIcon": "https://static.polymarket.us/images/teams/nba-ny/NYK_light_inset6.png",
+     "displayAbbreviation": "NY",
+     "providerIds": [
+      {
+       "provider": "PROVIDER_SPORTRADAR",
+       "providerId": "583ec70e-fb46-11e1-82cb-f4ce4684ea4c"
+      },
+      {
+       "provider": "PROVIDER_OPTICODDS",
+       "providerId": "6A36E386117E"
+      },
+      {
+       "provider": "PROVIDER_SPORTSDATAIO",
+       "providerId": "6"
+      }
+     ],
+     "longIconDark": "https://static.polymarket.us/images/teams/nba-ny/NYK_dark_inset6.png",
+     "shortIconDark": "https://static.polymarket.us/images/teams/nba-ny/NYK_dark_inset6.png",
+     "color": {
+      "light": "#E57000",
+      "dark": "#C77C3E"
+     },
+     "imageDisplayType": "IMAGE_DISPLAY_TYPE_LOGO"
+    }
+   ],
+   "metadata": {
+    "politics": null,
+    "gameState": {
+     "id": 141458327,
+     "gameId": 20024054,
+     "sportradarGameId": "52e054af-4541-4e0c-b1ef-192eb87f78c4",
+     "type": "basketball",
+     "createdAt": "2026-11-03T20:01:14.228336Z",
+     "updatedAt": "2026-11-03T20:35:43.813654Z",
+     "mainSpreadLine": 12.5,
+     "mainTotalLine": 232.5,
+     "marketGroupStats": [
+      {
+       "marketGroupId": "game-lines/spread/full-game",
+       "line": 12.5
+      },
+      {
+       "marketGroupId": "game-lines/totals/full-game",
+       "line": 232.5
+      }
+     ],
+     "periodScores": [],
+     "eventId": 0
+    }
+   },
+   "sortType": "price",
+   "marketGroups": [],
+   "streamProvider": "",
+   "streamRequiresAuth": false,
+   "combos": {
+    "enabled": true,
+    "numMarkets": 65,
+    "numSpreadsAndTotalsMarkets": 64
+   },
+   "marketCounts": {
+    "numMarkets": 65,
+    "numSpreadsAndTotalsMarkets": 64
+   },
+   "fixtureId": "M0yWD7WiXPA8zaZpu0vE",
+   "insiderTradingRules": null,
+   "payoutEstimateMessage": "",
+   "payoutEstimateTime": ""
+  }
+ ],
+ "league": {
+  "name": "NBA",
+  "slug": "nba",
+  "image": "https://static-preprod.polymarket.us/images/leagues/nba/NBA_dark.png",
+  "isOperational": true,
+  "id": 2,
+  "sportId": 1,
+  "tagId": 5,
+  "resolution": "https://www.nba.com/",
+  "ordering": "away",
+  "activeSeriesId": 4,
+  "createdAt": "2026-03-05T18:30:42Z",
+  "abbreviation": "NBA"
+ }
+}

@@ -43,12 +43,24 @@ EOA wallets (type 0) must also approve the Polymarket exchange contracts to spen
 
 ## Sports bot: trading against Pinnacle
 
-`python -m tradeorama.strategy` runs an automated strategy. It treats Pinnacle's odds, with the bookmaker's margin removed, as the true probability of each sports result. When Polymarket sells an outcome for enough less than that, the bot buys it.
+`python -m tradeorama.strategy` runs an automated strategy. It treats Pinnacle's odds, with the bookmaker's margin removed, as the true probability of each sports result. When the market sells an outcome for enough less than that, the bot buys it.
+
+### Exchange
+
+`STRATEGY_VENUE` picks which exchange it prices against:
+- **`polymarket-us`** (default): [Polymarket US](https://polymarket.us), the CFTC-regulated exchange open to US residents. The bot reads public market data from `gateway.polymarket.us`, which needs no API key.
+  - A moneyline is one market whose two sides are the two teams. Buying the second team means paying 1 − the first team's bid.
+  - Soccer has separate home, draw and away markets, settled on regulation time.
+  - The fee is read from each market (`feeCoefficient`, 0.0695 × p × (1 − p) as of November 2026).
+  - Results come from Polymarket US's own settlement. **Paper trading only**: live orders aren't supported on Polymarket US yet.
+- **`polymarket`**: the international site (gamma-api / CLOB), which is closed to US residents. Live trading through `py-clob-client` works only here.
+
+Trades are recorded with their exchange, and `report` and the web panel show only the current one. Paper trades made before this change were priced from the international site and stay labelled that way.
 
 ### How it decides
 
 1. It fetches Pinnacle moneylines through [The Odds API](https://the-odds-api.com). Pinnacle closed its own public API in 2025.
-2. It finds the matching Polymarket markets by team names and start time. This covers team-vs-team markets, and for soccer the "Will X win?" and "draw" markets. It skips spreads, totals, half/quarter markets and anything ambiguous.
+2. It finds the matching market for each game by team names and start time: the moneyline, or for soccer the home, draw and away markets. It skips spreads, totals, props and anything ambiguous.
 3. For each outcome, it calculates **edge = fair probability − best ask − fees**.
 4. It buys only when the edge is at least `MIN_EDGE`. It takes order-book levels only while each one still clears that edge, using a fill-and-kill order that never rests on the book.
 5. Bet size is `KELLY_MULTIPLIER` × the Kelly stake on `BANKROLL_USD`. It is then capped by `MAX_ORDER_USD`, `MAX_GAME_EXPOSURE_USD` and `MAX_DAILY_SPEND_USD`.
@@ -70,6 +82,7 @@ python -m tradeorama.strategy run      # paper trade every 5 minutes (simulated 
 python -m tradeorama.strategy report   # per-sport trades, average edge, average CLV, settled P&L and ROI
 python -m tradeorama.strategy settle   # record results for finished games (run also does this)
 python -m tradeorama.strategy diagnose americanfootball_nfl   # explain why a sport's games do or don't match
+python -m tradeorama.strategy report --venue polymarket       # earlier trades priced from the international site
 python -m tradeorama.strategy run --live   # real orders; also needs DRY_RUN=false
 ```
 
@@ -94,7 +107,7 @@ To stop a running bot, press Ctrl+C or create a file named `tradeorama.stop` in 
   | no games listed | every 6 hours |
 
   A typical NBA day comes to about 115 requests, roughly 3,400 a month per sport, against 8,640 for checking every 5 minutes around the clock. Add `--fixed` to check every `--interval` regardless. The tiers are set by the `POLL_*` settings in `.env`. The free tier (500 a month) is enough for `scan` and occasional runs.
-- Fees: the bot subtracts Polymarket's taker fee, `TAKER_FEE_RATE × p × (1 − p)` per share ([formula](https://docs.polymarket.com/trading/fees)). The default, 0.05, is Polymarket's Sports taker rate; update `TAKER_FEE_RATE` if that page changes. The CLOB's `/fee-rate` endpoint isn't used for this because it returns the maximum signed into each order, not the rate charged.
+- Fees: the bot subtracts the taker fee, rate × p × (1 − p) per share. On Polymarket US the rate comes from each market. On the international site, it's `TAKER_FEE_RATE` (0.05 for sports, [fee table](https://docs.polymarket.com/trading/fees)).
 - The bot only buys and holds to the end of the game. It doesn't sell early or hedge.
 - Market matching relies on how Polymarket names and times its sports markets. If Polymarket changes that, matches will drop to zero, which is the safe failure.
 - In live mode, the bot's ledger records what each order reported. Your Polymarket positions are the final record.

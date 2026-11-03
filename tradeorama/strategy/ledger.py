@@ -8,6 +8,7 @@ SCHEMA = """
 CREATE TABLE IF NOT EXISTS fills (
     id INTEGER PRIMARY KEY,
     ts REAL NOT NULL,
+    venue TEXT NOT NULL DEFAULT 'polymarket',  -- 'polymarket-us' or 'polymarket' (international)
     mode TEXT NOT NULL,             -- 'paper' or 'live'
     sport TEXT NOT NULL,
     event_id TEXT NOT NULL,         -- Pinnacle game id; exposure limits are per game
@@ -42,6 +43,10 @@ class Ledger:
         self.db = sqlite3.connect(path, check_same_thread=False)
         self.db.row_factory = sqlite3.Row
         self.db.executescript(SCHEMA)
+        cols = {r[1] for r in self.db.execute("PRAGMA table_info(fills)")}
+        if "venue" not in cols:  # databases from before Polymarket US: those trades were international
+            self.db.execute("ALTER TABLE fills ADD COLUMN venue TEXT NOT NULL DEFAULT 'polymarket'")
+            self.db.commit()
 
     def record_fill(self, **f) -> None:
         f.setdefault("ts", time.time())
@@ -60,39 +65,46 @@ class Ledger:
         )
         self.db.commit()
 
-    def game_exposure(self, mode: str, event_id: str) -> float:
+    def game_exposure(self, mode: str, event_id: str, venue: str = "polymarket-us") -> float:
         row = self.db.execute(
-            "SELECT COALESCE(SUM(cost), 0) FROM fills WHERE mode = ? AND event_id = ?", (mode, event_id)
+            "SELECT COALESCE(SUM(cost), 0) FROM fills WHERE mode = ? AND event_id = ? AND venue = ?",
+            (mode, event_id, venue),
         ).fetchone()
         return row[0]
 
-    def spent_today(self, mode: str, now: float | None = None) -> float:
+    def spent_today(self, mode: str, now: float | None = None, venue: str = "polymarket-us") -> float:
         row = self.db.execute(
-            "SELECT COALESCE(SUM(cost), 0) FROM fills WHERE mode = ? AND ts >= ?",
-            (mode, day_start(now or time.time())),
+            "SELECT COALESCE(SUM(cost), 0) FROM fills WHERE mode = ? AND ts >= ? AND venue = ?",
+            (mode, day_start(now or time.time()), venue),
         ).fetchone()
         return row[0]
 
-    def unsettled(self, now: float | None = None) -> list[sqlite3.Row]:
-        return self.db.execute(
-            "SELECT * FROM fills WHERE payout IS NULL AND commence < ?", (now or time.time(),)
-        ).fetchall()
+    def unsettled(self, now: float | None = None, venue: str | None = None) -> list[sqlite3.Row]:
+        sql, args = "SELECT * FROM fills WHERE payout IS NULL AND commence < ?", [now or time.time()]
+        if venue:
+            sql += " AND venue = ?"
+            args.append(venue)
+        return self.db.execute(sql, args).fetchall()
 
     def settle(self, fill_id: int, payout: float) -> None:
         self.db.execute("UPDATE fills SET payout = ? WHERE id = ?", (payout, fill_id))
         self.db.commit()
 
-    def trades(self, mode: str | None = None, limit: int = 100, now: float | None = None) -> list[dict]:
+    def trades(self, mode: str | None = None, limit: int = 100, now: float | None = None, venue: str | None = None) -> list[dict]:
         sql = """
             SELECT f.*, c.fair AS closing_fair
             FROM fills f LEFT JOIN closing c ON c.token_id = f.token_id
             {where} ORDER BY f.ts DESC LIMIT ?
         """
-        args: list = [limit]
-        where = ""
+        conds, args = [], []
         if mode:
-            where, args = "WHERE f.mode = ?", [mode, limit]
-        rows = self.db.execute(sql.format(where=where), args).fetchall()
+            conds.append("f.mode = ?")
+            args.append(mode)
+        if venue:
+            conds.append("f.venue = ?")
+            args.append(venue)
+        where = ("WHERE " + " AND ".join(conds)) if conds else ""
+        rows = self.db.execute(sql.format(where=where), [*args, limit]).fetchall()
         now = now or time.time()
         out = []
         for r in rows:
@@ -104,13 +116,13 @@ class Ledger:
             out.append(t)
         return out
 
-    def summary(self, mode: str | None = None) -> dict:
-        return summarize(self.trades(mode, limit=100_000))
+    def summary(self, mode: str | None = None, venue: str | None = None) -> dict:
+        return summarize(self.trades(mode, limit=100_000, venue=venue))
 
-    def summary_by_sport(self, mode: str) -> dict[str, dict]:
+    def summary_by_sport(self, mode: str, venue: str | None = None) -> dict[str, dict]:
         """Per-sport results, so sports where Pinnacle's edge doesn't hold up can be dropped."""
         groups: dict[str, list[dict]] = {}
-        for t in self.trades(mode, limit=100_000):
+        for t in self.trades(mode, limit=100_000, venue=venue):
             groups.setdefault(t["sport"], []).append(t)
         return {sport: summarize(trades) for sport, trades in sorted(groups.items())}
 

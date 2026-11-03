@@ -9,7 +9,17 @@ from ..trader import Trader
 from .bot import STOP_FILE, Bot
 from .ledger import Ledger
 from .matching import SportsMarkets, candidates, market_start, match, why_unmatched
+from .pmus import PolymarketUS
+from .pmus import market_start as pmus_market_start
 from .odds import PinnacleOdds
+
+
+def make_venue(strat):
+    if strat.venue == "polymarket-us":
+        return PolymarketUS()
+    if strat.venue == "polymarket":
+        return SportsMarkets()  # the Bot wraps it as the international venue
+    raise ValueError(f"STRATEGY_VENUE must be polymarket-us or polymarket, not {strat.venue!r}")
 
 
 def build(live: bool = False) -> Bot:
@@ -18,7 +28,7 @@ def build(live: bool = False) -> Bot:
         settings,
         strat,
         PinnacleOdds(strat.odds_api_key or ""),
-        SportsMarkets(),
+        make_venue(strat),
         Trader(settings),
         Ledger(strat.db_path),
         live=live,
@@ -64,9 +74,9 @@ def fmt_pct(v) -> str:
     return "–" if v is None else f"{v:+.1f}%"
 
 
-def print_sport_table(ledger: Ledger, mode: str) -> None:
-    rows = ledger.summary_by_sport(mode)
-    total = ledger.summary(mode)
+def print_sport_table(ledger: Ledger, mode: str, venue: str) -> None:
+    rows = ledger.summary_by_sport(mode, venue)
+    total = ledger.summary(mode, venue)
     print(f"{'sport':28} {'trades':>6} {'staked':>9} {'avg edge':>9} {'avg CLV':>8} {'(n)':>5} {'settled P&L':>12} {'ROI':>7}")
     for sport, r in [*rows.items(), ("ALL", total)]:
         print(
@@ -77,15 +87,18 @@ def print_sport_table(ledger: Ledger, mode: str) -> None:
 
 
 def cmd_report(args) -> None:
-    ledger = Ledger(load_strategy_settings().db_path)
+    strat = load_strategy_settings()
+    venue = args.venue or strat.venue
+    ledger = Ledger(strat.db_path)
+    print(f"Venue: {venue}")
     for mode in ("paper", "live"):
-        if not ledger.summary(mode)["trades"]:
+        if not ledger.summary(mode, venue)["trades"]:
             continue
         print(f"== {mode} ==")
-        print_sport_table(ledger, mode)
+        print_sport_table(ledger, mode, venue)
         print()
     print("(n) is how many trades have a closing line yet. Judge a sport on CLV only after ~100 of them.")
-    trades = ledger.trades(limit=args.limit)
+    trades = ledger.trades(limit=args.limit, venue=venue)
     if trades:
         print(f"\nLast {len(trades)} trades:")
         for t in trades:
@@ -101,6 +114,8 @@ def cmd_report(args) -> None:
 
 def cmd_diagnose(args) -> None:
     strat = load_strategy_settings()
+    if strat.venue == "polymarket-us":
+        return diagnose_pmus(args, strat)
     odds, sports = PinnacleOdds(strat.odds_api_key or ""), SportsMarkets()
     lines = odds.lines(args.sport)
     events = sports.events(args.sport)
@@ -126,6 +141,30 @@ def cmd_diagnose(args) -> None:
     print(f"\nOdds credits left: {odds.credits_remaining}")
 
 
+def diagnose_pmus(args, strat) -> None:
+    odds, venue = PinnacleOdds(strat.odds_api_key or ""), PolymarketUS()
+    lines = odds.lines(args.sport)
+    events = venue.events(args.sport)
+    print(f"Pinnacle games: {len(lines)}")
+    print(f"Polymarket US events: {len(events)}")
+    for line in sorted(lines, key=lambda l: l.commence)[: args.games]:
+        legs = venue.match(line, events)
+        print(f"\n{line.commence:%m-%d %H:%M} UTC  {line.away} at {line.home}: {len(legs)} outcomes matched")
+        for leg in legs:
+            print(f"  + {leg.label:30} fair {leg.fair:.3f}  ({leg.market_id})")
+        if legs:
+            continue
+        keys = [w for t in (line.home, line.away) for w in t.lower().split()[-1:]]
+        near = [e for e in events if any(k in (e.get("title") or "").lower() for k in keys)]
+        if not near:
+            print("  no Polymarket US event mentions either team")
+        for e in near[: args.markets]:
+            types = sorted({m.get("marketType") or "?" for m in e.get("markets") or []})
+            starts = sorted({str(pmus_market_start(m, e)) for m in e.get("markets") or []})
+            print(f"  - {e.get('title')}  starts {starts[:1]}  market types {types}")
+    print(f"\nOdds credits left: {odds.credits_remaining}")
+
+
 def cmd_settle(args) -> None:
     print(f"Settled {build().settle()} trades.")
 
@@ -147,6 +186,7 @@ def main(argv=None) -> None:
     r.set_defaults(fn=cmd_run)
     rep = sub.add_parser("report", help="results so far, including closing line value")
     rep.add_argument("--limit", type=int, default=20)
+    rep.add_argument("--venue", choices=["polymarket-us", "polymarket"], help="default: STRATEGY_VENUE")
     rep.set_defaults(fn=cmd_report)
     sub.add_parser("settle", help="record payouts for finished games").set_defaults(fn=cmd_settle)
     d = sub.add_parser("diagnose", help="explain why a sport's games do or don't match Polymarket markets")

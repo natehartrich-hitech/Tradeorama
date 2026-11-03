@@ -106,7 +106,8 @@ class StrategySettings:
     min_minutes_before_start: float
     max_divergence: float
     db_path: str
-    taker_fee_rate: float = 0.05
+    taker_fee_rate: float = 0.05  # international Polymarket only; Polymarket US publishes it per market
+    venue: str = "polymarket-us"
     poll_near_hours: float = 2
     poll_mid_hours: float = 12
     poll_mid_sec: float = 900
@@ -130,6 +131,7 @@ def load_strategy_settings() -> StrategySettings:
         max_divergence=float(env("MAX_DIVERGENCE") or 0.15),
         db_path=env("STRATEGY_DB") or "tradeorama.db",
         taker_fee_rate=float(env("TAKER_FEE_RATE") or 0.05),
+        venue=(env("STRATEGY_VENUE") or "polymarket-us").strip().lower(),
         poll_near_hours=float(env("POLL_NEAR_HOURS") or 2),
         poll_mid_hours=float(env("POLL_MID_HOURS") or 12),
         poll_mid_sec=float(env("POLL_MID_SEC") or 900),

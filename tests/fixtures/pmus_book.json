@@ -1,0 +1,246 @@
+{
+ "marketData": {
+  "marketSlug": "tc-temp-mdwhigh-2026-11-04-gte64lt65f",
+  "bids": [
+   {
+    "px": {
+     "value": "0.4200",
+     "currency": "USD"
+    },
+    "qty": "1.0300"
+   },
+   {
+    "px": {
+     "value": "0.3200",
+     "currency": "USD"
+    },
+    "qty": "5.0000"
+   },
+   {
+    "px": {
+     "value": "0.2700",
+     "currency": "USD"
+    },
+    "qty": "10.0000"
+   },
+   {
+    "px": {
+     "value": "0.2200",
+     "currency": "USD"
+    },
+    "qty": "20.0000"
+   },
+   {
+    "px": {
+     "value": "0.2100",
+     "currency": "USD"
+    },
+    "qty": "22.2200"
+   },
+   {
+    "px": {
+     "value": "0.0800",
+     "currency": "USD"
+    },
+    "qty": "4.0000"
+   },
+   {
+    "px": {
+     "value": "0.0700",
+     "currency": "USD"
+    },
+    "qty": "2.0000"
+   },
+   {
+    "px": {
+     "value": "0.0600",
+     "currency": "USD"
+    },
+    "qty": "2.0000"
+   },
+   {
+    "px": {
+     "value": "0.0500",
+     "currency": "USD"
+    },
+    "qty": "2.0000"
+   },
+   {
+    "px": {
+     "value": "0.0400",
+     "currency": "USD"
+    },
+    "qty": "2.0000"
+   },
+   {
+    "px": {
+     "value": "0.0300",
+     "currency": "USD"
+    },
+    "qty": "2.0000"
+   },
+   {
+    "px": {
+     "value": "0.0200",
+     "currency": "USD"
+    },
+    "qty": "10.0000"
+   },
+   {
+    "px": {
+     "value": "0.0100",
+     "currency": "USD"
+    },
+    "qty": "5.0000"
+   }
+  ],
+  "offers": [
+   {
+    "px": {
+     "value": "0.4300",
+     "currency": "USD"
+    },
+    "qty": "27.0000"
+   },
+   {
+    "px": {
+     "value": "0.4400",
+     "currency": "USD"
+    },
+    "qty": "2.0000"
+   },
+   {
+    "px": {
+     "value": "0.4500",
+     "currency": "USD"
+    },
+    "qty": "6.0000"
+   },
+   {
+    "px": {
+     "value": "0.4600",
+     "currency": "USD"
+    },
+    "qty": "2.0000"
+   },
+   {
+    "px": {
+     "value": "0.4700",
+     "currency": "USD"
+    },
+    "qty": "6.0000"
+   },
+   {
+    "px": {
+     "value": "0.4800",
+     "currency": "USD"
+    },
+    "qty": "2.0000"
+   },
+   {
+    "px": {
+     "value": "0.4900",
+     "currency": "USD"
+    },
+    "qty": "2.0000"
+   },
+   {
+    "px": {
+     "value": "0.5000",
+     "currency": "USD"
+    },
+    "qty": "2.0000"
+   },
+   {
+    "px": {
+     "value": "0.5100",
+     "currency": "USD"
+    },
+    "qty": "2.0000"
+   },
+   {
+    "px": {
+     "value": "0.5200",
+     "currency": "USD"
+    },
+    "qty": "7.0000"
+   },
+   {
+    "px": {
+     "value": "0.5700",
+     "currency": "USD"
+    },
+    "qty": "10.0000"
+   },
+   {
+    "px": {
+     "value": "0.6300",
+     "currency": "USD"
+    },
+    "qty": "20.0000"
+   },
+   {
+    "px": {
+     "value": "0.7000",
+     "currency": "USD"
+    },
+    "qty": "26.0000"
+   },
+   {
+    "px": {
+     "value": "0.7100",
+     "currency": "USD"
+    },
+    "qty": "7.1400"
+   }
+  ],
+  "state": "MARKET_STATE_OPEN",
+  "stats": {
+   "openPx": {
+    "value": "0.3600",
+    "currency": "USD"
+   },
+   "lowPx": {
+    "value": "0.2000",
+    "currency": "USD"
+   },
+   "highPx": {
+    "value": "0.5100",
+    "currency": "USD"
+   },
+   "lastTradePx": {
+    "value": "0.4200",
+    "currency": "USD"
+   },
+   "sharesTraded": "179.3900",
+   "notionalTraded": {
+    "value": "67.0320",
+    "currency": "USD"
+   },
+   "lastTradeQty": "32.9700",
+   "openInterest": "127.3900",
+   "openSetTime": "2026-11-03T08:49:49.323332613Z",
+   "highSetTime": "2026-11-03T16:08:35.803125894Z",
+   "lowSetTime": "2026-11-03T16:08:12.258170446Z",
+   "lastTradeSetTime": "2026-11-03T23:02:19.914388777Z",
+   "openInterestSetTime": "2026-11-03T23:02:19.934351683Z",
+   "notionalSetTime": "2026-11-03T23:02:19.914388777Z",
+   "currentPx": {
+    "value": "0.4250",
+    "currency": "USD"
+   },
+   "lastPriceSample": {
+    "longPx": {
+     "value": "0.4200",
+     "currency": "USD"
+    },
+    "shortPx": {
+     "value": "0.58",
+     "currency": "USD"
+    },
+    "ts": "2026-11-03T23:04:36.803328180Z"
+   }
+  },
+  "transactTime": "2026-11-03T23:04:36.803328180Z"
+ }
+}
