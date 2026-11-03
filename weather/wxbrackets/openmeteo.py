@@ -1,5 +1,6 @@
 """Open-Meteo Ensemble API: hourly 2 m temperature for every member of several ensemble models."""
 
+import logging
 import re
 from dataclasses import dataclass
 from datetime import date, datetime
@@ -11,6 +12,7 @@ from .config import Config, Model, Station
 from .http import Http
 
 VARIABLE = "temperature_2m"
+log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -55,12 +57,14 @@ def parse_member_key(key: str, variable: str, model_ids: list[str]) -> tuple[str
 def parse_members(payload: dict, model_ids: list[str], variable: str = VARIABLE) -> list[MemberSeries]:
     hourly = payload.get("hourly") or {}
     times = np.asarray(hourly.get("time") or [], dtype=np.int64)
-    out = []
+    out, unknown = [], []
     for key, values in hourly.items():
         if key == "time":
             continue
         parsed = parse_member_key(key, variable, model_ids)
         if parsed is None:
+            if key.startswith(variable):
+                unknown.append(key)
             continue
         model, member = parsed
         if model is None:
@@ -69,6 +73,9 @@ def parse_members(payload: dict, model_ids: list[str], variable: str = VARIABLE)
             model = model_ids[0]
         arr = np.array([np.nan if v is None else float(v) for v in values], dtype=float)
         out.append(MemberSeries(model, member, times, arr))
+    if unknown:
+        log.warning("ignored %d %s keys that don't match the requested models %s, e.g. %s",
+                    len(unknown), variable, model_ids, unknown[:3])
     return sorted(out, key=lambda s: (s.model, s.member))
 
 
@@ -123,20 +130,20 @@ class OpenMeteo:
         return self.http.json(self.url(source), self.request_params(station, day, model_ids))
 
     def member_maxes(self, station: Station, day: date, models: list[Model]) -> tuple[dict[tuple[str, int], float], dict]:
-        """{(model, member): daily max °F} for members covering the climate day, plus raw payloads by source.
+        """{(model, member): daily max °F} for members covering the climate day, plus raw payloads by model.
 
-        Ensemble models go in one request to the Ensemble API; deterministic models (HRRR)
-        in one request to the Forecast API, where each model is a single member 0.
+        One request per model. A combined multi-model request labels its keys differently from
+        the model ids it was asked for (seen live in November 2026: 143 keys, none matched), so
+        each model is fetched alone, where keys are plainly temperature_2m / temperature_2m_memberNN.
         """
         start, end = climate_day_window(day, station.tz)
         d = self.cfg.distribution
         maxes, payloads = {}, {}
-        for source in ("ensemble", "forecast"):
-            ids = [m.id for m in models if m.source == source]
-            if not ids:
+        for m in models:
+            if m.source not in ("ensemble", "forecast"):
                 continue
-            payload = payloads[source] = self.fetch(station, day, ids, source)
-            for s in parse_members(payload, ids):
+            payload = payloads[m.id] = self.fetch(station, day, [m.id], m.source)
+            for s in parse_members(payload, [m.id]):
                 mx = member_daily_max(s, start, end, d.min_valid_hours, d.edge_tolerance_hours)
                 if mx is not None:
                     maxes[(s.model, s.member)] = mx

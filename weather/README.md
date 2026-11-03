@@ -114,7 +114,7 @@ Use `--min-lead` and `--max-lead` to score day-ahead and same-day runs separatel
 - **Open-Meteo Ensemble API** (`ensemble-api.open-meteo.com/v1/ensemble`): hourly `temperature_2m` for each member, in °F with `timeformat=unixtime`.
   - The free tier is for **non-commercial use only**. For commercial use, set `open_meteo.base_url` to the customer endpoint and `open_meteo.api_key`.
   - Model IDs and member counts change over time; `check-models` verifies them. Each model covers a different number of days ahead (ICON's ensemble is the shortest), and members that don't cover the date are dropped.
-  - The control run's key is `temperature_2m`, and members are `temperature_2m_memberNN`. With several models, each key also carries the model ID. The parser accepts the model ID before or after the member number.
+  - Each model is requested on its own. The control run's key is then `temperature_2m`, and members are `temperature_2m_memberNN` (checked live in November 2026). A combined multi-model request labels its keys in a way that didn't match the model IDs, so it isn't used, and any keys the parser can't place are reported as a warning rather than dropped silently.
   - Hourly values can miss a peak between hours. That's one reason for `bias_f`.
 - **NOAA HRRR via Open-Meteo** (`api.open-meteo.com/v1/forecast`, model `ncep_hrrr_conus`): the 3 km High-Resolution Rapid Refresh, updated hourly. It's set as `source: forecast` because it's a single deterministic run, not an ensemble.
   - Runs reach 18 hours ahead, or 48 hours for the 00/06/12/18 UTC runs. So HRRR usually covers today and sometimes tomorrow. Runs that don't cover the whole climate day are skipped automatically.

@@ -12,6 +12,21 @@ from wxbrackets.db import DB
 from wxbrackets.http import Http
 
 
+ENSEMBLE_REQUESTS = []
+
+
+def single_model(model: str) -> dict:
+    """What Open-Meteo returns for one model: keys without a model suffix (as seen live)."""
+    assert "," not in model, "models must be requested one at a time"
+    ENSEMBLE_REQUESTS.append(model)
+    payload = fixture_json("openmeteo_combined.json")
+    hourly = {"time": payload["hourly"]["time"]}
+    for key, values in payload["hourly"].items():
+        if key.endswith("_" + model):
+            hourly[key[: -len(model) - 1]] = values
+    return {**payload, "hourly": hourly}
+
+
 def fake_network(request: httpx.Request) -> httpx.Response:
     url = str(request.url)
     if "api.open-meteo.com/v1/forecast" in url:
@@ -20,7 +35,7 @@ def fake_network(request: httpx.Request) -> httpx.Response:
     if "ensemble-api.open-meteo.com" in url:
         assert request.url.params["timeformat"] == "unixtime"
         assert request.url.params["temperature_unit"] == "fahrenheit"
-        return httpx.Response(200, json=fixture_json("openmeteo_combined.json"))
+        return httpx.Response(200, json=single_model(request.url.params["models"]))
     if "/points/" in url:
         return httpx.Response(200, json={"properties": {"forecast": "https://api.weather.gov/gridpoints/LOT/70,70/forecast"}})
     if "/gridpoints/" in url:
@@ -69,7 +84,9 @@ distribution:""" + text.split("distribution:")[1]
 
 
 def test_forecast_backfill_calibration(run, cfg, capsys):
+    ENSEMBLE_REQUESTS.clear()
     run("forecast", "--station", "CHI", "--date", "2026-11-03", "--brackets", "51,53,55,57")
+    assert ENSEMBLE_REQUESTS == ["ecmwf_ifs025", "gfs025"]  # one request per model
     out = capsys.readouterr().out
     assert "NWS point forecast:     60°F" in out
     assert "    total  100.0%" in out

@@ -17,9 +17,9 @@ open_meteo:
   api_key: null
   min_interval_sec: 0.5
 
-# Ensemble models to pool. `id` is Open-Meteo's `models` value. These IDs are
-# best-effort: run `python -m wxbrackets check-models --station CHI` to confirm
-# each returns the expected member count, and fix any that don't.
+# Ensemble models to pool. `id` is Open-Meteo's `models` value; each model is
+# requested on its own. Run `python -m wxbrackets check-models --station CHI` to
+# confirm each returns the expected member count (all four did in November 2026).
 # Weights are per MODEL (each model's members share its weight equally).
 # source: ensemble (default) uses the Ensemble API; source: forecast uses the regular
 # Forecast API, where a model is one deterministic run counted as a single member.

@@ -45,3 +45,11 @@ def test_forecast_api_keys_for_deterministic_models():
     assert parse_member_key("temperature_2m_ncep_hrrr_conus", "temperature_2m", ["ncep_hrrr_conus"]) == ("ncep_hrrr_conus", 0)
     [hrrr] = parse_members(fixture_json("openmeteo_hrrr.json"), ["ncep_hrrr_conus"])
     assert (hrrr.model, hrrr.member) == ("ncep_hrrr_conus", 0)
+
+
+def test_unmatched_keys_are_reported_not_silently_dropped(caplog):
+    # A combined request whose keys carry different model labels than were asked for.
+    payload = {"hourly": {"time": [0], "temperature_2m_member01_ncep_gefs025": [50.0], "temperature_2m_ncep_gefs025": [49.0]}}
+    with caplog.at_level("WARNING"):
+        assert parse_members(payload, ["gfs025", "ecmwf_ifs025"]) == []
+    assert "ignored 2 temperature_2m keys" in caplog.text

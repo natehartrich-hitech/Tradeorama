@@ -352,21 +352,6 @@ def cmd_check_models(cfg: Config, args) -> None:
         if args.dump:
             Path(args.dump).mkdir(parents=True, exist_ok=True)
             (Path(args.dump) / f"{m.id}.json").write_text(json.dumps(payload))
-    # Also check the combined requests `forecast` sends: one per API.
-    for source in ("ensemble", "forecast"):
-        ids = [m.id for m in cfg.models if m.source == source]
-        if not ids:
-            continue
-        combined = om.fetch(station, day, ids, source)
-        try:
-            total = len(parse_members(combined, ids))
-            print(f"Combined {source} request: {total} members parsed from {len(combined.get('hourly', {})) - 1} keys")
-        except ValueError as exc:
-            ok = False
-            print(f"Combined {source} request: keys couldn't be assigned to models ({exc}). Sample keys: "
-                  f"{list(combined.get('hourly', {}))[:6]}")
-        if args.dump:
-            (Path(args.dump) / f"combined_{source}.json").write_text(json.dumps(combined))
     if not ok:
         sys.exit("Fix the model ids or expected_members in config.yaml (see https://open-meteo.com/en/docs/ensemble-api).")
 
