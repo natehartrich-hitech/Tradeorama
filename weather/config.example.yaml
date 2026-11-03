@@ -49,6 +49,24 @@ models:
     source: forecast
     weight: 0.5
     expected_members: 1
+  # NOAA RRFS (3 km, operational from November 2026), read straight from NOAA's AWS
+  # bucket. The deterministic run includes hourly maximum temperature (TMAX), which
+  # catches peaks between hours. Covers up to 84 hours ahead from 00/06/12/18Z runs.
+  # Each forecast downloads one ~1.7 MB message per hour of the day (24); values are
+  # cached in the database, so repeat runs on the same cycle are quick.
+  - id: rrfs
+    name: NOAA RRFS (deterministic)
+    source: rrfs
+    weight: 0.5
+    expected_members: 1
+  # REFS: the RRFS ensemble, 5 members, up to 60 hours ahead. About 125 messages
+  # (~210 MB) per forecast the first time; set weight: 0 to turn it off.
+  - id: refs
+    name: NOAA REFS (RRFS ensemble)
+    source: refs
+    weight: 1.0
+    expected_members: 5
+    members: [1, 2, 3, 4, 5]
 
 distribution:
   bias_f: 0.0            # added to every member max (positive = warmer). Set from `calibration`.
@@ -57,6 +75,9 @@ distribution:
   min_valid_hours: 8     # a member needs this many non-missing hourly values in the climate day
   edge_tolerance_hours: 3  # ...and data within this many hours of both ends of the day
   obs_tolerance_f: 0.5   # same-day conditioning: high must be >= observed max minus this
+
+rrfs:
+  base_url: https://noaa-rrfs-ops-pds.s3.amazonaws.com
 
 # Market brackets used when --brackets isn't given (upper edges, inclusive).
 default_brackets: [45, 47, 49, 51, 53, 55]

@@ -39,6 +39,14 @@ CREATE TABLE IF NOT EXISTS bracket_probs (
     prob REAL NOT NULL,
     PRIMARY KEY (run_id, idx)
 );
+CREATE TABLE IF NOT EXISTS grib_points (       -- cache: one model value per GRIB file and location
+    url TEXT NOT NULL,
+    field TEXT NOT NULL,
+    lat REAL NOT NULL,
+    lon REAL NOT NULL,
+    value_f REAL NOT NULL,
+    PRIMARY KEY (url, field, lat, lon)
+);
 CREATE TABLE IF NOT EXISTS outcomes (
     station TEXT NOT NULL,
     climate_date TEXT NOT NULL,
@@ -119,6 +127,16 @@ class DB:
             sql += " AND r.lead_hours <= ?"
             args.append(max_lead)
         return self.conn.execute(sql + " GROUP BY m.model, m.run_id", args).fetchall()
+
+    def get_point(self, url: str, field: str, lat: float, lon: float) -> float | None:
+        row = self.conn.execute(
+            "SELECT value_f FROM grib_points WHERE url = ? AND field = ? AND lat = ? AND lon = ?", (url, field, lat, lon)
+        ).fetchone()
+        return row[0] if row else None
+
+    def put_point(self, url: str, field: str, lat: float, lon: float, value_f: float) -> None:
+        with self.conn:
+            self.conn.execute("INSERT OR REPLACE INTO grib_points VALUES (?, ?, ?, ?, ?)", (url, field, lat, lon, value_f))
 
     def brackets_for(self, run_id: int) -> list[sqlite3.Row]:
         return self.conn.execute("SELECT * FROM bracket_probs WHERE run_id = ? ORDER BY idx", (run_id,)).fetchall()

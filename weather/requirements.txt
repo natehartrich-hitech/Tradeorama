@@ -3,3 +3,5 @@ numpy>=1.26
 pandas>=2.1
 scipy>=1.11
 pyyaml>=6.0
+eccodes>=2.45   # decodes NOAA GRIB2 for RRFS/REFS (Windows wheels include the library)
+eccodeslib>=2.44; sys_platform != "win32"   # the ecCodes library on macOS/Linux

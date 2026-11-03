@@ -10,7 +10,7 @@ Requires Python 3.11+.
 cd weather
 python -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
-pip install -r requirements-dev.txt
+pip install -r requirements-dev.txt   # includes eccodes, which reads NOAA's GRIB2 files
 cp config.example.yaml config.yaml # Windows: copy config.example.yaml config.yaml
 ```
 
@@ -102,6 +102,13 @@ Use `--min-lead` and `--max-lead` to score day-ahead and same-day runs separatel
   - Runs reach 18 hours ahead, or 48 hours for the 00/06/12/18 UTC runs. So HRRR usually covers today and sometimes tomorrow. Runs that don't cover the whole climate day are skipped automatically.
   - Only the latest run is used. Older runs aren't combined into a time-lagged ensemble.
   - Covers the contiguous US only.
+- **NOAA RRFS and REFS** (bucket `noaa-rrfs-ops-pds` on AWS): NOAA's new 3 km Rapid Refresh Forecast System, read straight from NOAA's files.
+  - **RRFS** is the deterministic run. Its files include `TMAX`, the maximum 2 m temperature over each hour, which catches peaks between hours. It runs every hour, and the 00/06/12/18Z runs reach 84 hours ahead.
+  - **REFS** is its 5-member ensemble (members m001–m005), run at 00/06/12/18Z and reaching 60 hours ahead. Its files only have hourly temperature (`TMP`).
+  - For each hour of the climate day, the bot reads the `.idx` index file and downloads just the one 2 m temperature message (about 1.7 MB) with an HTTP Range request. `eccodes` then decodes the value at the grid point nearest the station; for Midway, that point is 1.5 km away.
+  - A forecast uses the newest run that starts no later than the climate day and has published its last needed hour. On a busy morning, that may be the run before the latest.
+  - Data volume on the first run of a cycle: RRFS about 24 messages (~40 MB), REFS about 125 (~210 MB). Values are cached in the database (`grib_points` table), so repeat forecasts from the same run download nothing. Set `weight: 0` on a model to skip it.
+  - The file layout was checked against the live bucket in November 2026, and RRFS was test-run against it: it gave Midway a 61.1°F high for Nov 4 from the 06Z Nov 3 run. RRFS only went operational in autumn 2026, so NOAA may still change file names. The URL templates are in `wxbrackets/rrfs.py`, and the bucket is `rrfs.base_url` in the config.
 - **NWS API** (`api.weather.gov`): the point forecast high (daytime period) and station observations for today's running max. Hourly and 5-minute observations can miss the true peak, so the official high can come in a degree or so above the observed running max. `obs_tolerance_f` allows for rounding in the other direction. Observations reported in °C are converted to °F.
 - **NWS Daily Climate Report (CLI)**: the settlement source. The report issued after midnight is final for the previous day. Same-day reports ("VALID TODAY AS OF …") are kept only when nothing final exists, and are flagged.
   - `api.weather.gov/products/types/CLI/locations/{loc}` only keeps recent products, roughly the last week.
@@ -111,7 +118,7 @@ Use `--min-lead` and `--max-lead` to score day-ahead and same-day runs separatel
 
 ## Not verified against live services yet
 
-This was built in an environment that couldn't reach Open-Meteo, api.weather.gov or the IEM. The request formats follow the published documentation, but the test fixtures in `tests/fixtures/` are **hand-made in the documented formats, not captured responses**. Before trusting the output:
+This was built in an environment that couldn't reach Open-Meteo, api.weather.gov or the IEM. (NOAA's RRFS bucket was reachable, and RRFS/REFS was tested against it.) The request formats follow the published documentation, but the test fixtures in `tests/fixtures/` are **hand-made in the documented formats, not captured responses**. Before trusting the output:
 
 1. Run `check-models --dump raw/` and confirm each model's member count. Fix `models[].id` in the config if any fail.
 2. Run `observe` and `backfill-outcomes --days 7` and compare a few highs with the CLI reports on weather.gov.
@@ -119,10 +126,7 @@ This was built in an environment that couldn't reach Open-Meteo, api.weather.gov
 
 ## Not included yet
 
-Neither of these is on Open-Meteo, so both mean downloading NOAA's GRIB2 files. That needs `herbie-data` and its GRIB decoding dependencies (`cfgrib`/`eccodes`, `xarray`), which aren't in the dependency list. They're left out until you approve adding those.
-
-- **NOAA NBM** probabilistic guidance (via Herbie and AWS GRIB2), the planned stretch goal.
-- **RRFS / REFS:** NOAA's new Rapid Refresh Forecast System, with a deterministic run plus a 5-member ensemble (REFS). NWS notices scheduled its operational launch for November 3, 2026, after several delays.
+**NOAA NBM** probabilistic guidance is still the planned stretch goal. It can reuse the RRFS download-and-decode code.
 
 ## Tests
 
@@ -136,4 +140,5 @@ The tests cover:
 - bracket probability math and rounding
 - CLI report parsing (final, same-day, missing, archive splitting)
 - HTTP retries
+- RRFS index parsing (real `.idx` files from the bucket), forecast-hour and run selection, GRIB decoding, caching, and fallback to the previous run
 - an end-to-end run of the commands against a fake network built from the fixtures

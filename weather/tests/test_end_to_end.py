@@ -142,3 +142,38 @@ def test_hrrr_is_pooled_as_one_weighted_member(run, cfg, capsys):
     assert by_model["ncep_hrrr_conus"][:2] == ["1", "-4.00°"]
     assert by_model["gfs025"][:2] == ["1", "-9.00°"]
     assert by_model["ecmwf_ifs025"][:2] == ["1", "-6.00°"]
+
+
+def test_forecast_includes_rrfs(run, cfg, tmp_path, monkeypatch, capsys):
+    from test_rrfs import FakeBucket
+
+    bucket = FakeBucket(lambda f: 289.0)  # 60.5°F every hour
+
+    def network(request):
+        return bucket(request) if request.url.host == "bucket.test" else fake_network(request)
+
+    monkeypatch.setattr(cli, "make_http", lambda cfg, needs_nws=True: Http(
+        "tests", client=httpx.Client(transport=httpx.MockTransport(network)), sleep=lambda s: None))
+    path = tmp_path / "config.yaml"
+    text = path.read_text().replace("distribution:", """  - id: rrfs
+    name: RRFS
+    source: rrfs
+    weight: 0.5
+    expected_members: 1
+distribution:""", 1)
+    path.write_text(text + "\nrrfs:\n  base_url: https://bucket.test\n")
+    # A day the 06Z Nov 3 run covers, forecast before the 12Z run exists.
+    monkeypatch.setattr(cli, "today_for", lambda station: date(2026, 11, 3))
+    import wxbrackets.rrfs as rrfs_mod
+    real = rrfs_mod.datetime
+
+    class FrozenDatetime(real):
+        @classmethod
+        def now(cls, tz=None):
+            return real(2026, 11, 3, 11, tzinfo=tz)
+
+    monkeypatch.setattr(rrfs_mod, "datetime", FrozenDatetime)
+    run("forecast", "--station", "CHI", "--date", "2026-11-04", "--brackets", "55,57,59,61")
+    out = capsys.readouterr().out
+    [line] = [l for l in out.splitlines() if l.strip().startswith("RRFS")]
+    assert line.split()[1:4] == ["1", "of", "1"] and "mean max 60.5°F" in line

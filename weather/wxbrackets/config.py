@@ -11,6 +11,9 @@ class ConfigError(ValueError):
     pass
 
 
+SOURCES = ("ensemble", "forecast", "rrfs", "refs")
+
+
 @dataclass(frozen=True)
 class Station:
     code: str
@@ -33,7 +36,8 @@ class Model:
     name: str
     weight: float = 1.0
     expected_members: int | None = None
-    source: str = "ensemble"  # "ensemble" API (many members) or "forecast" API (one deterministic run)
+    source: str = "ensemble"  # ensemble / forecast (Open-Meteo APIs), rrfs / refs (NOAA AWS bucket)
+    members: tuple[int, ...] | None = None  # refs only: which ensemble members (default 1-5)
 
 
 @dataclass(frozen=True)
@@ -59,6 +63,7 @@ class Config:
     open_meteo_forecast_url: str = "https://api.open-meteo.com/v1/forecast"
     open_meteo_key: str | None = None
     open_meteo_min_interval: float = 0.5
+    rrfs_base_url: str = "https://noaa-rrfs-ops-pds.s3.amazonaws.com"
 
     def station(self, code: str) -> Station:
         try:
@@ -103,12 +108,13 @@ def parse_config(raw: dict, base_dir: Path = Path(".")) -> Config:
             weight=float(m.get("weight", 1.0)),
             expected_members=m.get("expected_members"),
             source=m.get("source", "ensemble"),
+            members=tuple(int(x) for x in m["members"]) if m.get("members") else None,
         )
         for m in raw.get("models") or []
     ]
-    bad = [m.id for m in models if m.source not in ("ensemble", "forecast")]
+    bad = [m.id for m in models if m.source not in SOURCES]
     if bad:
-        raise ConfigError(f"model source must be 'ensemble' or 'forecast': {', '.join(bad)}")
+        raise ConfigError(f"model source must be one of {', '.join(SOURCES)}: {', '.join(bad)}")
     if not models:
         raise ConfigError("no models configured")
     if any(m.weight < 0 for m in models) or sum(m.weight for m in models) <= 0:
@@ -142,4 +148,5 @@ def parse_config(raw: dict, base_dir: Path = Path(".")) -> Config:
         open_meteo_forecast_url=om.get("forecast_url") or "https://api.open-meteo.com/v1/forecast",
         open_meteo_key=om.get("api_key") or None,
         open_meteo_min_interval=float(om.get("min_interval_sec", 0.5)),
+        rrfs_base_url=(raw.get("rrfs") or {}).get("base_url") or "https://noaa-rrfs-ops-pds.s3.amazonaws.com",
     )

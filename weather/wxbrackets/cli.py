@@ -20,6 +20,7 @@ from .http import Http
 from .iem import IEM
 from .nws import NWS
 from .openmeteo import OpenMeteo, parse_members
+from .rrfs import DETERMINISTIC, ENSEMBLE, RRFS
 
 log = logging.getLogger("wxbrackets")
 
@@ -35,6 +36,8 @@ def make_http(cfg: Config, needs_nws: bool = True) -> Http:
             httpx.URL(cfg.open_meteo_url).host: cfg.open_meteo_min_interval,
             httpx.URL(cfg.open_meteo_forecast_url).host: cfg.open_meteo_min_interval,
         },
+        # GRIB messages are a couple of MB each: allow time for them.
+        timeout=60.0,
     )
 
 
@@ -60,7 +63,13 @@ def cmd_forecast(cfg: Config, args) -> None:
     if day < today:
         print(f"Note: {day} is already over at {station.name}. Use backfill-outcomes for the official high.")
 
-    maxes, _ = OpenMeteo(cfg, http).member_maxes(station, day, [m for m in cfg.models if m.weight > 0])
+    db = DB(cfg.database)
+    active = [m for m in cfg.models if m.weight > 0]
+    maxes, _ = OpenMeteo(cfg, http).member_maxes(station, day, active)
+    noaa = [m for m in active if m.source in ("rrfs", "refs")]
+    if noaa:
+        print("Fetching RRFS/REFS from NOAA's AWS bucket (cached after the first run)...", file=sys.stderr)
+        maxes.update(RRFS(http, cache=db, base_url=cfg.rrfs_base_url).member_maxes(station, day, noaa))
 
     observed = None
     if day == today:
@@ -100,7 +109,6 @@ def cmd_forecast(cfg: Config, args) -> None:
     print(f"{'total':>9}  {100 * sum(f.probs):5.1f}%")
 
     if not args.no_save:
-        db = DB(cfg.database)
         run_id = db.save_run(run_record(f, cfg), f.members,
                              [(b.label, b.low, b.high, p) for b, p in zip(brackets, f.probs)])
         print(f"\nSaved as run {run_id} in {cfg.database}")
@@ -199,7 +207,15 @@ def cmd_check_models(cfg: Config, args) -> None:
     day = today_for(station) + timedelta(days=1)
     om = OpenMeteo(cfg, make_http(cfg, needs_nws=False))
     ok = True
+    noaa = RRFS(make_http(cfg, needs_nws=False), base_url=cfg.rrfs_base_url)
     for m in cfg.models:
+        if m.source == "rrfs":
+            print(f"{m.id:24} {noaa.check(DETERMINISTIC, station, day, 0)}")
+            continue
+        if m.source == "refs":
+            for member in m.members or range(1, 6):
+                print(f"{m.id + f' m{member:03d}':24} {noaa.check(ENSEMBLE, station, day, member)}")
+            continue
         try:
             payload = om.fetch(station, day, [m.id], m.source)
         except httpx.HTTPStatusError as exc:
