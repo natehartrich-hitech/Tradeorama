@@ -1,0 +1,119 @@
+# Copy to config.yaml and edit. config.yaml is git-ignored.
+
+# NWS requires a User-Agent that identifies you, with contact info.
+# https://www.weather.gov/documentation/services-web-api
+nws:
+  user_agent: "wxbrackets (you@example.com)"   # REQUIRED: put your own email or site here
+  min_interval_sec: 1.0                        # politeness delay between NWS requests
+
+open_meteo:
+  # Free tier is non-commercial only. If you upgrade, switch to the customer
+  # endpoint and set your key, e.g.
+  #   base_url: https://customer-ensemble-api.open-meteo.com/v1/ensemble
+  #   api_key: "..."
+  base_url: https://ensemble-api.open-meteo.com/v1/ensemble
+  api_key: null
+  min_interval_sec: 0.5
+
+# Ensemble models to pool. `id` is Open-Meteo's `models` value. These IDs are
+# best-effort: run `python -m wxbrackets check-models --station CHI` to confirm
+# each returns the expected member count, and fix any that don't.
+# Weights are per MODEL (each model's members share its weight equally).
+models:
+  - id: ecmwf_ifs025
+    name: ECMWF IFS 0.25° ensemble
+    weight: 1.0
+    expected_members: 51
+  - id: gfs025
+    name: GFS ensemble 0.25°
+    weight: 1.0
+    expected_members: 31
+  - id: icon_seamless
+    name: DWD ICON EPS
+    weight: 1.0
+    expected_members: 40
+  - id: gem_global
+    name: GEM global ensemble
+    weight: 1.0
+    expected_members: 21
+
+distribution:
+  bias_f: 0.0            # added to every member max (positive = warmer). Set from `calibration`.
+  spread_inflation: 1.3  # scales member deviations from the pooled mean (>1 widens)
+  bandwidth_f: auto      # kernel width in °F, or "auto" (weighted Silverman rule)
+  min_valid_hours: 8     # a member needs this many non-missing hourly values in the climate day
+  obs_tolerance_f: 0.5   # same-day conditioning: high must be >= observed max minus this
+
+# Market brackets used when --brackets isn't given (upper edges, inclusive).
+default_brackets: [45, 47, 49, 51, 53, 55]
+
+database: wxbrackets.db
+
+# Stations. VERIFY which station each market settles on before trusting any number:
+# read the contract rules on the exchange. cli_location is the 3-letter code in the
+# CLI product ID (e.g. CLIMDW -> MDW); cli_office is the issuing NWS office.
+stations:
+  CHI:
+    name: Chicago Midway
+    icao: KMDW
+    lat: 41.7841
+    lon: -87.7551
+    timezone: America/Chicago
+    cli_office: LOT
+    cli_location: MDW
+  ORD:
+    name: Chicago O'Hare
+    icao: KORD
+    lat: 41.9602
+    lon: -87.9316
+    timezone: America/Chicago
+    cli_office: LOT
+    cli_location: ORD
+  NYC:
+    name: New York Central Park
+    icao: KNYC
+    lat: 40.7790
+    lon: -73.9692
+    timezone: America/New_York
+    cli_office: OKX
+    cli_location: NYC
+  MIA:
+    name: Miami International
+    icao: KMIA
+    lat: 25.7881
+    lon: -80.3169
+    timezone: America/New_York
+    cli_office: MFL
+    cli_location: MIA
+  AUS:
+    name: Austin Bergstrom
+    icao: KAUS
+    lat: 30.1831
+    lon: -97.6799
+    timezone: America/Chicago
+    cli_office: EWX
+    cli_location: AUS
+  LAX:
+    name: Los Angeles International
+    icao: KLAX
+    lat: 33.9382
+    lon: -118.3866
+    timezone: America/Los_Angeles
+    cli_office: LOX
+    cli_location: LAX
+  DEN:
+    name: Denver International
+    icao: KDEN
+    lat: 39.8466
+    lon: -104.6562
+    timezone: America/Denver
+    cli_office: BOU
+    cli_location: DEN
+  PHL:
+    name: Philadelphia International
+    icao: KPHL
+    lat: 39.8733
+    lon: -75.2268
+    timezone: America/New_York
+    cli_office: PHI
+    cli_location: PHL

@@ -1,0 +1,28 @@
+000
+CDUS43 KLOT 030634
+CLIMDW
+
+CLIMATE REPORT
+NATIONAL WEATHER SERVICE CHICAGO IL
+134 AM CDT TUE NOV 3 2026
+
+...................................
+
+...THE CHICAGO-MIDWAY CLIMATE SUMMARY FOR NOVEMBER 2 2026...
+
+CLIMATE NORMAL PERIOD 1991 TO 2020
+CLIMATE RECORD PERIOD 1928 TO 2026
+
+
+WEATHER ITEM   OBSERVED TIME   RECORD YEAR NORMAL DEPARTURE LAST
+                VALUE   (LST)  VALUE       VALUE  FROM      YEAR
+                                                  NORMAL
+...................................................................
+TEMPERATURE (F)
+ YESTERDAY
+  MAXIMUM         58    238 PM  79    1938  56      2       52
+  MINIMUM         41    633 AM  17    1951  39      2       37
+  AVERAGE         50                        48      2       45
+
+PRECIPITATION (IN)
+  YESTERDAY        0.00          1.27 1961   0.10  -0.10     0.02

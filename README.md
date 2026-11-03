@@ -99,6 +99,10 @@ To stop a running bot, press Ctrl+C or create a file named `tradeorama.stop` in 
 - Market matching relies on how Polymarket names and times its sports markets. If Polymarket changes that, matches will drop to zero, which is the safe failure.
 - In live mode, the bot's ledger records what each order reported. Your Polymarket positions are the final record.
 
+## Weather brackets
+
+`weather/` is a separate project that prices daily high-temperature bracket markets from weather ensembles. See [weather/README.md](weather/README.md).
+
 ## API
 
 | Method | Path | Description |

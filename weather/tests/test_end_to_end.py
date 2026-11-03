@@ -1,0 +1,106 @@
+"""Run the CLI commands against a fake network built from the fixtures."""
+
+from datetime import date
+from pathlib import Path
+
+import httpx
+import pytest
+
+from conftest import fixture_json, fixture_text
+from wxbrackets import cli
+from wxbrackets.db import DB
+from wxbrackets.http import Http
+
+
+def fake_network(request: httpx.Request) -> httpx.Response:
+    url = str(request.url)
+    if "ensemble-api.open-meteo.com" in url:
+        assert request.url.params["timeformat"] == "unixtime"
+        assert request.url.params["temperature_unit"] == "fahrenheit"
+        return httpx.Response(200, json=fixture_json("openmeteo_combined.json"))
+    if "/points/" in url:
+        return httpx.Response(200, json={"properties": {"forecast": "https://api.weather.gov/gridpoints/LOT/70,70/forecast"}})
+    if "/gridpoints/" in url:
+        return httpx.Response(200, json=fixture_json("nws_forecast.json"))
+    if "/observations" in url:
+        return httpx.Response(200, json=fixture_json("nws_observations.json"))
+    if "mesonet.agron.iastate.edu" in url:
+        return httpx.Response(200, text=fixture_text("cli_archive.txt"))
+    if "/products/types/CLI/" in url:
+        return httpx.Response(200, json={"@graph": []})
+    return httpx.Response(404)
+
+
+@pytest.fixture
+def run(cfg, tmp_path, monkeypatch):
+    config_path = tmp_path / "config.yaml"
+    monkeypatch.setattr(cli, "make_http", lambda cfg, needs_nws=True: Http(
+        "tests", client=httpx.Client(transport=httpx.MockTransport(fake_network)), sleep=lambda s: None))
+    monkeypatch.setattr(cli, "today_for", lambda station: date(2026, 11, 4))
+    # Only the two models the fixture contains.
+    text = config_path.read_text()
+    text = text.split("models:")[0] + """models:
+  - id: ecmwf_ifs025
+    name: ECMWF
+    expected_members: 3
+  - id: gfs025
+    name: GFS
+    expected_members: 3
+distribution:""" + text.split("distribution:")[1]
+    config_path.write_text(text)
+
+    def _run(*args):
+        cli.main(["--config", str(config_path), *args])
+    return _run
+
+
+def test_forecast_backfill_calibration(run, cfg, capsys):
+    run("forecast", "--station", "CHI", "--date", "2026-11-03", "--brackets", "51,53,55,57")
+    out = capsys.readouterr().out
+    assert "NWS point forecast:     60°F" in out
+    assert "    total  100.0%" in out
+    assert "Saved as run 1" in out
+
+    db = DB(cfg.database)
+    members = db.conn.execute("SELECT model, member, member_max_f, weight FROM forecast_members ORDER BY model, member").fetchall()
+    # gfs member 2 had no data; each model's weight is split across its own members.
+    assert [(m["model"], m["member"], m["member_max_f"]) for m in members] == [
+        ("ecmwf_ifs025", 0, 55.0), ("ecmwf_ifs025", 1, 56.0), ("ecmwf_ifs025", 2, 57.0),
+        ("gfs025", 0, 52.0), ("gfs025", 1, 54.0),
+    ]
+    assert members[0]["weight"] == pytest.approx(1 / 6) and members[3]["weight"] == pytest.approx(1 / 4)
+    assert db.conn.execute("SELECT pooled_mean_f FROM forecast_runs").fetchone()[0] == pytest.approx(54.5)
+
+    run("backfill-outcomes", "--station", "CHI", "--days", "3")
+    out = capsys.readouterr().out
+    assert "2026-11-02  high 58°F" in out and "2026-11-03  high 62°F" in out
+
+    run("calibration", "--station", "CHI")
+    out = capsys.readouterr().out
+    assert "1 forecast runs over 1 days" in out
+    assert "Ensemble mean bias (raw mean - official): -7.50°F" in out
+
+
+def test_same_day_forecast_conditions_on_observations(run, monkeypatch, capsys):
+    monkeypatch.setattr(cli, "today_for", lambda station: date(2026, 11, 3))
+    run("forecast", "--station", "CHI", "--date", "2026-11-03", "--brackets", "51,53,55,57,59", "--no-save")
+    out = capsys.readouterr().out
+    assert "Observed max so far:    60.1°F" in out
+    # Observed 60.1 (tolerance 0.5 -> floor 59.6): everything at or below 59 is impossible.
+    rows = {line.split()[0]: line.split()[1] for line in out.splitlines() if "%" in line and "¢" not in line}
+    assert rows["≤51"] == "0.0%" and rows["58-59"] == "0.0%" and rows["≥60"] == "100.0%"
+
+
+def test_observe(run, monkeypatch, capsys):
+    monkeypatch.setattr(cli, "today_for", lambda station: date(2026, 11, 3))
+    run("observe", "--station", "CHI")
+    out = capsys.readouterr().out
+    assert "Running max: 60.1°F" in out and "reports as 60°F" in out
+
+
+def test_placeholder_user_agent_is_rejected(tmp_path):
+    text = (Path(__file__).parent.parent / "config.example.yaml").read_text()
+    path = tmp_path / "c.yaml"
+    path.write_text(text)
+    with pytest.raises(SystemExit, match="user_agent"):
+        cli.main(["--config", str(path), "observe", "--station", "CHI"])

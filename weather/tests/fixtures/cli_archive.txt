@@ -1,0 +1,83 @@
+000
+CDUS43 KLOT 032245
+CLIMDW
+
+CLIMATE REPORT
+NATIONAL WEATHER SERVICE CHICAGO IL
+445 PM CST TUE NOV 3 2026
+
+...................................
+
+...THE CHICAGO-MIDWAY CLIMATE SUMMARY FOR NOVEMBER 3 2026...
+VALID TODAY AS OF 0400 PM LOCAL TIME.
+
+CLIMATE NORMAL PERIOD 1991 TO 2020
+CLIMATE RECORD PERIOD 1928 TO 2026
+
+
+WEATHER ITEM   OBSERVED TIME   RECORD YEAR NORMAL DEPARTURE LAST
+                VALUE   (LST)  VALUE       VALUE  FROM      YEAR
+                                                  NORMAL
+...................................................................
+TEMPERATURE (F)
+ TODAY
+  MAXIMUM         61R   156 PM  60    1990  56      5       50
+  MINIMUM         44    700 AM  15    1951  39      5       35
+  AVERAGE         53                        48      5       43
+
+000
+CDUS43 KLOT 040631
+CLIMDW
+
+CLIMATE REPORT
+NATIONAL WEATHER SERVICE CHICAGO IL
+445 PM CST TUE NOV 3 2026
+
+...................................
+
+...THE CHICAGO-MIDWAY CLIMATE SUMMARY FOR NOVEMBER 3 2026...
+
+
+CLIMATE NORMAL PERIOD 1991 TO 2020
+CLIMATE RECORD PERIOD 1928 TO 2026
+
+
+WEATHER ITEM   OBSERVED TIME   RECORD YEAR NORMAL DEPARTURE LAST
+                VALUE   (LST)  VALUE       VALUE  FROM      YEAR
+                                                  NORMAL
+...................................................................
+TEMPERATURE (F)
+ YESTERDAY
+  MAXIMUM         62R   305 PM  60    1990  56      5       50
+  MINIMUM         44    700 AM  15    1951  39      5       35
+  AVERAGE         53                        48      5       43
+
+000
+CDUS43 KLOT 030634
+CLIMDW
+
+CLIMATE REPORT
+NATIONAL WEATHER SERVICE CHICAGO IL
+134 AM CDT TUE NOV 3 2026
+
+...................................
+
+...THE CHICAGO-MIDWAY CLIMATE SUMMARY FOR NOVEMBER 2 2026...
+
+CLIMATE NORMAL PERIOD 1991 TO 2020
+CLIMATE RECORD PERIOD 1928 TO 2026
+
+
+WEATHER ITEM   OBSERVED TIME   RECORD YEAR NORMAL DEPARTURE LAST
+                VALUE   (LST)  VALUE       VALUE  FROM      YEAR
+                                                  NORMAL
+...................................................................
+TEMPERATURE (F)
+ YESTERDAY
+  MAXIMUM         58    238 PM  79    1938  56      2       52
+  MINIMUM         41    633 AM  17    1951  39      2       37
+  AVERAGE         50                        48      2       45
+
+PRECIPITATION (IN)
+  YESTERDAY        0.00          1.27 1961   0.10  -0.10     0.02
+
