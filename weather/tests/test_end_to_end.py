@@ -177,3 +177,29 @@ distribution:""", 1)
     out = capsys.readouterr().out
     [line] = [l for l in out.splitlines() if l.strip().startswith("RRFS")]
     assert line.split()[1:4] == ["1", "of", "1"] and "mean max 60.5°F" in line
+
+
+def test_forecast_uses_polymarket_us_brackets_and_calibration_compares(run, cfg, monkeypatch, capsys):
+    from test_polymarket_us import EVENT
+
+    def network(request):
+        if request.url.host == "gateway.polymarket.us":
+            if request.url.path.startswith("/v1/events/slug/temp-mdwhigh-"):
+                return httpx.Response(200, json=fixture_json(EVENT))
+            return httpx.Response(404)
+        return fake_network(request)
+
+    monkeypatch.setattr(cli, "make_http", lambda cfg, needs_nws=True: Http(
+        "tests", client=httpx.Client(transport=httpx.MockTransport(network)), sleep=lambda s: None))
+    run("forecast", "--station", "CHI", "--date", "2026-11-03")  # no --brackets: the market's are used
+    out = capsys.readouterr().out
+    assert "Polymarket US (edges are per contract, after the taker fee):" in out
+    labels = [l.split()[0] for l in out.splitlines() if l.strip()[:1] in "≤≥6789" and "%" in l]
+    assert labels == ["≤63", "64-65", "66-67", "68-69", "70-71", "≥72"]
+    db = DB(cfg.database)
+    assert db.conn.execute("SELECT COUNT(*) FROM market_prices").fetchone()[0] == 6
+
+    run("backfill-outcomes", "--station", "CHI", "--days", "3")  # Nov 3 official high: 62 -> "≤63"
+    run("calibration", "--station", "CHI")
+    out = capsys.readouterr().out
+    assert "Model vs. Polymarket US on the 1 runs with market prices" in out

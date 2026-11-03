@@ -4,22 +4,27 @@ import argparse
 import json
 import logging
 import sys
+import time
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import httpx
 
+from . import paper
 from .brackets import make_brackets, parse_edges, round_half_up
 from .calibration import calibrate
 from .cli_report import best_report
 from .climate_day import climate_date, climate_day_window
 from .config import Config, ConfigError, Station, load_config
 from .db import DB
-from .forecast import build_forecast, run_record
+from .forecast import Forecast, build_forecast, run_record
 from .http import Http
 from .iem import IEM
 from .nws import NWS
 from .openmeteo import OpenMeteo, parse_members
+from .paper import opportunities
+from .polymarket_us import PolymarketUS
 from .rrfs import DETERMINISTIC, ENSEMBLE, RRFS
 
 log = logging.getLogger("wxbrackets")
@@ -52,23 +57,36 @@ def fmt_f(x: float | None, digits: int = 1) -> str:
 # --- forecast ---------------------------------------------------------------------------
 
 
-def cmd_forecast(cfg: Config, args) -> None:
-    station = cfg.station(args.station)
-    day = date.fromisoformat(args.date) if args.date else today_for(station)
-    edges = parse_edges(args.brackets) if args.brackets else parse_edges(cfg.default_brackets)
-    brackets = make_brackets(edges)
-    http = make_http(cfg)
+@dataclass
+class ForecastRun:
+    forecast: Forecast
+    markets: list | None  # Polymarket US bracket markets, when the station has an event that day
+    run_id: int | None
+    window: tuple[datetime, datetime]
+
+
+def run_forecast(cfg: Config, station: Station, day: date, edges: list[int] | None, save: bool, http: Http,
+                 db: DB, quiet: bool = False) -> ForecastRun:
+    """Forecast one station-day. Brackets: `edges` if given, else that day's Polymarket US event, else the config."""
     nws = NWS(http)
     today = today_for(station)
-    if day < today:
-        print(f"Note: {day} is already over at {station.name}. Use backfill-outcomes for the official high.")
+    markets = None
+    if edges is None and station.pmus_event_prefix:
+        try:
+            markets = PolymarketUS(http, cfg.pmus_gateway).markets(station.pmus_event_prefix, day)
+        except (httpx.HTTPError, ValueError) as exc:
+            log.warning("Polymarket US market unavailable: %s", exc)
+    if markets:
+        brackets = [m.bracket for m in markets]
+    else:
+        brackets = make_brackets(edges or parse_edges(cfg.default_brackets))
 
-    db = DB(cfg.database)
     active = [m for m in cfg.models if m.weight > 0]
     maxes, _ = OpenMeteo(cfg, http).member_maxes(station, day, active)
     noaa = [m for m in active if m.source in ("rrfs", "refs")]
     if noaa:
-        print("Fetching RRFS/REFS from NOAA's AWS bucket (cached after the first run)...", file=sys.stderr)
+        if not quiet:
+            print("Fetching RRFS/REFS from NOAA's AWS bucket (cached after the first run)...", file=sys.stderr)
         maxes.update(RRFS(http, cache=db, base_url=cfg.rrfs_base_url).member_maxes(station, day, noaa))
 
     observed = None
@@ -83,9 +101,47 @@ def cmd_forecast(cfg: Config, args) -> None:
         log.warning("NWS point forecast unavailable: %s", exc)
         nws_high = None
 
-    now = datetime.now(timezone.utc)
-    f = build_forecast(cfg, station, day, maxes, brackets, now, observed, nws_high)
-    start, end = climate_day_window(day, station.tz)
+    f = build_forecast(cfg, station, day, maxes, brackets, datetime.now(timezone.utc), observed, nws_high)
+    run_id = None
+    if save:
+        run_id = db.save_run(run_record(f, cfg), f.members, [(b.label, b.low, b.high, p) for b, p in zip(brackets, f.probs)])
+        if markets:
+            db.save_market_prices(run_id, [(m.slug, m.bracket.label, m.bracket.low, m.bracket.high, m.yes_bid,
+                                            m.yes_ask, m.fee_rate) for m in markets])
+    return ForecastRun(f, markets, run_id, climate_day_window(day, station.tz))
+
+
+def cents(x: float | None) -> str:
+    return "–" if x is None else f"{100 * x:.0f}¢"
+
+
+def print_bracket_table(fr: ForecastRun) -> None:
+    f = fr.forecast
+    if not fr.markets:
+        print(f"\n{'bracket':>9}  {'prob':>6}  {'fair ¢':>6}")
+        for b, p in zip(f.brackets, f.probs):
+            print(f"{b.label:>9}  {100 * p:5.1f}%  {100 * p:6.1f}")
+        print(f"{'total':>9}  {100 * sum(f.probs):5.1f}%")
+        return
+    print("\nPolymarket US (edges are per contract, after the taker fee):")
+    print(f"{'bracket':>9}  {'model':>6}  {'yes bid':>7} {'yes ask':>7}  {'buy yes':>8}  {'buy no':>8}")
+    for o_yes, o_no in zip(*[iter(opportunities(fr.markets, f.probs))] * 2):
+        m = o_yes.market
+        fmt = lambda e: "–" if e is None else f"{100 * e:+.1f}¢"  # noqa: E731
+        print(f"{m.bracket.label:>9}  {100 * o_yes.prob:5.1f}%  {cents(m.yes_bid):>7} {cents(m.yes_ask):>7}  "
+              f"{fmt(o_yes.edge):>8}  {fmt(o_no.edge):>8}")
+    print(f"{'total':>9}  {100 * sum(f.probs):5.1f}%")
+
+
+def cmd_forecast(cfg: Config, args) -> None:
+    station = cfg.station(args.station)
+    day = date.fromisoformat(args.date) if args.date else today_for(station)
+    if day < today_for(station):
+        print(f"Note: {day} is already over at {station.name}. Use backfill-outcomes for the official high.")
+    fr = run_forecast(cfg, station, day, parse_edges(args.brackets) if args.brackets else None,
+                      not args.no_save, make_http(cfg), DB(cfg.database))
+    f = fr.forecast
+    start, end = fr.window
 
     print(f"{station.name} ({station.icao})  high for {day}")
     print(f"Climate day (local standard time): {start.astimezone(station.tz):%m-%d %H:%M %Z} to "
@@ -99,19 +155,79 @@ def cmd_forecast(cfg: Config, args) -> None:
     print(f"\nPooled ensemble mean:   {fmt_f(f.pooled_mean_f)}")
     print(f"Distribution mean:      {fmt_f(f.dist.mean())}  (bias {cfg.distribution.bias_f:+.1f}, "
           f"spread x{cfg.distribution.spread_inflation:g}, kernel {f.dist.bandwidth:.2f}°F)")
-    print(f"NWS point forecast:     {fmt_f(nws_high, 0)}")
-    if observed is not None:
-        print(f"Observed max so far:    {fmt_f(observed)}  (high can't finish below "
-              f"{observed - cfg.distribution.obs_tolerance_f:.1f}°F)")
-    print(f"\n{'bracket':>9}  {'prob':>6}  {'fair ¢':>6}")
-    for b, p in zip(brackets, f.probs):
-        print(f"{b.label:>9}  {100 * p:5.1f}%  {100 * p:6.1f}")
-    print(f"{'total':>9}  {100 * sum(f.probs):5.1f}%")
+    print(f"NWS point forecast:     {fmt_f(f.nws_forecast_high_f, 0)}")
+    if f.observed_max_f is not None:
+        print(f"Observed max so far:    {fmt_f(f.observed_max_f)}  (high can't finish below "
+              f"{f.observed_max_f - cfg.distribution.obs_tolerance_f:.1f}°F)")
+    print_bracket_table(fr)
+    if fr.run_id is not None:
+        print(f"\nSaved as run {fr.run_id} in {cfg.database}")
 
-    if not args.no_save:
-        run_id = db.save_run(run_record(f, cfg), f.members,
-                             [(b.label, b.low, b.high, p) for b, p in zip(brackets, f.probs)])
-        print(f"\nSaved as run {run_id} in {cfg.database}")
+
+# --- paper trading ----------------------------------------------------------------------
+
+
+def cmd_paper(cfg: Config, args) -> None:
+    stations = [cfg.station(args.station)] if args.station else [s for s in cfg.stations.values() if s.pmus_event_prefix]
+    if not stations or any(not s.pmus_event_prefix for s in stations):
+        raise ConfigError("paper trading needs a station with pmus_event_prefix (a Polymarket US weather city)")
+    http, db = make_http(cfg), DB(cfg.database)
+    pmus = PolymarketUS(http, cfg.pmus_gateway)
+    while True:
+        settled = paper.settle(db, pmus)
+        if settled:
+            print(f"Settled {settled} paper trades.")
+        for station in stations:
+            today = today_for(station)
+            days = [date.fromisoformat(args.date)] if args.date else [today, today + timedelta(days=1)]
+            for day in days:
+                try:
+                    fr = run_forecast(cfg, station, day, None, True, http, db, quiet=True)
+                except (httpx.HTTPError, ValueError) as exc:
+                    print(f"{station.code} {day}: skipped ({exc})")
+                    continue
+                if not fr.markets:
+                    print(f"{station.code} {day}: no Polymarket US event")
+                    continue
+                hours_left = (fr.window[1] - datetime.now(timezone.utc)).total_seconds() / 3600
+                opps = paper.trade(db, pmus, cfg.paper, station.code, day.isoformat(), fr.run_id, fr.markets,
+                                   fr.forecast.probs, hours_left, execute=not args.dry)
+                buys = [o for o in opps if o.action == "buy"]
+                best = max((o for o in opps if o.edge is not None), key=lambda o: o.edge, default=None)
+                note = f"best edge {100 * best.edge:+.1f}¢ ({best.side} {best.market.bracket.label})" if best else "no quotes"
+                print(f"{station.code} {day}: mean {fr.forecast.dist.mean():.1f}°F, {note}, {len(buys)} buys")
+                for o in buys:
+                    verb = "would buy" if args.dry else "paper buy"
+                    print(f"    {verb} {o.side.upper()} {o.market.bracket.label}: {o.fill.contracts:.2f} contracts "
+                          f"for ${o.fill.cost:.2f} (model {100 * o.prob:.0f}%, ask {cents(o.ask)}, "
+                          f"edge {100 * o.fill.edge_per_contract:+.1f}¢)")
+        if not args.every:
+            return
+        print(f"Next check in {args.every:g} min (Ctrl+C to stop).")
+        time.sleep(args.every * 60)
+
+
+def cmd_paper_report(cfg: Config, args) -> None:
+    db = DB(cfg.database)
+    stations = [args.station.upper()] if args.station else sorted({f["station"] for f in db.paper_fills()})
+    if not stations:
+        print("No paper trades yet. Run: python -m wxbrackets paper")
+        return
+    print(f"{'station':8} {'trades':>6} {'staked':>9} {'open':>8} {'avg edge':>9} {'settled':>8} {'P&L':>9} {'ROI':>7}")
+    for code in [*stations, None]:
+        s = paper.summary(db, code)
+        if not s["trades"]:
+            continue
+        roi = "–" if s["roi_pct"] is None else f"{s['roi_pct']:+.1f}%"
+        edge_c = "–" if s["avg_edge_cents"] is None else f"{s['avg_edge_cents']:+.1f}¢"
+        print(f"{code or 'ALL':8} {s['trades']:6d} {'$' + format(s['staked_usd'], '.2f'):>9} "
+              f"{'$' + format(s['open_usd'], '.2f'):>8} {edge_c:>9} {s['settled']:8d} "
+              f"{('-' if s['settled_pnl_usd'] < 0 else '+') + '$' + format(abs(s['settled_pnl_usd']), '.2f'):>9} {roi:>7}")
+    print("\nRecent:")
+    for f in db.paper_fills(args.station.upper() if args.station else None)[: args.limit]:
+        res = "open" if f["payout"] is None else f"{f['payout'] - f['cost']:+.2f}"
+        print(f"  {f['created_utc'][:16]} {f['station']} {f['target_date']} {f['side'].upper():3} {f['label']:>6} "
+              f"{f['contracts']:7.2f} for ${f['cost']:6.2f}  model {100 * f['prob']:3.0f}%  edge {100 * f['edge']:+.1f}¢  {res}")
 
 
 # --- observe ----------------------------------------------------------------------------
@@ -191,6 +307,11 @@ def cmd_calibration(cfg: Config, args) -> None:
         print(f"{'model':24} {'runs':>5} {'bias':>8} {'MAE':>7}")
         for row in res.per_model.itertuples():
             print(f"{row.model:24} {row.runs:5d} {row.bias_f:+7.2f}° {row.mae_f:6.2f}°")
+    if res.market_runs:
+        better = "better" if res.model_brier_vs_market < res.market_brier else "worse"
+        print(f"\nModel vs. Polymarket US on the {res.market_runs} runs with market prices (lower is better):")
+        print(f"  model Brier {res.model_brier_vs_market:.3f}   market Brier {res.market_brier:.3f}   -> model is {better}")
+        print("  Market probabilities are each bracket's mid price, scaled so the brackets sum to 100%.")
     print(f"\nTo remove the raw bias, set distribution.bias_f to about {-res.mean_bias_f:+.1f}"
           " (needs many days to be meaningful).")
     print("\nReliability (bracket probabilities vs. how often they hit):")
@@ -259,9 +380,22 @@ def main(argv=None) -> None:
     f = sub.add_parser("forecast", help="probabilities for each bracket of a day's high")
     f.add_argument("--station", required=True)
     f.add_argument("--date", help="YYYY-MM-DD (default: today's climate day)")
-    f.add_argument("--brackets", help="upper edges, e.g. 45,47,49,51,53,55 (default from config)")
+    f.add_argument("--brackets", help="upper edges, e.g. 45,47,49,51,53,55 (default: the day's Polymarket US "
+                   "brackets if the station has them, else the config)")
     f.add_argument("--no-save", action="store_true", help="don't log this run to the database")
     f.set_defaults(fn=cmd_forecast)
+
+    pp = sub.add_parser("paper", help="paper trade Polymarket US weather brackets (no real orders)")
+    pp.add_argument("--station", help="one station (default: every station with a Polymarket US event)")
+    pp.add_argument("--date", help="YYYY-MM-DD (default: today and tomorrow)")
+    pp.add_argument("--every", type=float, help="repeat every N minutes")
+    pp.add_argument("--dry", action="store_true", help="show what it would buy without recording anything")
+    pp.set_defaults(fn=cmd_paper)
+
+    pr = sub.add_parser("paper-report", help="paper trading results")
+    pr.add_argument("--station")
+    pr.add_argument("--limit", type=int, default=20)
+    pr.set_defaults(fn=cmd_paper_report)
 
     o = sub.add_parser("observe", help="today's running max from NWS observations")
     o.add_argument("--station", required=True)

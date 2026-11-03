@@ -1,6 +1,6 @@
 # wxbrackets
 
-Probabilities for daily high-temperature bracket markets (Kalshi-style "≤45 / 46-47 / … / ≥56"), built from weather-model ensembles and settled against the NWS Daily Climate Report. It only fetches data and computes probabilities. It never places trades.
+Probabilities for daily high-temperature bracket markets ("≤45 / 46-47 / … / ≥56"), built from weather-model ensembles and settled against the NWS Daily Climate Report. Both **Polymarket US** and Kalshi settle their daily-high markets on that report. The project reads Polymarket US's markets, compares them with the model, and can **paper trade** them. It never places real orders.
 
 ## Setup
 
@@ -32,7 +32,22 @@ python -m wxbrackets observe --station CHI
 python -m wxbrackets backfill-outcomes --station CHI --days 30
 python -m wxbrackets calibration --station CHI
 python -m wxbrackets check-models --station CHI --dump raw/
+python -m wxbrackets paper --dry                # what it would buy right now, records nothing
+python -m wxbrackets paper --every 30           # paper trade every 30 minutes (Ctrl+C to stop)
+python -m wxbrackets paper-report
 ```
+
+### Polymarket US
+
+[Polymarket US](https://polymarket.us) lists daily-high markets for Chicago (Midway), New York (Central Park), Miami, Los Angeles and San Francisco. All settle on the NWS Daily Climate Report (see the [weather FAQ](https://docs.polymarket.us/faqs/weather-faqs)). Each config station with a `pmus_event_prefix` is linked to its event, for example `temp-mdwhigh-2026-11-04`. The data is public, from `gateway.polymarket.us`, with no API key needed.
+
+- **`forecast`** uses that day's real brackets automatically (unless you pass `--brackets`). It shows each bracket's market bid and ask, and the edge per contract for buying Yes or No after the taker fee (0.0695 × p × (1 − p), read from each market). The quotes are saved with the run.
+- **`paper`** forecasts today and tomorrow for every linked city. Where buying Yes or No beats the market by at least `paper.min_edge` after fees, it records a paper buy:
+  - It walks the real order book, and stops at any price where the edge runs out.
+  - Bet size is quarter-Kelly on `paper.bankroll_usd`, capped per city-day and per day.
+  - It stops trading `paper.stop_hours_before_end` hours before the climate day ends.
+  - Finished markets are settled from Polymarket US's own results. Buying No means taking the Yes bids, at 1 − bid.
+- **`calibration`** adds a **model vs. market** Brier comparison on the runs where prices were saved. The market's probabilities are each bracket's mid price, scaled to sum to 100%. Only a model that scores better than the market has an edge worth paper trading.
 
 `--brackets` takes the upper edge of each bracket, inclusive: `45,47,49` means ≤45, 46-47, 48-49, ≥50. Without it, `default_brackets` from the config is used.
 
@@ -73,6 +88,9 @@ Saved as run 1 in wxbrackets.db
 6. **Same day.** If the date is today's climate day, the distribution is cut off below the highest temperature observed so far, minus `obs_tolerance_f`, and renormalised.
 
 ## Storage
+
+Tables added for Polymarket US: `market_prices` (the quotes captured with each run) and `paper_fills` (paper trades and their payouts).
+
 
 All runs are stored in SQLite (`database` in the config):
 

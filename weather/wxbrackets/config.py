@@ -24,6 +24,7 @@ class Station:
     timezone: str
     cli_office: str
     cli_location: str
+    pmus_event_prefix: str | None = None  # Polymarket US event slug prefix, e.g. "temp-mdwhigh"
 
     @property
     def tz(self) -> ZoneInfo:
@@ -51,6 +52,16 @@ class DistributionSettings:
 
 
 @dataclass(frozen=True)
+class PaperSettings:
+    bankroll_usd: float = 200.0
+    kelly_multiplier: float = 0.25
+    min_edge: float = 0.03  # expected profit per contract after fees, in dollars
+    max_event_usd: float = 25.0  # per city per day
+    max_daily_usd: float = 100.0  # across all cities, per UTC day
+    stop_hours_before_end: float = 2.0  # no new trades this close to the end of the climate day
+
+
+@dataclass(frozen=True)
 class Config:
     stations: dict[str, Station]
     models: list[Model]
@@ -64,6 +75,8 @@ class Config:
     open_meteo_key: str | None = None
     open_meteo_min_interval: float = 0.5
     rrfs_base_url: str = "https://noaa-rrfs-ops-pds.s3.amazonaws.com"
+    pmus_gateway: str = "https://gateway.polymarket.us"
+    paper: PaperSettings = PaperSettings()
 
     def station(self, code: str) -> Station:
         try:
@@ -93,6 +106,7 @@ def parse_config(raw: dict, base_dir: Path = Path(".")) -> Config:
                 timezone=s["timezone"],
                 cli_office=s["cli_office"].upper(),
                 cli_location=s["cli_location"].upper(),
+                pmus_event_prefix=s.get("pmus_event_prefix"),
             )
             st.tz  # validate the time zone name now rather than mid-run
         except (KeyError, TypeError, ValueError) as exc:
@@ -149,4 +163,6 @@ def parse_config(raw: dict, base_dir: Path = Path(".")) -> Config:
         open_meteo_key=om.get("api_key") or None,
         open_meteo_min_interval=float(om.get("min_interval_sec", 0.5)),
         rrfs_base_url=(raw.get("rrfs") or {}).get("base_url") or "https://noaa-rrfs-ops-pds.s3.amazonaws.com",
+        pmus_gateway=(raw.get("polymarket_us") or {}).get("gateway") or "https://gateway.polymarket.us",
+        paper=PaperSettings(**{k: float(v) for k, v in (raw.get("paper") or {}).items()}),
     )

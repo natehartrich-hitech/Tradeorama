@@ -47,6 +47,32 @@ CREATE TABLE IF NOT EXISTS grib_points (       -- cache: one model value per GRI
     value_f REAL NOT NULL,
     PRIMARY KEY (url, field, lat, lon)
 );
+CREATE TABLE IF NOT EXISTS market_prices (     -- Polymarket US quotes captured with each forecast run
+    run_id INTEGER NOT NULL REFERENCES forecast_runs(run_id),
+    slug TEXT NOT NULL,
+    label TEXT NOT NULL,
+    low_f INTEGER,
+    high_f INTEGER,
+    yes_bid REAL,
+    yes_ask REAL,
+    fee_rate REAL NOT NULL,
+    PRIMARY KEY (run_id, slug)
+);
+CREATE TABLE IF NOT EXISTS paper_fills (
+    id INTEGER PRIMARY KEY,
+    created_utc TEXT NOT NULL,
+    run_id INTEGER REFERENCES forecast_runs(run_id),
+    station TEXT NOT NULL,
+    target_date TEXT NOT NULL,
+    slug TEXT NOT NULL,
+    side TEXT NOT NULL,                -- 'yes' or 'no'
+    label TEXT NOT NULL,               -- bracket, e.g. "64-65"
+    contracts REAL NOT NULL,
+    cost REAL NOT NULL,                -- USD, fees included
+    prob REAL NOT NULL,                -- model probability of this side winning
+    edge REAL NOT NULL,                -- expected profit per contract after fees
+    payout REAL                        -- USD at settlement; NULL until settled
+);
 CREATE TABLE IF NOT EXISTS outcomes (
     station TEXT NOT NULL,
     climate_date TEXT NOT NULL,
@@ -127,6 +153,41 @@ class DB:
             sql += " AND r.lead_hours <= ?"
             args.append(max_lead)
         return self.conn.execute(sql + " GROUP BY m.model, m.run_id", args).fetchall()
+
+    def save_market_prices(self, run_id: int, rows: list[tuple]) -> None:
+        """rows: (slug, label, low_f, high_f, yes_bid, yes_ask, fee_rate)"""
+        with self.conn:
+            self.conn.executemany("INSERT OR REPLACE INTO market_prices VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                                  [(run_id, *r) for r in rows])
+
+    def market_prices(self, run_id: int) -> list[sqlite3.Row]:
+        return self.conn.execute("SELECT * FROM market_prices WHERE run_id = ?", (run_id,)).fetchall()
+
+    def record_paper_fill(self, **f) -> None:
+        f.setdefault("created_utc", now_utc())
+        with self.conn:
+            self.conn.execute(f"INSERT INTO paper_fills ({', '.join(f)}) VALUES ({', '.join('?' * len(f))})", list(f.values()))
+
+    def paper_spent(self, station: str | None = None, target_date: str | None = None, since_utc: str | None = None) -> float:
+        sql, args = "SELECT COALESCE(SUM(cost), 0) FROM paper_fills WHERE 1 = 1", []
+        for col, val, op in (("station", station, "="), ("target_date", target_date, "="), ("created_utc", since_utc, ">=")):
+            if val is not None:
+                sql += f" AND {col} {op} ?"
+                args.append(val)
+        return self.conn.execute(sql, args).fetchone()[0]
+
+    def unsettled_paper(self) -> list[sqlite3.Row]:
+        return self.conn.execute("SELECT * FROM paper_fills WHERE payout IS NULL").fetchall()
+
+    def settle_paper(self, fill_id: int, payout: float) -> None:
+        with self.conn:
+            self.conn.execute("UPDATE paper_fills SET payout = ? WHERE id = ?", (payout, fill_id))
+
+    def paper_fills(self, station: str | None = None) -> list[sqlite3.Row]:
+        sql, args = "SELECT * FROM paper_fills", []
+        if station:
+            sql, args = sql + " WHERE station = ?", [station]
+        return self.conn.execute(sql + " ORDER BY created_utc DESC", args).fetchall()
 
     def get_point(self, url: str, field: str, lat: float, lon: float) -> float | None:
         row = self.conn.execute(

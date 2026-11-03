@@ -79,6 +79,19 @@ distribution:
 rrfs:
   base_url: https://noaa-rrfs-ops-pds.s3.amazonaws.com
 
+polymarket_us:
+  gateway: https://gateway.polymarket.us   # public market data, no API key
+
+# Paper trading against Polymarket US weather markets (python -m wxbrackets paper).
+# Nothing here places real orders.
+paper:
+  bankroll_usd: 200          # money set aside; bet sizes are a fraction of this
+  kelly_multiplier: 0.25     # quarter Kelly
+  min_edge: 0.03             # expected profit per contract after fees ($0.03 = 3 cents)
+  max_event_usd: 25          # most on one city's day
+  max_daily_usd: 100         # most per UTC day across all cities
+  stop_hours_before_end: 2   # no new trades this close to the end of the climate day
+
 # Market brackets used when --brackets isn't given (upper edges, inclusive).
 default_brackets: [45, 47, 49, 51, 53, 55]
 
@@ -87,6 +100,10 @@ database: wxbrackets.db
 # Stations. VERIFY which station each market settles on before trusting any number:
 # read the contract rules on the exchange. cli_location is the 3-letter code in the
 # CLI product ID (e.g. CLIMDW -> MDW); cli_office is the issuing NWS office.
+# pmus_event_prefix links a station to its Polymarket US daily-high events
+# (slug <prefix>-YYYY-MM-DD). Polymarket US lists Chicago (Midway), New York (Central
+# Park), Miami, Los Angeles and San Francisco, all settled on the NWS CLI
+# (https://docs.polymarket.us/faqs/weather-faqs).
 stations:
   CHI:
     name: Chicago Midway
@@ -96,6 +113,7 @@ stations:
     timezone: America/Chicago
     cli_office: LOT
     cli_location: MDW
+    pmus_event_prefix: temp-mdwhigh
   ORD:
     name: Chicago O'Hare
     icao: KORD
@@ -112,6 +130,7 @@ stations:
     timezone: America/New_York
     cli_office: OKX
     cli_location: NYC
+    pmus_event_prefix: temp-nychigh
   MIA:
     name: Miami International
     icao: KMIA
@@ -120,6 +139,7 @@ stations:
     timezone: America/New_York
     cli_office: MFL
     cli_location: MIA
+    pmus_event_prefix: temp-miahigh
   AUS:
     name: Austin Bergstrom
     icao: KAUS
@@ -136,6 +156,16 @@ stations:
     timezone: America/Los_Angeles
     cli_office: LOX
     cli_location: LAX
+    pmus_event_prefix: temp-laxhigh
+  SFO:
+    name: San Francisco International
+    icao: KSFO
+    lat: 37.6197
+    lon: -122.3647
+    timezone: America/Los_Angeles
+    cli_office: MTR
+    cli_location: SFO
+    pmus_event_prefix: temp-sfohigh
   DEN:
     name: Denver International
     icao: KDEN

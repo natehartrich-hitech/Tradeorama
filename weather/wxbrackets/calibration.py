@@ -20,6 +20,21 @@ class CalibrationResult:
     nws_bias_f: float | None
     reliability: pd.DataFrame
     per_model: pd.DataFrame  # model, runs, bias_f, mae_f: each model's own mean vs. the official high
+    market_runs: int = 0  # runs that also captured Polymarket US prices
+    model_brier_vs_market: float | None = None  # the model's Brier on just those runs
+    market_brier: float | None = None  # the market's Brier on the same runs
+
+
+def market_probs(rows) -> list[float] | None:
+    """Each bracket's mid (or the one quote available), normalised to sum to 1."""
+    mids = []
+    for r in rows:
+        quotes = [q for q in (r["yes_bid"], r["yes_ask"]) if q is not None]
+        if not quotes:
+            return None
+        mids.append(sum(quotes) / len(quotes))
+    total = sum(mids)
+    return [m / total for m in mids] if total > 0 else None
 
 
 def reliability_table(pairs: list[tuple[float, int]], bins: int = 10) -> pd.DataFrame:
@@ -36,14 +51,21 @@ def reliability_table(pairs: list[tuple[float, int]], bins: int = 10) -> pd.Data
 def calibrate(db: DB, station: str, min_lead: float | None = None, max_lead: float | None = None) -> CalibrationResult:
     runs = db.scored_runs(station, min_lead, max_lead)
     briers, pairs, raw_err, dist_err, nws_err = [], [], [], [], []
+    model_vs, market_vs = [], []
     for r in runs:
         official = r["official_f"]
         rows = db.brackets_for(r["run_id"])
         if rows:
             hits = [int(Bracket(b["label"], b["low_f"], b["high_f"]).contains(official)) for b in rows]
             probs = [b["prob"] for b in rows]
-            briers.append(sum((p - h) ** 2 for p, h in zip(probs, hits)))
+            brier = sum((p - h) ** 2 for p, h in zip(probs, hits))
+            briers.append(brier)
             pairs += list(zip(probs, hits))
+            quotes = {q["label"]: q for q in db.market_prices(r["run_id"])}
+            mkt = market_probs([quotes[b["label"]] for b in rows]) if set(quotes) == {b["label"] for b in rows} else None
+            if mkt:
+                model_vs.append(brier)
+                market_vs.append(sum((p - h) ** 2 for p, h in zip(mkt, hits)))
         raw_err.append(r["pooled_mean_f"] - official)
         dist_err.append(r["dist_mean_f"] - official)
         if r["nws_forecast_high_f"] is not None:
@@ -73,4 +95,7 @@ def calibrate(db: DB, station: str, min_lead: float | None = None, max_lead: flo
         nws_bias_f=mean(nws_err),
         reliability=reliability_table(pairs),
         per_model=per_model,
+        market_runs=len(market_vs),
+        model_brier_vs_market=mean(model_vs),
+        market_brier=mean(market_vs),
     )
