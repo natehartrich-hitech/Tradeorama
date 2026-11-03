@@ -58,6 +58,10 @@ class Leg:
     question: str
     line: Line
     fee_rate: float | None = None  # taker fee coefficient, when the venue publishes it per market
+    # Best bid/ask for buying this outcome, when the venue's listing includes them. Lets the bot
+    # skip the order-book request when the best price already shows no edge.
+    quote_bid: float | None = None
+    quote_ask: float | None = None
 
 
 def norm(name: str) -> list[str]:

@@ -11,6 +11,8 @@ A market's outcomePrices once resolved are [long/Yes payout, short/No payout].
 """
 
 import logging
+import random
+import time
 
 import httpx
 
@@ -71,6 +73,17 @@ def market_start(m: dict, event: dict):
     return None
 
 
+def quote(q) -> float | None:
+    return float(q["value"]) if q and q.get("value") not in (None, "") else None
+
+
+def side_quotes(m: dict) -> dict[str, dict]:
+    """Listing quotes for buying each side: Yes at the ask; No at 1 - the Yes bid."""
+    bid, ask = quote(m.get("bestBidQuote")), quote(m.get("bestAskQuote"))
+    flip = lambda x: None if x is None else round(1 - x, 4)  # noqa: E731
+    return {"yes": {"quote_bid": bid, "quote_ask": ask}, "no": {"quote_bid": flip(ask), "quote_ask": flip(bid)}}
+
+
 def legs_for_market(m: dict, event: dict, line: Line) -> list[Leg]:
     if m.get("closed") or m.get("status") not in (None, "MARKET_STATUS_OPEN"):
         return []
@@ -83,6 +96,7 @@ def legs_for_market(m: dict, event: dict, line: Line) -> list[Leg]:
     long_side = next((s for s in sides if s.get("long")), None)
     short_side = next((s for s in sides if s.get("long") is False), None)
     common = dict(market_id=slug, question=m.get("question") or "", line=line, fee_rate=fee)
+    q = side_quotes(m)
     has_draw = "Draw" in line.fair
 
     if m.get("marketType") == "moneyline":
@@ -92,8 +106,8 @@ def legs_for_market(m: dict, event: dict, line: Line) -> list[Leg]:
         if not a or not b or a == b:
             return []
         return [
-            Leg(token(slug, "yes"), line.fair[a], long_side.get("description") or a, **common),
-            Leg(token(slug, "no"), line.fair[b], short_side.get("description") or b, **common),
+            Leg(token(slug, "yes"), line.fair[a], long_side.get("description") or a, **common, **q["yes"]),
+            Leg(token(slug, "no"), line.fair[b], short_side.get("description") or b, **common, **q["no"]),
         ]
 
     if m.get("marketType") == "drawable_outcome":
@@ -109,8 +123,8 @@ def legs_for_market(m: dict, event: dict, line: Line) -> list[Leg]:
             p, what = line.fair[team], team
         label = m.get("titleShort") or what
         return [
-            Leg(token(slug, "yes"), p, f"Yes: {label}", **common),
-            Leg(token(slug, "no"), 1 - p, f"No: {label}", **common),
+            Leg(token(slug, "yes"), p, f"Yes: {label}", **common, **q["yes"]),
+            Leg(token(slug, "no"), 1 - p, f"No: {label}", **common, **q["no"]),
         ]
     return []
 
@@ -151,10 +165,49 @@ def side_book(book: dict, side: str) -> dict:
 
 class PolymarketUS:
     name = "polymarket-us"
+    RETRY_STATUS = {429, 500, 502, 503, 504}
 
-    def __init__(self, client: httpx.Client | None = None, base_url: str = GATEWAY):
+    def __init__(self, client: httpx.Client | None = None, base_url: str = GATEWAY, min_interval: float = 0.1,
+                 book_interval: float = 3.0, retries: int = 4, book_ttl: float = 30.0, sleep=time.sleep,
+                 clock=time.monotonic):
         self.http = client or httpx.Client(timeout=15)
         self.base = base_url.rstrip("/")
+        # Measured November 2026: listings and event/market lookups take several requests a second,
+        # but order books (and BBO) allow about 5 per 15 s per IP before a 10 s Retry-After. So
+        # books are spaced 3 s apart, and only fetched when the listing quote shows a possible edge.
+        self.min_interval = min_interval
+        self.book_interval = book_interval
+        self.retries = retries
+        self.book_ttl = book_ttl
+        self.sleep, self.clock = sleep, clock
+        self._last: dict[bool, float] = {}
+        self._books: dict[str, tuple[float, dict]] = {}
+
+    def _get(self, path: str, params: dict | None = None) -> httpx.Response:
+        is_book = path.endswith(("/book", "/bbo"))
+        gap = self.book_interval if is_book else self.min_interval
+        for attempt in range(self.retries + 1):
+            last = self._last.get(is_book)
+            if last is not None:
+                wait = last + gap - self.clock()
+                if wait > 0:
+                    self.sleep(wait)
+            self._last[is_book] = self.clock()
+            try:
+                r = self.http.get(f"{self.base}{path}", params=params)
+            except httpx.TransportError:
+                if attempt == self.retries:
+                    raise
+                self.sleep(2**attempt)
+                continue
+            if r.status_code in self.RETRY_STATUS and attempt < self.retries:
+                after = r.headers.get("Retry-After", "")
+                # Docs: wait at least 1 second, then back off exponentially.
+                self.sleep(float(after) if after.isdigit() else max(1.0, 2**attempt) * (1 + random.random() * 0.25))
+                continue
+            r.raise_for_status()
+            return r
+        raise RuntimeError("unreachable")
 
     def events(self, sport: str, page: int = 100, max_pages: int = 20) -> list[dict]:
         league = LEAGUES.get(sport)
@@ -162,8 +215,7 @@ class PolymarketUS:
             raise ValueError(f"no Polymarket US league known for {sport}; add it to LEAGUES in pmus.py")
         events: list[dict] = []
         for _ in range(max_pages):
-            r = self.http.get(f"{self.base}/v2/leagues/{league}/events", params={"limit": page, "offset": len(events)})
-            r.raise_for_status()
+            r = self._get(f"/v2/leagues/{league}/events", params={"limit": page, "offset": len(events)})
             batch = r.json().get("events") or []
             events += batch
             if len(batch) < page:
@@ -174,10 +226,12 @@ class PolymarketUS:
         return match(line, events)
 
     def book(self, token_id: str) -> dict:
+        """One request per market however many outcomes share it, reused for `book_ttl` seconds."""
         slug, side = split_token(token_id)
-        r = self.http.get(f"{self.base}/v1/markets/{slug}/book")
-        r.raise_for_status()
-        return side_book(r.json(), side)
+        cached = self._books.get(slug)
+        if cached is None or self.clock() - cached[0] > self.book_ttl:
+            cached = self._books[slug] = (self.clock(), self._get(f"/v1/markets/{slug}/book").json())
+        return side_book(cached[1], side)
 
     def fee_rate(self, leg: Leg) -> float:
         return leg.fee_rate if leg.fee_rate is not None else 0.0695  # standard taker theta (docs: Fee Schedule)
@@ -185,9 +239,7 @@ class PolymarketUS:
     def payout_per_share(self, token_id: str, market_id: str | None = None) -> float | None:
         """1 or 0 once the market has resolved, else None."""
         slug, side = split_token(token_id)
-        r = self.http.get(f"{self.base}/v1/market/slug/{slug}")
-        r.raise_for_status()
-        m = r.json().get("market") or {}
+        m = self._get(f"/v1/market/slug/{slug}").json().get("market") or {}
         if m.get("status") != "MARKET_STATUS_RESOLVED":
             return None
         prices = [float(p) for p in _json_list(m.get("outcomePrices"))]

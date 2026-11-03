@@ -101,9 +101,14 @@ def book_side(book: dict, side: str) -> list[tuple[float, float]]:
 
 
 class PolymarketUS:
+    # Order books allow about 5 requests per 15 s per IP (measured November 2026); event and
+    # market lookups aren't limited like that. So only book requests are spaced out.
+    BOOK_INTERVAL = 3.0
+
     def __init__(self, http: Http, base_url: str = GATEWAY):
         self.http = http
         self.base = base_url.rstrip("/")
+        self._last_book: float | None = None
 
     def event(self, prefix: str, day: date) -> dict | None:
         try:
@@ -118,6 +123,11 @@ class PolymarketUS:
         return parse_event(ev) if ev else None
 
     def book(self, slug: str) -> dict:
+        if self._last_book is not None:
+            wait = self._last_book + self.BOOK_INTERVAL - self.http.clock()
+            if wait > 0:
+                self.http.sleep(wait)
+        self._last_book = self.http.clock()
         return self.http.json(f"{self.base}/v1/markets/{slug}/book")
 
     def yes_payout(self, slug: str) -> float | None:

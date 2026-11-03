@@ -161,3 +161,66 @@ def test_old_databases_get_a_venue_column(tmp_path):
     ledger = Ledger(str(db))
     assert ledger.summary(venue="polymarket")["trades"] == 1
     assert ledger.summary(venue="polymarket-us")["trades"] == 0
+
+
+def counting_gateway(handler):
+    calls = []
+
+    def wrapped(request):
+        calls.append(request.url.path)
+        return handler(request)
+    sleeps = []
+    venue = PolymarketUS(httpx.Client(transport=httpx.MockTransport(wrapped)), base_url="https://gw.test",
+                         sleep=sleeps.append)
+    return venue, calls, sleeps
+
+
+def test_retries_after_429_respecting_retry_after():
+    attempts = []
+
+    def handler(request):
+        attempts.append(1)
+        if len(attempts) < 3:
+            return httpx.Response(429, headers={"Retry-After": "2"}, json={"status": 429})
+        return httpx.Response(200, json={"events": []})
+
+    venue, calls, sleeps = counting_gateway(handler)
+    assert venue.events("basketball_nba") == []
+    assert len(calls) == 3 and sleeps.count(2.0) == 2
+
+
+def test_requests_are_spaced_out():
+    venue, calls, sleeps = counting_gateway(lambda r: httpx.Response(200, json=book_json(0.4, 0.5)))
+    now = [0.0]
+    venue.clock = lambda: now[0]
+    venue.sleep = lambda s: (sleeps.append(s), now.__setitem__(0, now[0] + s))
+    venue.book("m1:yes")
+    venue.book("m2:yes")  # order books: 3 s apart
+    venue.payout_per_share("m1:yes")  # other lookups aren't held up by the book spacing
+    venue.payout_per_share("m2:yes")  # ...and are 0.1 s apart
+    assert sleeps == [pytest.approx(3.0), pytest.approx(0.1)]
+
+
+def test_both_teams_share_one_book_request():
+    venue, calls, _ = counting_gateway(lambda r: httpx.Response(200, json=book_json(0.46, 0.48)))
+    assert venue.book("aec-x:yes")["asks"][0]["price"] == 0.48
+    assert venue.book("aec-x:no")["asks"][0]["price"] == pytest.approx(0.54)
+    assert len(calls) == 1
+
+
+def test_no_book_requests_when_listing_quotes_show_no_edge(tmp_path):
+    # Fair prices equal to the listing's mids: nothing can clear a 3c edge, so no book is fetched.
+    def handler(request):
+        if request.url.path.startswith("/v2/leagues/nba/events"):
+            events = load("pmus_nba_events.json")["events"] if request.url.params["offset"] == "0" else []
+            return httpx.Response(200, json={"events": events})
+        return httpx.Response(200, json=book_json(0.48, 0.49))
+
+    venue, calls, _ = counting_gateway(handler)
+    now = datetime(2026, 11, 4, 20, tzinfo=UTC)
+    l = line("Detroit Pistons", "Philadelphia 76ers", NBA_START, {"Detroit Pistons": 0.515, "Philadelphia 76ers": 0.485}, updated=now)
+    s = strat(tmp_path)
+    bot = Bot(make_settings(), s, Odds([l]), venue, Trader(make_settings()), Ledger(s.db_path), clock=now.timestamp)
+    decisions = bot.cycle(execute=False)
+    assert len(decisions) == 2 and all(d.reason == "edge below threshold" for d in decisions)
+    assert not any(p.endswith("/book") for p in calls)

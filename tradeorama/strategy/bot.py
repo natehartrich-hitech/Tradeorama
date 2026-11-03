@@ -110,6 +110,19 @@ class Bot:
         if commence - now < self.strat.min_minutes_before_start * 60:
             return skip("game starting or started")
 
+        fee = self.venue.fee_rate(leg)
+        if leg.quote_ask is not None:
+            # The listing's best price already rules out a trade: don't fetch the order book.
+            e0 = edge(leg.fair, leg.quote_ask, fee)
+            mid0 = (leg.quote_ask + leg.quote_bid) / 2 if leg.quote_bid is not None else None
+            info0 = dict(ask=leg.quote_ask, mid=mid0, edge=e0)
+            if mid0 is not None and abs(mid0 - leg.fair) > self.strat.max_divergence:
+                return skip("market and Pinnacle disagree too much; likely a bad match", **info0)
+            if e0 < self.strat.min_edge:
+                return skip("edge below threshold", **info0)
+        elif leg.quote_bid is not None and leg.quote_ask is None:
+            return skip("no asks", ask=None, mid=None, edge=None)
+
         book = self.venue.book(leg.token_id)
         asks, bids = levels(book.get("asks")), levels(book.get("bids"))
         if not asks:
@@ -117,7 +130,6 @@ class Bot:
         best_ask = min(p for p, _ in asks)
         best_bid = max((p for p, _ in bids), default=None)
         mid = (best_ask + best_bid) / 2 if best_bid is not None else None
-        fee = self.venue.fee_rate(leg)
         e = edge(leg.fair, best_ask, fee)
         info = dict(ask=best_ask, mid=mid, edge=e)
 
