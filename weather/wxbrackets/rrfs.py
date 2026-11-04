@@ -113,30 +113,40 @@ class GribPoint:
         self._index: dict[tuple, int] = {}
 
     def value(self, message: bytes, lat: float, lon: float) -> float:
+        return self.values(message, [(lat, lon)])[0]
+
+    def values(self, message: bytes, points: list[tuple[float, float]]) -> list[float]:
+        """Values nearest each (lat, lon), decoding the message once. NaN where the field is missing."""
         ec = self.ec
         gid = ec.codes_new_from_message(message)
         try:
             grid = tuple(ec.codes_get(gid, k) for k in (
                 "gridType", "Nx", "Ny", "latitudeOfFirstGridPointInDegrees", "longitudeOfFirstGridPointInDegrees",
-            )) + (round(lat, 4), round(lon, 4))
-            if grid not in self._index:
-                self._index[grid] = ec.codes_grib_find_nearest(gid, lat, lon)[0].index
-            v = ec.codes_get_double_element(gid, "values", self._index[grid])
+            ))
             missing = ec.codes_get_double(gid, "missingValue") if ec.codes_is_defined(gid, "missingValue") else None
-            if missing is not None and v == missing:
-                return math.nan
-            return v
+            out = []
+            for lat, lon in points:
+                key = grid + (round(lat, 4), round(lon, 4))
+                if key not in self._index:
+                    self._index[key] = ec.codes_grib_find_nearest(gid, lat, lon)[0].index
+                v = ec.codes_get_double_element(gid, "values", self._index[key])
+                out.append(math.nan if missing is not None and v == missing else v)
+            return out
         finally:
             ec.codes_release(gid)
 
 
 class RRFS:
-    def __init__(self, http: Http, cache=None, base_url: str = BASE_URL, grib: GribPoint | None = None):
+    def __init__(self, http: Http, cache=None, base_url: str = BASE_URL, grib: GribPoint | None = None,
+                 points: list[tuple[float, float]] | None = None):
         self.http = http
         self.cache = cache  # object with get_point(url, field, lat, lon) / put_point(...)
         self.base_url = base_url.rstrip("/")
         self._grib = grib
         self._idx: dict[str, list[tuple[int, str]] | None] = {}
+        # Every location to read from each downloaded message, e.g. all paper-traded cities. All
+        # cities share the same NOAA files, so one download fills the cache for all of them.
+        self.points = list(dict.fromkeys(points or []))
 
     @property
     def grib(self) -> GribPoint:
@@ -168,12 +178,13 @@ class RRFS:
             return None
         start, end = rng
         r = self.http.get(url, headers={"Range": f"bytes={start}-{'' if end is None else end}"})
-        value_f = kelvin_to_f(self.grib.value(r.content, lat, lon))
-        if math.isnan(value_f):
-            return None
+        points = list(dict.fromkeys([(lat, lon), *self.points]))
+        values_f = [kelvin_to_f(v) for v in self.grib.values(r.content, points)]
         if self.cache is not None:
-            self.cache.put_point(url, field, lat, lon, value_f)
-        return value_f
+            for (plat, plon), v in zip(points, values_f):
+                if not math.isnan(v):
+                    self.cache.put_point(url, field, plat, plon, v)
+        return None if math.isnan(values_f[0]) else values_f[0]
 
     def choose_cycle(self, product: Product, start: datetime, end: datetime, now: datetime, member: int) -> datetime | None:
         """Newest cycle whose last needed file has been published."""

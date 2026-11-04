@@ -166,3 +166,22 @@ def test_falls_back_to_previous_cycle_until_the_newest_is_published(cfg, tmp_pat
     now = datetime(2026, 11, 3, 16, tzinfo=UTC)
     _, init = rrfs.member_max(DETERMINISTIC, cfg.station("CHI"), date(2026, 11, 4), 0, now)
     assert init == datetime(2026, 11, 3, 6, tzinfo=UTC)
+
+
+def test_one_download_serves_every_city(cfg, tmp_path):
+    """Chicago's run downloads each hour once and caches O'Hare's value too: O'Hare then downloads nothing."""
+    bucket = FakeBucket(lambda f: 285.0)
+    chi, ord_ = cfg.station("CHI"), cfg.station("ORD")
+    http = Http("t", client=httpx.Client(transport=httpx.MockTransport(bucket)), sleep=lambda s: None)
+    rrfs = RRFS(http, cache=DB(tmp_path / "c.db"), base_url="https://bucket.test", points=[(chi.lat, chi.lon), (ord_.lat, ord_.lon)])
+    now = datetime(2026, 11, 3, 11, tzinfo=UTC)
+    a = rrfs.member_max(DETERMINISTIC, chi, date(2026, 11, 4), 0, now)
+    assert len(bucket.ranges) == 24
+    b = rrfs.member_max(DETERMINISTIC, ord_, date(2026, 11, 4), 0, now)
+    assert len(bucket.ranges) == 24  # no new downloads
+    assert a[0] == pytest.approx(b[0])
+
+
+def test_grib_values_for_several_points():
+    gp = GribPoint()
+    assert gp.values(make_grib(290.0), [(41.78, -87.75), (41.96, -87.93)]) == [pytest.approx(290.0)] * 2

@@ -66,7 +66,7 @@ class ForecastRun:
 
 
 def run_forecast(cfg: Config, station: Station, day: date, edges: list[int] | None, save: bool, http: Http,
-                 db: DB, quiet: bool = False) -> ForecastRun:
+                 db: DB, quiet: bool = False, rrfs: RRFS | None = None) -> ForecastRun:
     """Forecast one station-day. Brackets: `edges` if given, else that day's Polymarket US event, else the config."""
     nws = NWS(http)
     today = today_for(station)
@@ -87,7 +87,8 @@ def run_forecast(cfg: Config, station: Station, day: date, edges: list[int] | No
     if noaa:
         if not quiet:
             print("Fetching RRFS/REFS from NOAA's AWS bucket (cached after the first run)...", file=sys.stderr)
-        maxes.update(RRFS(http, cache=db, base_url=cfg.rrfs_base_url).member_maxes(station, day, noaa))
+        rrfs = rrfs or RRFS(http, cache=db, base_url=cfg.rrfs_base_url)
+        maxes.update(rrfs.member_maxes(station, day, noaa))
 
     observed = None
     if day == today:
@@ -173,7 +174,10 @@ def cmd_paper(cfg: Config, args) -> None:
         raise ConfigError("paper trading needs a station with pmus_event_prefix (a Polymarket US weather city)")
     http, db = make_http(cfg), DB(cfg.database)
     pmus = PolymarketUS(http, cfg.pmus_gateway)
+    grib = None  # shared across loops, so each city's grid point is located only once
     while True:
+        # One NOAA download per file serves every city: read all of their points from it.
+        rrfs = RRFS(http, cache=db, base_url=cfg.rrfs_base_url, grib=grib, points=[(s.lat, s.lon) for s in stations])
         settled = paper.settle(db, pmus)
         if settled:
             print(f"Settled {settled} paper trades.")
@@ -182,7 +186,7 @@ def cmd_paper(cfg: Config, args) -> None:
             days = [date.fromisoformat(args.date)] if args.date else [today, today + timedelta(days=1)]
             for day in days:
                 try:
-                    fr = run_forecast(cfg, station, day, None, True, http, db, quiet=True)
+                    fr = run_forecast(cfg, station, day, None, True, http, db, quiet=True, rrfs=rrfs)
                 except (httpx.HTTPError, ValueError) as exc:
                     print(f"{station.code} {day}: skipped ({exc})")
                     continue
@@ -201,6 +205,7 @@ def cmd_paper(cfg: Config, args) -> None:
                     print(f"    {verb} {o.side.upper()} {o.market.bracket.label}: {o.fill.contracts:.2f} contracts "
                           f"for ${o.fill.cost:.2f} (model {100 * o.prob:.0f}%, ask {cents(o.ask)}, "
                           f"edge {100 * o.fill.edge_per_contract:+.1f}¢)")
+        grib = rrfs._grib
         if not args.every:
             return
         print(f"Next check in {args.every:g} min (Ctrl+C to stop).")
