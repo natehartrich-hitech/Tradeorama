@@ -154,8 +154,10 @@ def test_hrrr_is_pooled_as_one_weighted_member(run, cfg, capsys):
     run("calibration", "--station", "CHI")
     out = capsys.readouterr().out
     # Official high was 62: each model's own mean vs. that.
-    by_model = {line.split()[0]: line.split()[1:] for line in out.splitlines()
-                if line.split() and line.split()[0] in ("ncep_hrrr_conus", "gfs025", "ecmwf_ifs025")}
+    by_model = {}
+    for line in out.splitlines():  # first table only; the lead-time table repeats the model names
+        if line.split() and line.split()[0] in ("ncep_hrrr_conus", "gfs025", "ecmwf_ifs025"):
+            by_model.setdefault(line.split()[0], line.split()[1:])
     assert by_model["ncep_hrrr_conus"][:2] == ["1", "-4.00°"]
     assert by_model["gfs025"][:2] == ["1", "-9.00°"]
     assert by_model["ecmwf_ifs025"][:2] == ["1", "-6.00°"]
@@ -220,3 +222,24 @@ def test_forecast_uses_polymarket_us_brackets_and_calibration_compares(run, cfg,
     run("calibration", "--station", "CHI")
     out = capsys.readouterr().out
     assert "Model vs. Polymarket US on the 1 runs with market prices" in out
+
+
+def test_calibration_splits_model_errors_by_lead_time(cfg, tmp_path):
+    from wxbrackets.calibration import calibrate, lead_bucket
+
+    assert [lead_bucket(h) for h in (-3, 0, 10, 23.9, 24, 60)] == [
+        "same day", "next day", "next day", "next day", "2+ days", "2+ days"]
+    db = DB(cfg.database)
+    base = dict(station="CHI", target_date="2026-11-03", bias_f=0, spread_inflation=1, bandwidth_f=1,
+                dist_mean_f=60, observed_max_f=None, nws_forecast_high_f=None)
+    for lead, rrfs_max, gfs_max in ((-4, 61.0, 64.0), (12, 59.0, 63.0), (40, 56.0, 62.0)):
+        db.save_run({"created_utc": f"2026-11-0{3 if lead < 0 else 2}T00:00:00", "lead_hours": lead,
+                     "pooled_mean_f": 60.0, **base},
+                    [("rrfs", 0, rrfs_max, 0.5), ("gfs025", 1, gfs_max, 0.5)], [("≤60", None, 60, 0.5), ("≥61", 61, None, 0.5)])
+    db.save_outcome("CHI", date(2026, 11, 3), 60, True, "test")
+    res = calibrate(db, "CHI")
+    cells = {(r.model, r.lead): (r.runs, round(r.bias_f, 2)) for r in res.per_model_lead.itertuples()}
+    assert cells[("rrfs", "same day")] == (1, 1.0)
+    assert cells[("rrfs", "next day")] == (1, -1.0)
+    assert cells[("rrfs", "2+ days")] == (1, -4.0)
+    assert cells[("gfs025", "2+ days")] == (1, 2.0)

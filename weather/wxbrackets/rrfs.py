@@ -13,6 +13,7 @@ between hours; the ensemble files only carry instantaneous TMP.
 
 import logging
 import math
+import re
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 
@@ -29,13 +30,19 @@ BASE_URL = "https://noaa-rrfs-ops-pds.s3.amazonaws.com"
 class Product:
     template: str  # path under the bucket; {ymd} {hh} {fxx:03d} {mem:03d}
     field: str  # idx descriptor, e.g. "TMAX:2 m above ground"
-    interval_max: bool  # True: value at fxx is the max over (fxx-1h, fxx]
+    interval_max: bool  # True: file fxx covers (fxx-1h, fxx]
     cycle_every_h: int
     max_fxx: int
+    multi: bool = False  # several time steps of `field` per file (15-minute output)
 
 
 DETERMINISTIC = Product(
     "rrfs.{ymd}/{hh}/rrfs.t{hh}z.2dfld.3km.f{fxx:03d}.conus.grib2", "TMAX:2 m above ground", True, 6, 84
+)
+# Hourly RRFS runs on AWS only publish 15-minute output for 18 hours: file fNNN holds TMP at
+# (N-1)h15m, (N-1)h30m, (N-1)h45m and Nh. Used for the rest of TODAY, where freshness matters.
+SUBHOURLY = Product(
+    "rrfs.{ymd}/{hh}/rrfs.t{hh}z.2dfld.3km.subh.f{fxx:03d}.conus.grib2", "TMP:2 m above ground", True, 1, 18, multi=True
 )
 ENSEMBLE = Product(
     "rrfsens.{ymd}/{hh}/m{mem:03d}/rrfs.t{hh}z.m{mem:03d}.2dfldnomads.3km.f{fxx:03d}.conus.grib2",
@@ -68,6 +75,39 @@ def byte_range(entries: list[tuple[int, str]], field: str) -> tuple[int, int | N
             end = entries[i + 1][0] - 1 if i + 1 < len(entries) else None
             return offset, end
     return None
+
+
+def byte_ranges(entries: list[tuple[int, str]], field: str) -> list[tuple[int, int | None, str]]:
+    """Every message matching `field`: (start, inclusive end or None, descriptor)."""
+    var, _, level = field.partition(":")
+    out = []
+    for i, (offset, desc) in enumerate(entries):
+        bits = desc.split(":")
+        if len(bits) >= 3 and bits[1] == var and bits[2] == level:
+            out.append((offset, entries[i + 1][0] - 1 if i + 1 < len(entries) else None, desc))
+    return out
+
+
+def lead_minutes(desc: str) -> int | None:
+    """Forecast time in minutes from a descriptor like "d=2026110413:TMP:2 m above ground:255 min fcst:"."""
+    bits = desc.split(":")
+    when = bits[3] if len(bits) > 3 else ""
+    if m := re.fullmatch(r"(\d+) min fcst", when):
+        return int(m.group(1))
+    if m := re.fullmatch(r"(\d+) hour fcst", when):
+        return 60 * int(m.group(1))
+    return None
+
+
+def recent_hourly_runs(since: datetime, now: datetime, lookback_h: int = 6) -> list[datetime]:
+    """Newest first: hourly runs started by `since` whose 18-hour output still reaches past it."""
+    t = min(since, now).replace(minute=0, second=0, microsecond=0)
+    out = []
+    for _ in range(lookback_h + 1):
+        if t + timedelta(hours=SUBHOURLY.max_fxx) > since:
+            out.append(t)
+        t -= timedelta(hours=1)
+    return out
 
 
 def needed_hours(start: datetime, end: datetime, init: datetime, interval_max: bool) -> list[int]:
@@ -176,14 +216,34 @@ class RRFS:
         rng = byte_range(entries, field) if entries else None
         if rng is None:
             return None
-        start, end = rng
+        return self._download(url, field, rng[0], rng[1], lat, lon)
+
+    def points_from(self, url: str, field: str, lat: float, lon: float, init: datetime, not_before: datetime) -> list[float] | None:
+        """Values of every time step of `field` in a multi-step file valid at or after `not_before`."""
+        entries = self.index(url)
+        if not entries:
+            return None
+        out = []
+        for start, end, desc in byte_ranges(entries, field):
+            minutes = lead_minutes(desc)
+            if minutes is None or init + timedelta(minutes=minutes) < not_before:
+                continue
+            key = f"{field}@{minutes}min"  # cache key per time step
+            hit = self.cache.get_point(url, key, lat, lon) if self.cache is not None else None
+            v = hit if hit is not None else self._download(url, key, start, end, lat, lon)
+            if v is not None:
+                out.append(v)
+        return out
+
+    def _download(self, url: str, key: str, start: int, end: int | None, lat: float, lon: float) -> float | None:
+        """Fetch one message, read every configured point from it, cache them, return (lat, lon)'s."""
         r = self.http.get(url, headers={"Range": f"bytes={start}-{'' if end is None else end}"})
         points = list(dict.fromkeys([(lat, lon), *self.points]))
         values_f = [kelvin_to_f(v) for v in self.grib.values(r.content, points)]
         if self.cache is not None:
             for (plat, plon), v in zip(points, values_f):
                 if not math.isnan(v):
-                    self.cache.put_point(url, field, plat, plon, v)
+                    self.cache.put_point(url, key, plat, plon, v)
         return None if math.isnan(values_f[0]) else values_f[0]
 
     def choose_cycle(self, product: Product, start: datetime, end: datetime, now: datetime, member: int) -> datetime | None:
@@ -194,29 +254,85 @@ class RRFS:
                 return init
         return None
 
-    def member_max(self, product: Product, station: Station, day: date, member: int, now: datetime,
-                   since: datetime | None = None) -> tuple[float, datetime] | None:
-        """(daily max °F, cycle used), or None if no cycle covers the whole climate day.
-        With `since`, the max over the rest of the day only (-inf if none of it is left)."""
-        start, end = climate_day_window(day, station.tz)
-        init = self.choose_cycle(product, start, end, now, member)
-        if init is None:
-            return None
-        hours = needed_hours(start, end, init, product.interval_max)
-        if since is not None and since > start:
-            # An hourly max is stamped at the end of its hour, so it counts if that end is after `since`.
-            hours = [f for f in hours if init + timedelta(hours=f) > since or
-                     (not product.interval_max and init + timedelta(hours=f) == since)]
-            if not hours:
-                return -math.inf, init
+    def published(self, product: Product, init: datetime, fxx: int, member: int = 0) -> bool:
+        return self.index(self.url(product, init, fxx, member)) is not None
+
+    def _values(self, product: Product, init: datetime, hours: list[int], member: int, station: Station,
+                not_before: datetime) -> list[float] | None:
         values = []
         for fxx in hours:
-            v = self.point(self.url(product, init, fxx, member), product.field, station.lat, station.lon)
-            if v is None:
+            url = self.url(product, init, fxx, member)
+            if product.multi:
+                got = self.points_from(url, product.field, station.lat, station.lon, init, not_before)
+            else:
+                v = self.point(url, product.field, station.lat, station.lon)
+                got = None if v is None else [v]
+            if got is None:
                 log.warning("RRFS f%03d missing for %s member %d; skipping this member", fxx, init, member)
                 return None
-            values.append(v)
-        return max(values), init
+            values += got
+        return values
+
+    def _hours(self, product: Product, init: datetime, start: datetime, end: datetime, since: datetime | None) -> list[int]:
+        hours = needed_hours(start, end, init, product.interval_max)
+        if since is not None:
+            # A file/hour counts if it ends after `since` (interval products) or is at/after it.
+            hours = [f for f in hours if init + timedelta(hours=f) > since or
+                     (not product.interval_max and init + timedelta(hours=f) == since)]
+        return [f for f in hours if (1 if product.interval_max else 0) <= f <= product.max_fxx]
+
+    def member_max(self, product: Product, station: Station, day: date, member: int, now: datetime,
+                   since: datetime | None = None) -> tuple[float, datetime] | None:
+        """(daily max °F, cycle used), or None if no published cycle covers the climate day.
+
+        With `since` (same day): the max over the rest of the day only (-inf if none is left). For
+        the deterministic model, the newest published HOURLY run's 15-minute output covers as much of
+        that as it reaches (18 h); any later hours come from the newest 6-hourly run that reaches the
+        end of the day. So the afternoon, which decides the high, uses data at most ~2 hours old.
+        """
+        start, end = climate_day_window(day, station.tz)
+        remaining = since is not None and since > start
+        if remaining and since >= end:
+            return -math.inf, None
+        frm = since if remaining else start
+
+        # The newest run of `product` that covers everything left and is fully published.
+        base = None
+        for init in candidate_cycles(frm, end, product, now):
+            hours = self._hours(product, init, start, end, since if remaining else None)
+            if not hours:
+                return -math.inf, init
+            if self.published(product, init, hours[-1], member):
+                base = (init, hours)
+                break
+
+        if remaining and product is DETERMINISTIC:
+            for hinit in recent_hourly_runs(since, now):
+                if base and hinit <= base[0]:
+                    break  # no hourly run newer than the 6-hourly one
+                h_end = min(end, hinit + timedelta(hours=SUBHOURLY.max_fxx))
+                h_hours = self._hours(SUBHOURLY, hinit, start, h_end, since)
+                if not h_hours or not self.published(SUBHOURLY, hinit, h_hours[-1]):
+                    continue
+                values = self._values(SUBHOURLY, hinit, h_hours, member, station, since)
+                if values is None:
+                    continue
+                if h_end < end:  # the evening tail beyond the hourly run's reach
+                    if base is None:
+                        continue
+                    tail = [f for f in base[1] if base[0] + timedelta(hours=f) > h_end]
+                    more = self._values(DETERMINISTIC, base[0], tail, member, station, h_end)
+                    if more is None:
+                        continue
+                    values += more
+                return (max(values) if values else -math.inf), hinit
+
+        if base is None:
+            return None
+        values = self._values(product, base[0], base[1], member, station, frm)
+        if values is None:
+            return None
+        return (max(values) if values else -math.inf), base[0]
 
     def check(self, product: Product, station: Station, day: date, member: int, now: datetime | None = None) -> str:
         """Describe availability without downloading GRIB data (for check-models)."""

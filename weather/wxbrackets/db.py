@@ -140,7 +140,7 @@ class DB:
 
     def member_errors(self, station: str, min_lead: float | None = None, max_lead: float | None = None) -> list[sqlite3.Row]:
         """Each model's mean member max per scored run, with the official high."""
-        sql = """SELECT m.model, m.run_id, AVG(m.member_max_f) AS mean_max_f, COUNT(*) AS members, o.max_f AS official_f
+        sql = """SELECT m.model, m.run_id, r.lead_hours, AVG(m.member_max_f) AS mean_max_f, COUNT(*) AS members, o.max_f AS official_f
                  FROM forecast_members m
                  JOIN forecast_runs r ON r.run_id = m.run_id
                  JOIN outcomes o ON o.station = m.station AND o.climate_date = m.target_date AND o.final = 1

@@ -201,3 +201,90 @@ def test_member_max_for_the_rest_of_the_day(cfg, tmp_path):
     over = rrfs.member_max(DETERMINISTIC, cfg.station("CHI"), date(2026, 11, 4), 0, now,
                            since=datetime(2026, 11, 5, 7, tzinfo=UTC))
     assert over[0] == -math.inf
+
+
+class MixedBucket:
+    """6-hourly runs with hourly TMAX files plus hourly runs with 15-minute TMP files ("subh")."""
+
+    def __init__(self, value_at, published_hourly, published_6h):
+        self.value_at = value_at  # (init datetime, valid datetime, kind) -> kelvin
+        self.published_hourly = published_hourly
+        self.published_6h = published_6h
+        self.ranges = []
+
+    def files(self, path):
+        init = datetime.strptime(path.split("/")[1] + path.split("/")[2], "rrfs.%Y%m%d%H").replace(tzinfo=UTC)
+        fxx = int(path.split(".f")[1][:3])
+        return init, fxx
+
+    def __call__(self, request):
+        path = request.url.path
+        init, fxx = self.files(path)
+        if ".subh." in path:
+            if init not in self.published_hourly:
+                return httpx.Response(404)
+            msgs, idx, pos = [], [], 0
+            for i, minutes in enumerate(((fxx - 1) * 60 + 15, (fxx - 1) * 60 + 30, (fxx - 1) * 60 + 45, fxx * 60)):
+                m = make_grib(self.value_at(init, init + timedelta(minutes=minutes), "tmp15"))
+                when = f"{fxx} hour fcst" if minutes == fxx * 60 else f"{minutes} min fcst"
+                idx.append(f"{i + 1}:{pos}:d={init:%Y%m%d%H}:TMP:2 m above ground:{when}:")
+                msgs.append(m)
+                pos += len(m)
+            data, idx_text = b"".join(msgs), "\n".join(idx) + "\n"
+        else:
+            if init not in self.published_6h:
+                return httpx.Response(404)
+            m = make_grib(self.value_at(init, init + timedelta(hours=fxx), "tmax"))
+            data, idx_text = m, f"1:0:d={init:%Y%m%d%H}:TMAX:2 m above ground:{fxx - 1}-{fxx} hour max fcst:\n"
+        if path.endswith(".idx"):
+            return httpx.Response(200, text=idx_text)
+        first, last = request.headers["Range"].removeprefix("bytes=").split("-")
+        self.ranges.append(path)
+        return httpx.Response(206, content=data[int(first): int(last) + 1 if last else None])
+
+
+def test_same_day_uses_newest_hourly_run_and_its_15_minute_peaks(cfg, tmp_path):
+    day = date(2026, 11, 4)  # climate day 06Z Nov 4 - 06Z Nov 5
+    now = since = datetime(2026, 11, 4, 15, tzinfo=UTC)  # 9 AM CST
+    peak = datetime(2026, 11, 4, 20, 45, tzinfo=UTC)  # 2:45 PM CST: between hourly readings
+
+    def value(init, valid, kind):
+        if kind == "tmp15" and valid == peak:
+            return 292.0
+        return 285.0 if init.hour == 12 else 280.0  # the 12Z hourly run is warmer
+
+    bucket = MixedBucket(value, published_hourly={datetime(2026, 11, 4, h, tzinfo=UTC) for h in (11, 12)},
+                         published_6h={datetime(2026, 11, 4, h, tzinfo=UTC) for h in (0, 6)})
+    rrfs = make_rrfs(bucket, tmp_path)
+    got, init = rrfs.member_max(DETERMINISTIC, cfg.station("CHI"), day, 0, now, since)
+    assert init == datetime(2026, 11, 4, 12, tzinfo=UTC)  # 13-15Z not out yet; 12Z reaches 06Z
+    assert got == pytest.approx(kelvin_to_f(292.0))  # the 2:45 PM peak counts
+    assert all(".subh." in p for p in bucket.ranges)  # no 6-hourly data needed
+
+
+def test_evening_beyond_the_hourly_run_comes_from_the_6_hourly_run(cfg, tmp_path):
+    day = date(2026, 11, 4)
+    now = since = datetime(2026, 11, 4, 13, tzinfo=UTC)  # 7 AM CST
+    late = datetime(2026, 11, 5, 6, tzinfo=UTC)  # hour ending at midnight CST
+
+    def value(init, valid, kind):
+        if kind == "tmax" and valid == late:
+            return 290.0  # a warm front arrives just before midnight
+        return 283.0
+
+    bucket = MixedBucket(value, published_hourly={datetime(2026, 11, 4, 11, tzinfo=UTC)},  # reaches 05Z only
+                         published_6h={datetime(2026, 11, 4, 6, tzinfo=UTC)})
+    rrfs = make_rrfs(bucket, tmp_path)
+    got, init = rrfs.member_max(DETERMINISTIC, cfg.station("CHI"), day, 0, now, since)
+    assert init == datetime(2026, 11, 4, 11, tzinfo=UTC)
+    assert got == pytest.approx(kelvin_to_f(290.0))
+    tail = [p for p in bucket.ranges if ".subh." not in p]
+    assert tail == ["/rrfs.20261104/06/rrfs.t06z.2dfld.3km.f024.conus.grib2"]  # just (05Z, 06Z]
+
+
+def test_whole_day_forecasts_still_use_the_6_hourly_run(cfg, tmp_path):
+    bucket = MixedBucket(lambda i, v, k: 284.0, published_hourly={datetime(2026, 11, 3, h, tzinfo=UTC) for h in range(24)},
+                         published_6h={datetime(2026, 11, 3, h, tzinfo=UTC) for h in (0, 6, 12)})
+    rrfs = make_rrfs(bucket, tmp_path)
+    _, init = rrfs.member_max(DETERMINISTIC, cfg.station("CHI"), date(2026, 11, 4), 0, datetime(2026, 11, 3, 20, tzinfo=UTC))
+    assert init == datetime(2026, 11, 3, 12, tzinfo=UTC) and not any(".subh." in p for p in bucket.ranges)

@@ -20,9 +20,20 @@ class CalibrationResult:
     nws_bias_f: float | None
     reliability: pd.DataFrame
     per_model: pd.DataFrame  # model, runs, bias_f, mae_f: each model's own mean vs. the official high
+    per_model_lead: pd.DataFrame  # the same, split by lead: model, lead, runs, bias_f, mae_f
     market_runs: int = 0  # runs that also captured Polymarket US prices
     model_brier_vs_market: float | None = None  # the model's Brier on just those runs
     market_brier: float | None = None  # the market's Brier on the same runs
+
+
+LEADS = ["same day", "next day", "2+ days"]
+
+
+def lead_bucket(lead_hours: float) -> str:
+    """lead_hours = hours from the forecast to the start of the climate day (negative once it has begun)."""
+    if lead_hours < 0:
+        return "same day"
+    return "next day" if lead_hours < 24 else "2+ days"
 
 
 def market_probs(rows) -> list[float] | None:
@@ -75,15 +86,15 @@ def calibrate(db: DB, station: str, min_lead: float | None = None, max_lead: flo
         return float(np.mean(xs)) if xs else None
 
     rows = [dict(r) for r in db.member_errors(station, min_lead, max_lead)]
+    stats = dict(runs=("err", "size"), bias_f=("err", "mean"), mae_f=("err", lambda e: e.abs().mean()))
     if rows:
-        errs = pd.DataFrame(rows).assign(err=lambda d: d.mean_max_f - d.official_f)
-        per_model = (
-            errs.groupby("model")
-            .agg(runs=("err", "size"), bias_f=("err", "mean"), mae_f=("err", lambda e: e.abs().mean()))
-            .reset_index()
-        )
+        errs = pd.DataFrame(rows).assign(err=lambda d: d.mean_max_f - d.official_f,
+                                         lead=lambda d: d.lead_hours.map(lead_bucket))
+        per_model = errs.groupby("model").agg(**stats).reset_index()
+        per_model_lead = errs.groupby(["model", "lead"]).agg(**stats).reset_index()
     else:
         per_model = pd.DataFrame(columns=["model", "runs", "bias_f", "mae_f"])
+        per_model_lead = pd.DataFrame(columns=["model", "lead", "runs", "bias_f", "mae_f"])
 
     return CalibrationResult(
         runs=len(runs),
@@ -95,6 +106,7 @@ def calibrate(db: DB, station: str, min_lead: float | None = None, max_lead: flo
         nws_bias_f=mean(nws_err),
         reliability=reliability_table(pairs),
         per_model=per_model,
+        per_model_lead=per_model_lead,
         market_runs=len(market_vs),
         model_brier_vs_market=mean(model_vs),
         market_brier=mean(market_vs),

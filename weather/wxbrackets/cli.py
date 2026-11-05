@@ -13,7 +13,7 @@ import httpx
 
 from . import paper
 from .brackets import make_brackets, parse_edges, round_half_up
-from .calibration import calibrate
+from .calibration import LEADS, calibrate
 from .cli_report import best_report
 from .climate_day import climate_date, climate_day_window
 from .config import Config, ConfigError, Station, load_config
@@ -189,6 +189,13 @@ def cmd_paper(cfg: Config, args) -> None:
             today = today_for(station)
             days = [date.fromisoformat(args.date)] if args.date else [today, today + timedelta(days=1)]
             for day in days:
+                if day == today:
+                    # Past the same-day cutoff there's nothing to trade: skip the downloads too.
+                    late = paper.same_day_block(day, today, climate_day_window(day, station.tz)[0],
+                                                datetime.now(timezone.utc), 0.0, cfg.paper)
+                    if late:
+                        print(f"{station.code} {day}: no trades ({late})")
+                        continue
                 try:
                     fr = run_forecast(cfg, station, day, None, True, http, db, quiet=True, rrfs=rrfs)
                 except (httpx.HTTPError, ValueError) as exc:
@@ -321,6 +328,13 @@ def cmd_calibration(cfg: Config, args) -> None:
         print(f"{'model':24} {'runs':>5} {'bias':>8} {'MAE':>7}")
         for row in res.per_model.itertuples():
             print(f"{row.model:24} {row.runs:5d} {row.bias_f:+7.2f}° {row.mae_f:6.2f}°")
+        print("\nBy model and lead time (bias / MAE, runs): which models to trust at which distance from the day")
+        print(f"{'model':24} " + " ".join(f"{lead:>22}" for lead in LEADS))
+        cells = {(r.model, r.lead): f"{r.bias_f:+.2f} / {r.mae_f:.2f} ({r.runs})" for r in res.per_model_lead.itertuples()}
+        for model in res.per_model.model:
+            print(f"{model:24} " + " ".join(f"{cells.get((model, lead), '–'):>22}" for lead in LEADS))
+        print("Same-day errors are of each model's final high (observed so far combined with its forecast for the"
+              " hours left).")
     if res.market_runs:
         better = "better" if res.model_brier_vs_market < res.market_brier else "worse"
         print(f"\nModel vs. Polymarket US on the {res.market_runs} runs with market prices (lower is better):")

@@ -46,9 +46,11 @@ Both bots run at once, in separate terminal windows.
 - **Same day:**
   - The high is the larger of the observed max so far and each member's forecast for the **remaining** hours.
   - Members pinned at the observation get a kernel of `obs_tolerance_f` (0.5°F).
-  - Paper trading doesn't touch today's market after noon local standard time, or without observations.
+  - Paper trading doesn't touch today's market after noon local standard time (it skips today's forecast and downloads entirely then), or without observations.
+  - For the rest of today, RRFS uses the newest hourly run's 15-minute output, with the evening tail from the newest 6-hourly run. That data is about 1.5–2 hours old instead of up to a day.
   - The earlier version kept warm afternoons alive after the peak and paper-traded stale edges. Those fills were cleared.
 - **Paper trading:** 3¢ minimum edge, quarter Kelly on $200, $25 per city-day, $100 per day. It walks the real order book and settles from Polymarket US's results.
+- **Lead-time weighting (Nov 5, 2026):** the owner asked whether RRFS/HRRR should count more closer to the day. They probably should (3 km resolution, hourly refresh, RRFS's true hourly max), but RRFS is new and a single run is overconfident. Decision: **measure first.** `calibration` now splits each model's bias and MAE by lead (same day / next day / 2+ days). Weights stay unchanged until 3–4 weeks of data show which models earn more weight at which lead.
 - **The deciding metric:** in `calibration`, the model's Brier score against the market's on the same runs. No real money unless the model beats the market for a city over a month or more.
 
 ## Things learned the hard way
@@ -60,7 +62,8 @@ Both bots run at once, in separate terminal windows.
 - **International Polymarket's Gamma API** returns at most 100 events per page, whatever `limit` is asked for. Before paging was fixed, NFL games were missing.
 - **Open-Meteo:** a combined multi-model ensemble request labels its keys so that none matched the model IDs (0 of 143 parsed). Each model is requested separately, where keys are `temperature_2m` / `temperature_2m_memberNN`.
 - **RRFS (operational since autumn 2026):**
-  - Bucket `noaa-rrfs-ops-pds`. Deterministic runs: `rrfs.YYYYMMDD/HH/rrfs.tHHz.2dfld.3km.fNNN.conus.grib2`, with `TMAX` (max over the hour). Ensemble: `rrfsens.../mMMM/...2dfldnomads...`, with `TMP` only.
+  - Bucket `noaa-rrfs-ops-pds`. 00/06/12/18Z runs: `rrfs.YYYYMMDD/HH/rrfs.tHHz.2dfld.3km.fNNN.conus.grib2` (f000–f084), with `TMAX` (max over the hour). Ensemble: `rrfsens.../mMMM/...2dfldnomads...` (f000–f060), with `TMP` only.
+  - **Other hourly runs on AWS only have** `rrfs.tHHz.2dfld.3km.subh.fNNN.conus.grib2` (f001–f018): four `TMP:2 m` messages per file, at 15-minute steps ("255 min fcst" … "5 hour fcst"). No `TMAX`. They're fully published about 1.5–2 hours after the run starts.
   - Byte-range downloads via the `.idx` files.
   - One download is decoded for every city's grid point.
 - **On Windows,** read files as UTF-8 explicitly. Otherwise cp1252 garbled "°" in `config.yaml`.
@@ -80,7 +83,7 @@ These sessions couldn't reach Open-Meteo, api.weather.gov, forecast.weather.gov 
 
 ## Open items
 
-- [ ] After about 3–4 weeks of weather data: tune `bias_f`, `spread_inflation` and model weights from `calibration`, run per city.
+- [ ] After about 3–4 weeks of weather data: tune `bias_f`, `spread_inflation` and model weights from `calibration`, run per city. Consider **lead-dependent weights** (for example, heavier RRFS/HRRR for same-day mornings) if the per-lead table supports it. Weights are currently fixed per model, so that would need a small config change.
 - [ ] Sports: judge CLV per sport at about 100 trades with a closing line; drop any sport with CLV ≤ 0.
 - [ ] Not verified yet on the owner's PC: `backfill-outcomes` beyond about a week (the IEM archive path).
 - [ ] Possible later: NOAA NBM probabilistic guidance (reusing the RRFS GRIB code); a time-lagged HRRR ensemble; switching the web app's browsing and orders to Polymarket US.

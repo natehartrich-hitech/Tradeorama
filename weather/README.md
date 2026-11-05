@@ -105,7 +105,7 @@ All runs are stored in SQLite (`database` in the config):
 - the multi-category Brier score (the sum over brackets of (p − hit)², averaged over runs; 0 is perfect)
 - a reliability table of bracket probabilities against how often those brackets hit
 - the mean bias and mean absolute error of the raw pooled ensemble mean against the official high, plus the NWS point forecast's bias for comparison
-- each model's own bias and mean absolute error, to guide the model weights
+- each model's own bias and mean absolute error, overall and split by lead time (same day, next day, 2+ days), to guide model weights at each distance from the day. Same-day errors are of each model's final high (observed so far combined with its remaining-hours forecast).
 
 Use `--min-lead` and `--max-lead` to score day-ahead and same-day runs separately. Once there are a few weeks of data, set `bias_f` from the reported bias, and adjust `spread_inflation` until the reliability table lines up.
 
@@ -124,7 +124,8 @@ Use `--min-lead` and `--max-lead` to score day-ahead and same-day runs separatel
   - **RRFS** is the deterministic run. Its files include `TMAX`, the maximum 2 m temperature over each hour, which catches peaks between hours. It runs every hour, and the 00/06/12/18Z runs reach 84 hours ahead.
   - **REFS** is its 5-member ensemble (members m001–m005), run at 00/06/12/18Z and reaching 60 hours ahead. Its files only have hourly temperature (`TMP`).
   - For each hour of the climate day, the bot reads the `.idx` index file and downloads just the one 2 m temperature message (about 1.7 MB) with an HTTP Range request. `eccodes` then decodes the value at the grid point nearest the station; for Midway, that point is 1.5 km away.
-  - A forecast uses the newest run that starts no later than the climate day and has published its last needed hour. On a busy morning, that may be the run before the latest.
+  - A forecast for a future day uses the newest 00/06/12/18Z run that starts no later than the climate day and has published its last needed hour. On a busy morning, that may be the run before the latest.
+  - For **the rest of today**, RRFS uses the newest published **hourly** run. Those runs only publish 15-minute temperatures (`2dfld.3km.subh`, 4 steps per file, 18 hours ahead), so peaks between hours still count. Any evening hours past an hourly run's 18-hour reach come from the newest 6-hourly run. Hourly runs are published about 1.5–2 hours after they start. REFS uses its newest 6-hourly run that reaches the end of the day.
   - Data volume on the first run of a cycle: RRFS about 24 messages (~40 MB), REFS about 125 (~210 MB). `paper` reads every city's value from each downloaded message, so the five cities share one download instead of five. Values are cached in the database (`grib_points` table), so repeat forecasts from the same run download nothing. Set `weight: 0` on a model to skip it.
   - The file layout was checked against the live bucket in November 2026, and RRFS was test-run against it: it gave Midway a 61.1°F high for Nov 4 from the 06Z Nov 3 run. RRFS only went operational in autumn 2026, so NOAA may still change file names. The URL templates are in `wxbrackets/rrfs.py`, and the bucket is `rrfs.base_url` in the config.
 - **NWS API** (`api.weather.gov`): the point forecast high (daytime period) and station observations for today's running max. Hourly and 5-minute observations can miss the true peak, so the official high can come in a degree or so above the observed running max. `obs_tolerance_f` allows for rounding in the other direction. Observations reported in °C are converted to °F.
