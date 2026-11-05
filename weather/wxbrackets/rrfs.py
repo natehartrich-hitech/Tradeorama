@@ -194,14 +194,23 @@ class RRFS:
                 return init
         return None
 
-    def member_max(self, product: Product, station: Station, day: date, member: int, now: datetime) -> tuple[float, datetime] | None:
-        """(daily max °F, cycle used), or None if no cycle covers the whole climate day."""
+    def member_max(self, product: Product, station: Station, day: date, member: int, now: datetime,
+                   since: datetime | None = None) -> tuple[float, datetime] | None:
+        """(daily max °F, cycle used), or None if no cycle covers the whole climate day.
+        With `since`, the max over the rest of the day only (-inf if none of it is left)."""
         start, end = climate_day_window(day, station.tz)
         init = self.choose_cycle(product, start, end, now, member)
         if init is None:
             return None
+        hours = needed_hours(start, end, init, product.interval_max)
+        if since is not None and since > start:
+            # An hourly max is stamped at the end of its hour, so it counts if that end is after `since`.
+            hours = [f for f in hours if init + timedelta(hours=f) > since or
+                     (not product.interval_max and init + timedelta(hours=f) == since)]
+            if not hours:
+                return -math.inf, init
         values = []
-        for fxx in needed_hours(start, end, init, product.interval_max):
+        for fxx in hours:
             v = self.point(self.url(product, init, fxx, member), product.field, station.lat, station.lon)
             if v is None:
                 log.warning("RRFS f%03d missing for %s member %d; skipping this member", fxx, init, member)
@@ -220,17 +229,18 @@ class RRFS:
         found = byte_range(entries, product.field) is not None
         return f"cycle {init:%Y-%m-%d %HZ}, field {product.field!r} {'found' if found else 'MISSING'}"
 
-    def member_maxes(self, station: Station, day: date, models: list[Model], now: datetime | None = None) -> dict[tuple[str, int], float]:
+    def member_maxes(self, station: Station, day: date, models: list[Model], now: datetime | None = None,
+                     since: datetime | None = None) -> dict[tuple[str, int], float]:
         now = now or datetime.now(timezone.utc)
         out = {}
         for m in models:
             if m.source == "rrfs":
-                got = self.member_max(DETERMINISTIC, station, day, 0, now)
+                got = self.member_max(DETERMINISTIC, station, day, 0, now, since)
                 if got:
                     out[(m.id, 0)] = got[0]
             elif m.source == "refs":
                 for member in m.members or range(1, 6):
-                    got = self.member_max(ENSEMBLE, station, day, member, now)
+                    got = self.member_max(ENSEMBLE, station, day, member, now, since)
                     if got:
                         out[(m.id, member)] = got[0]
         return out

@@ -59,6 +59,7 @@ class PaperSettings:
     max_event_usd: float = 25.0  # per city per day
     max_daily_usd: float = 100.0  # across all cities, per UTC day
     stop_hours_before_end: float = 2.0  # no new trades this close to the end of the climate day
+    same_day_last_hour: float = 12.0  # no trades on TODAY's market from this hour, local standard time
 
 
 @dataclass(frozen=True)

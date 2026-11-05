@@ -81,28 +81,32 @@ def run_forecast(cfg: Config, station: Station, day: date, edges: list[int] | No
     else:
         brackets = make_brackets(edges or parse_edges(cfg.default_brackets))
 
-    active = [m for m in cfg.models if m.weight > 0]
-    maxes, _ = OpenMeteo(cfg, http).member_maxes(station, day, active)
-    noaa = [m for m in active if m.source in ("rrfs", "refs")]
-    if noaa:
-        if not quiet:
-            print("Fetching RRFS/REFS from NOAA's AWS bucket (cached after the first run)...", file=sys.stderr)
-        rrfs = rrfs or RRFS(http, cache=db, base_url=cfg.rrfs_base_url)
-        maxes.update(rrfs.member_maxes(station, day, noaa))
-
+    # Today: observations first. With them, models only need to cover the rest of the day.
     observed = None
     if day == today:
         try:
             observed = nws.running_max(station, day).max_f
         except httpx.HTTPError as exc:
             log.warning("NWS observations unavailable, so not conditioning on today's max: %s", exc)
+    now = datetime.now(timezone.utc)
+    since = now if observed is not None else None
+
+    active = [m for m in cfg.models if m.weight > 0]
+    maxes, _ = OpenMeteo(cfg, http).member_maxes(station, day, active, since)
+    noaa = [m for m in active if m.source in ("rrfs", "refs")]
+    if noaa:
+        if not quiet:
+            print("Fetching RRFS/REFS from NOAA's AWS bucket (cached after the first run)...", file=sys.stderr)
+        rrfs = rrfs or RRFS(http, cache=db, base_url=cfg.rrfs_base_url)
+        maxes.update(rrfs.member_maxes(station, day, noaa, now, since))
+
     try:
         nws_high = nws.forecast_high(station, day)
     except httpx.HTTPError as exc:
         log.warning("NWS point forecast unavailable: %s", exc)
         nws_high = None
 
-    f = build_forecast(cfg, station, day, maxes, brackets, datetime.now(timezone.utc), observed, nws_high)
+    f = build_forecast(cfg, station, day, maxes, brackets, now, observed, nws_high, remaining=since is not None)
     run_id = None
     if save:
         run_id = db.save_run(run_record(f, cfg), f.members, [(b.label, b.low, b.high, p) for b, p in zip(brackets, f.probs)])
@@ -155,11 +159,11 @@ def cmd_forecast(cfg: Config, args) -> None:
         print(f"  {m.name:32} {n:3d}{exp:>6} members  mean max {fmt_f(avg)}  weight {m.weight:g}{flag}")
     print(f"\nPooled ensemble mean:   {fmt_f(f.pooled_mean_f)}")
     print(f"Distribution mean:      {fmt_f(f.dist.mean())}  (bias {cfg.distribution.bias_f:+.1f}, "
-          f"spread x{cfg.distribution.spread_inflation:g}, kernel {f.dist.bandwidth:.2f}°F)")
+          f"spread x{cfg.distribution.spread_inflation:g}, kernel {f.dist.kernel_f:.2f}°F)")
     print(f"NWS point forecast:     {fmt_f(f.nws_forecast_high_f, 0)}")
     if f.observed_max_f is not None:
-        print(f"Observed max so far:    {fmt_f(f.observed_max_f)}  (high can't finish below "
-              f"{f.observed_max_f - cfg.distribution.obs_tolerance_f:.1f}°F)")
+        print(f"Observed max so far:    {fmt_f(f.observed_max_f)}  (models cover only the hours left; the high is "
+              f"the larger of the two, and can't finish below {f.observed_max_f - cfg.distribution.obs_tolerance_f:.1f}°F)")
     print_bracket_table(fr)
     if fr.run_id is not None:
         print(f"\nSaved as run {fr.run_id} in {cfg.database}")
@@ -192,6 +196,11 @@ def cmd_paper(cfg: Config, args) -> None:
                     continue
                 if not fr.markets:
                     print(f"{station.code} {day}: no Polymarket US event")
+                    continue
+                blocked = paper.same_day_block(day, today, fr.window[0], datetime.now(timezone.utc),
+                                               fr.forecast.observed_max_f, cfg.paper)
+                if blocked:
+                    print(f"{station.code} {day}: no trades ({blocked})")
                     continue
                 hours_left = (fr.window[1] - datetime.now(timezone.utc)).total_seconds() / 3600
                 opps = paper.trade(db, pmus, cfg.paper, station.code, day.isoformat(), fr.run_id, fr.markets,

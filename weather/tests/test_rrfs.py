@@ -1,3 +1,4 @@
+import math
 from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
@@ -185,3 +186,18 @@ def test_one_download_serves_every_city(cfg, tmp_path):
 def test_grib_values_for_several_points():
     gp = GribPoint()
     assert gp.values(make_grib(290.0), [(41.78, -87.75), (41.96, -87.93)]) == [pytest.approx(290.0)] * 2
+
+
+def test_member_max_for_the_rest_of_the_day(cfg, tmp_path):
+    # Peak in the hour ending 15Z (9 AM CST); by noon CST (18Z) it has passed.
+    bucket = FakeBucket(lambda f: 295.0 if f == 33 else 280.0)
+    rrfs = make_rrfs(bucket, tmp_path)
+    now = datetime(2026, 11, 3, 11, tzinfo=UTC)
+    full = rrfs.member_max(DETERMINISTIC, cfg.station("CHI"), date(2026, 11, 4), 0, now)
+    noon = rrfs.member_max(DETERMINISTIC, cfg.station("CHI"), date(2026, 11, 4), 0, now,
+                           since=datetime(2026, 11, 4, 18, tzinfo=UTC))
+    assert full[0] == pytest.approx(kelvin_to_f(295.0))
+    assert noon[0] == pytest.approx(kelvin_to_f(280.0))
+    over = rrfs.member_max(DETERMINISTIC, cfg.station("CHI"), date(2026, 11, 4), 0, now,
+                           since=datetime(2026, 11, 5, 7, tzinfo=UTC))
+    assert over[0] == -math.inf

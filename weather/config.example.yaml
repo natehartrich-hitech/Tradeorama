@@ -91,6 +91,8 @@ paper:
   max_event_usd: 25          # most on one city's day
   max_daily_usd: 100         # most per UTC day across all cities
   stop_hours_before_end: 2   # no new trades this close to the end of the climate day
+  same_day_last_hour: 12     # no trades on today's market from this hour (local standard time):
+                             # by midday the high is mostly set and the observation feed lags
 
 # Market brackets used when --brackets isn't given (upper edges, inclusive).
 default_brackets: [45, 47, 49, 51, 53, 55]

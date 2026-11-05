@@ -36,7 +36,10 @@ def build_forecast(
     now: datetime,
     observed_max_f: float | None = None,
     nws_forecast_high_f: float | None = None,
+    remaining: bool = False,
 ) -> Forecast:
+    """`remaining`: `maxes` are each member's max over the REST of the day (-inf if none is left),
+    so a member's final high is the larger of that and the observed high so far."""
     if not maxes:
         raise ValueError(f"no ensemble member covers the {day} climate day; is the date within the models' range?")
     counts: dict[str, int] = {}
@@ -45,12 +48,32 @@ def build_forecast(
     w_member = member_weights(counts, {m.id: m.weight for m in cfg.models})
 
     keys = [k for k in sorted(maxes) if k[0] in w_member]
-    values = np.array([maxes[k] for k in keys])
     weights = np.array([w_member[k[0]] for k in keys])
     d = cfg.distribution
-    dist = HighDistribution.from_members(values, weights, d.bias_f, d.spread_inflation, d.bandwidth_f)
-    if observed_max_f is not None:
-        dist = dist.conditioned_on_floor(observed_max_f - d.obs_tolerance_f)
+    if remaining and observed_max_f is not None:
+        obs = observed_max_f
+        raw = np.array([maxes[k] for k in keys], dtype=float)
+        finite = np.isfinite(raw)
+        centers = np.full(len(keys), obs)
+        bandwidth = d.bandwidth_f if d.bandwidth_f is not None else 0.5
+        if finite.any():
+            part = HighDistribution.from_members(raw[finite], weights[finite], d.bias_f, d.spread_inflation, d.bandwidth_f)
+            centers[finite] = part.centers
+            bandwidth = part.bandwidth
+        # The day's high = max(observed so far, the member's forecast for the hours left). A member
+        # pinned at the observation only carries the uncertainty between hourly observations and
+        # the official high (obs_tolerance_f), not the spread of the models' cool evening.
+        pinned = centers <= obs
+        widths = np.where(pinned, d.obs_tolerance_f or 0.5, bandwidth)
+        dist = HighDistribution(np.maximum(centers, obs), weights / weights.sum(), widths)
+        dist = dist.conditioned_on_floor(obs - d.obs_tolerance_f)
+        maxes = {k: max(maxes[k], obs) for k in keys}  # what's stored and reported per member
+    else:
+        dist = HighDistribution.from_members(np.array([maxes[k] for k in keys]), weights, d.bias_f,
+                                             d.spread_inflation, d.bandwidth_f)
+        if observed_max_f is not None:
+            dist = dist.conditioned_on_floor(observed_max_f - d.obs_tolerance_f)
+    values = np.array([maxes[k] for k in keys])
 
     per_model = {
         m: (counts[m], float(np.mean([maxes[k] for k in keys if k[0] == m]))) for m in sorted(w_member)
@@ -80,7 +103,7 @@ def run_record(f: Forecast, cfg: Config) -> dict:
         "lead_hours": round(f.lead_hours, 2),
         "bias_f": cfg.distribution.bias_f,
         "spread_inflation": cfg.distribution.spread_inflation,
-        "bandwidth_f": f.dist.bandwidth,
+        "bandwidth_f": f.dist.kernel_f,
         "pooled_mean_f": f.pooled_mean_f,
         "dist_mean_f": f.dist.mean(),
         "observed_max_f": f.observed_max_f,

@@ -40,8 +40,13 @@ class HighDistribution:
 
     centers: np.ndarray
     weights: np.ndarray
-    bandwidth: float
+    bandwidth: float | np.ndarray  # one kernel width for all, or one per member
     floor_f: float = -math.inf  # the high can't end below this (observed so far)
+
+    @property
+    def kernel_f(self) -> float:
+        """A single representative kernel width, for display and logging."""
+        return float(np.max(np.atleast_1d(self.bandwidth)))
 
     @classmethod
     def from_members(
@@ -86,7 +91,7 @@ class HighDistribution:
         if self.floor_f == -math.inf:
             return float(np.sum(self.weights * self.centers))
         # Numerical mean of the truncated mixture.
-        grid = np.linspace(min(self.floor_f, self.centers.min()) - 1, self.centers.max() + 6 * self.bandwidth, 4000)
+        grid = np.linspace(min(self.floor_f, self.centers.min()) - 1, self.centers.max() + 6 * self.kernel_f, 4000)
         cdf = np.array([self.cdf(g) for g in grid])
         return float(grid[-1] - np.trapezoid(cdf, grid))
 

@@ -45,7 +45,7 @@ python -m wxbrackets paper-report
 - **`paper`** forecasts today and tomorrow for every linked city. Where buying Yes or No beats the market by at least `paper.min_edge` after fees, it records a paper buy:
   - It walks the real order book, and stops at any price where the edge runs out.
   - Bet size is quarter-Kelly on `paper.bankroll_usd`, capped per city-day and per day.
-  - It stops trading `paper.stop_hours_before_end` hours before the climate day ends.
+  - It stops trading `paper.stop_hours_before_end` hours before the climate day ends. For **today's** market, it stops at `paper.same_day_last_hour` (noon local standard time by default) and doesn't trade at all without today's observations. By midday the high is mostly set, the NWS observation feed can lag by up to an hour, and other traders watch real-time data, so late same-day "edges" are usually stale information on our side.
   - Finished markets are settled from Polymarket US's own results. Buying No means taking the Yes bids, at 1 − bid.
 - **`calibration`** adds a **model vs. market** Brier comparison on the runs where prices were saved. The market's probabilities are each bracket's mid price, scaled to sum to 100%. Only a model that scores better than the market has an edge worth paper trading.
 
@@ -85,7 +85,7 @@ Saved as run 1 in wxbrackets.db
 3. **Pooling.** Each model gets a weight (default equal), split evenly across its members. So ECMWF's 51 members don't outvote GEM's 21 just by number. A deterministic model like HRRR counts as one member that carries its model's whole weight, so it starts at 0.5 rather than 1.
 4. **Smoothing.** Each member max is moved away from the pooled mean by `spread_inflation` (raw ensembles are usually too narrow), then shifted by `bias_f`. A weighted Gaussian kernel is placed on each one. The kernel width is `bandwidth_f`, or a weighted Silverman rule if that's set to `auto`.
 5. **Rounding.** The NWS reports whole °F, so a bracket "46-47" is the probability the true high falls in [45.5, 47.5).
-6. **Same day.** If the date is today's climate day, the distribution is cut off below the highest temperature observed so far, minus `obs_tolerance_f`, and renormalised.
+6. **Same day.** If the date is today's climate day, the bot first fetches the highest temperature observed so far. The models then only need to cover the hours left: each member's final high is the larger of the observed high and its forecast for the rest of the day. Once the afternoon has passed, the remaining hours are cool, so the distribution collapses onto the observed high. Members pinned there get a narrow kernel (`obs_tolerance_f`, the typical gap between hourly observations and the official high) instead of the models' spread. Without today's observations, the whole-day forecast is used, and `paper` won't trade today's market.
 
 ## Storage
 

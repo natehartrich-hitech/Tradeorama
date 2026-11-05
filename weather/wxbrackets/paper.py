@@ -42,6 +42,22 @@ def plan_buy(prob: float, asks: list[tuple[float, float]], budget: float, min_ed
     return Fill(round(contracts, 2), round(cost, 4), ev / contracts) if contracts else None
 
 
+def same_day_block(day, today, day_start: datetime, now: datetime, observed_max_f: float | None, settings) -> str | None:
+    """Why today's market shouldn't be traded now, or None.
+
+    After midday the high is mostly set, the NWS observation feed can lag by up to an hour, and
+    other traders watch real-time data: the edges left are usually stale prices on our side.
+    """
+    if day != today:
+        return None
+    if observed_max_f is None:
+        return "no observations for today, so the forecast can't account for what has already happened"
+    local_hour = (now - day_start).total_seconds() / 3600  # hours since midnight local standard time
+    if local_hour >= settings.same_day_last_hour:
+        return f"same-day trading stops at {settings.same_day_last_hour:g}:00 local standard time"
+    return None
+
+
 @dataclass
 class Opportunity:
     market: BracketMarket
