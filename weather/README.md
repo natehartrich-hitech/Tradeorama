@@ -44,7 +44,7 @@ python -m wxbrackets paper-report
 - **`forecast`** uses that day's real brackets automatically (unless you pass `--brackets`). It shows each bracket's market bid and ask, and the edge per contract for buying Yes or No after the taker fee (0.0695 × p × (1 − p), read from each market). The quotes are saved with the run.
 - **`paper`** forecasts today and tomorrow for every linked city. Where buying Yes or No beats the market by at least `paper.min_edge` after fees, it records a paper buy:
   - It walks the real order book, and stops at any price where the edge runs out.
-  - Bet size is quarter-Kelly on `paper.bankroll_usd`, capped per city-day and per day.
+  - Bet size is quarter-Kelly on `paper.bankroll_usd`, as the **total** to hold in that bracket and side. Hourly reruns only buy what isn't held yet: nothing for an unchanged edge, a top-up if it grows. It's capped per city-day and per day, and positions are held to settlement, never sold early.
   - It stops trading `paper.stop_hours_before_end` hours before the climate day ends. For **today's** market, it stops trading at `paper.same_day_last_hour` (noon local standard time by default), and doesn't trade at all without today's observations. By midday the high is mostly set, the NWS observation feed can lag by up to an hour, and other traders watch real-time data, so late same-day "edges" are usually stale information on our side.
   - After the cutoff it keeps **forecasting and logging prices** for today without trading. `calibration` reports the afternoon ("same day PM") separately, so if the model turns out to beat the market there, the cutoff can be moved later.
   - Finished markets are settled from Polymarket US's own results. Buying No means taking the Yes bids, at 1 − bid.

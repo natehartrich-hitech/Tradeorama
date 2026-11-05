@@ -106,9 +106,14 @@ def trade(
         if o.edge < settings.min_edge:
             o.reason = "edge below threshold"
             continue
-        kelly_usd = kelly_fraction(o.prob, o.ask + fee_per_contract(o.ask, o.market.fee_rate)) * settings.kelly_multiplier * settings.bankroll_usd
+        # Kelly gives the TOTAL stake to hold in this bracket and side; only buy what isn't held yet.
+        target_usd = kelly_fraction(o.prob, o.ask + fee_per_contract(o.ask, o.market.fee_rate)) * settings.kelly_multiplier * settings.bankroll_usd
+        held_usd = db.paper_position(o.market.slug, o.side)
+        if target_usd - held_usd < 1:
+            o.reason = f"already holding its target position (${held_usd:.2f} of ${target_usd:.2f})"
+            continue
         budget = min(
-            kelly_usd,
+            target_usd - held_usd,
             settings.max_event_usd - db.paper_spent(station=station, target_date=target_date),
             settings.max_daily_usd - db.paper_spent(since_utc=day_start),
         )

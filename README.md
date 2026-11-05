@@ -63,7 +63,7 @@ Trades are recorded with their exchange, and `report` and the web panel show onl
 2. It finds the matching market for each game by team names and start time: the moneyline, or for soccer the home, draw and away markets. It skips spreads, totals, props and anything ambiguous.
 3. For each outcome, it calculates **edge = fair probability − best ask − fees**.
 4. It buys only when the edge is at least `MIN_EDGE`. It takes order-book levels only while each one still clears that edge, using a fill-and-kill order that never rests on the book.
-5. Bet size is `KELLY_MULTIPLIER` × the Kelly stake on `BANKROLL_USD`. It is then capped by `MAX_ORDER_USD`, `MAX_GAME_EXPOSURE_USD` and `MAX_DAILY_SPEND_USD`.
+5. Bet size is `KELLY_MULTIPLIER` × the Kelly stake on `BANKROLL_USD`. That's the **total** to hold in the outcome, so a later check only buys the part not already held: nothing if the edge is unchanged, a top-up if it has grown. It is also capped by `MAX_ORDER_USD`, `MAX_GAME_EXPOSURE_USD` and `MAX_DAILY_SPEND_USD`. Positions are never sold early; they're held to settlement.
 
 The bot also skips a market when:
 - Pinnacle's price is older than `MAX_ODDS_AGE_SEC`

@@ -72,6 +72,14 @@ class Ledger:
         ).fetchone()
         return row[0]
 
+    def position_cost(self, mode: str, token_id: str, venue: str = "polymarket-us") -> float:
+        """USD already paid for this outcome (open positions only)."""
+        row = self.db.execute(
+            "SELECT COALESCE(SUM(cost), 0) FROM fills WHERE mode = ? AND token_id = ? AND venue = ? AND payout IS NULL",
+            (mode, token_id, venue),
+        ).fetchone()
+        return row[0]
+
     def spent_today(self, mode: str, now: float | None = None, venue: str = "polymarket-us") -> float:
         row = self.db.execute(
             "SELECT COALESCE(SUM(cost), 0) FROM fills WHERE mode = ? AND ts >= ? AND venue = ?",

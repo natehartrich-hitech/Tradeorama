@@ -393,3 +393,23 @@ def test_cli_does_not_log_request_urls(tmp_path, monkeypatch, caplog):
     with caplog.at_level(logging.INFO):
         cli.main(["report"])
     assert "secret" not in caplog.text
+
+
+def test_kelly_is_a_target_position_not_a_per_cycle_amount(tmp_path):
+    # Small bankroll so Kelly, not the $25 game cap, sets the size.
+    books = {"lakers": book(0.53, 0.54), "celtics": book(0.45, 0.46)}
+    bot = make_bot(tmp_path, books, bankroll_usd=100)
+    first = {d.leg.label: d for d in bot.cycle()}["Lakers"]
+    target = kelly_fraction(0.6, 0.54) * 0.25 * 100
+    assert first.action == "buy" and first.cost == pytest.approx(target, abs=0.02)
+
+    # Same edge five minutes later: already at the target, so nothing more.
+    again = {d.leg.label: d for d in bot.cycle()}["Lakers"]
+    assert again.action == "skip" and "already holding its target" in again.reason
+
+    # The edge grows: top up only the difference.
+    bot.odds = FakeOdds([nba_line(home=0.66, away=0.34)])
+    more = {d.leg.label: d for d in bot.cycle()}["Lakers"]
+    bigger = kelly_fraction(0.66, 0.54) * 0.25 * 100
+    assert more.action == "buy" and more.cost == pytest.approx(bigger - first.cost, abs=0.02)
+    assert bot.ledger.position_cost("paper", "lakers", "polymarket") == pytest.approx(bigger, abs=0.03)

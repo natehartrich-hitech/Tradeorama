@@ -139,9 +139,13 @@ class Bot:
             return skip("edge below threshold", **info)
 
         s = self.strat
-        kelly_usd = kelly_fraction(leg.fair, best_ask + fee_per_share(best_ask, fee)) * s.kelly_multiplier * s.bankroll_usd
+        # Kelly gives the TOTAL stake to hold in this outcome; only buy the part not already held.
+        target_usd = kelly_fraction(leg.fair, best_ask + fee_per_share(best_ask, fee)) * s.kelly_multiplier * s.bankroll_usd
+        held_usd = self.ledger.position_cost(self.mode, leg.token_id, self.venue.name)
+        if target_usd - held_usd < 1:
+            return skip(f"already holding its target position (${held_usd:.2f} of ${target_usd:.2f})", **info)
         budget = min(
-            kelly_usd,
+            target_usd - held_usd,
             self.settings.max_order_usd,
             s.max_game_exposure_usd - self.ledger.game_exposure(self.mode, line.event_id, self.venue.name),
             s.max_daily_spend_usd - self.ledger.spent_today(self.mode, now, self.venue.name),

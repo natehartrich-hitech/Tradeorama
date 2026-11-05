@@ -176,6 +176,12 @@ class DB:
                 args.append(val)
         return self.conn.execute(sql, args).fetchone()[0]
 
+    def paper_position(self, slug: str, side: str) -> float:
+        """USD already paid for this bracket and side (open positions only)."""
+        return self.conn.execute(
+            "SELECT COALESCE(SUM(cost), 0) FROM paper_fills WHERE slug = ? AND side = ? AND payout IS NULL", (slug, side)
+        ).fetchone()[0]
+
     def unsettled_paper(self) -> list[sqlite3.Row]:
         return self.conn.execute("SELECT * FROM paper_fills WHERE payout IS NULL").fetchall()
 

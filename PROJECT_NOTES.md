@@ -54,6 +54,10 @@ Both bots run at once, in separate terminal windows.
 - **Lead-time weighting (Nov 5, 2026):** the owner asked whether RRFS/HRRR should count more closer to the day. They probably should (3 km resolution, hourly refresh, RRFS's true hourly max), but RRFS is new and a single run is overconfident. Decision: **measure first.** `calibration` now splits each model's bias and MAE by lead (same day / next day / 2+ days). Weights stay unchanged until 3–4 weeks of data show which models earn more weight at which lead.
 - **The deciding metric:** in `calibration`, the model's Brier score against the market's on the same runs. No real money unless the model beats the market for a city over a month or more.
 
+## Position sizing (both bots, Nov 5, 2026)
+
+Kelly is a **target position**: each check computes the total stake Kelly wants in an outcome, subtracts what's already held (open positions), and buys only the difference, if it's at least $1. Before this change, every check re-bought a full Kelly amount, so any edge that lasted a few checks grew to the per-game or per-city-day cap ($25). Positions are held to settlement; there's no selling when an edge disappears.
+
 ## Things learned the hard way
 
 - **Polymarket US public market data** (`gateway.polymarket.us`):

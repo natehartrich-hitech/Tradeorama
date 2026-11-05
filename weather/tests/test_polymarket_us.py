@@ -108,3 +108,30 @@ def test_trade_respects_edge_caps_and_settles(cfg, tmp_path):
     assert paper.settle(db, fake_gateway(resolved=True)) >= 1
     s = paper.summary(db, "CHI")
     assert s["settled"] == s["trades"] and s["settled_pnl_usd"] > 0  # 64-65 won
+
+
+def test_hourly_reruns_hold_a_kelly_target_instead_of_buying_again(cfg, tmp_path):
+    db = DB(tmp_path / "t.db")
+    pmus = fake_gateway()
+    markets = pmus.markets("temp-mdwhigh", datetime(2026, 11, 4).date())
+    now = datetime(2026, 11, 3, 15, tzinfo=timezone.utc)
+    probs = [0.05, 0.55, 0.30, 0.08, 0.02, 0.0]  # 64-65 at 55% vs a 43c ask in the saved book
+
+    def bought(opps):
+        return {(o.side, o.market.bracket.label): o.fill.cost for o in opps if o.action == "buy"}
+
+    first = bought(paper.trade(db, pmus, cfg.paper, "CHI", "2026-11-04", None, markets, probs, 30, now=now))
+    assert ("yes", "64-65") in first
+    held = db.paper_position("tc-temp-mdwhigh-2026-11-04-gte64lt65f", "yes")
+
+    # An hour later, same view: no new buy of that bracket.
+    second = paper.trade(db, pmus, cfg.paper, "CHI", "2026-11-04", None, markets, probs, 29, now=now)
+    [o] = [o for o in second if (o.side, o.market.bracket.label) == ("yes", "64-65")]
+    assert o.action == "skip" and "already holding its target" in o.reason
+    assert db.paper_position("tc-temp-mdwhigh-2026-11-04-gte64lt65f", "yes") == pytest.approx(held)
+
+    # The model grows more confident: buy only the difference.
+    probs2 = [0.03, 0.65, 0.25, 0.05, 0.02, 0.0]
+    third = bought(paper.trade(db, pmus, cfg.paper, "CHI", "2026-11-04", None, markets, probs2, 28, now=now))
+    target = paper.kelly_fraction(0.65, 0.43 + paper.fee_per_contract(0.43, 0.0695)) * 0.25 * cfg.paper.bankroll_usd
+    assert third[("yes", "64-65")] == pytest.approx(target - held, abs=0.05)
