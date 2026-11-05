@@ -23,8 +23,9 @@ class Forecast:
     dist: HighDistribution
     brackets: list[Bracket]
     probs: list[float]
-    observed_max_f: float | None = None
-    nws_forecast_high_f: float | None = None
+    observed_max_f: float | None = None  # observed extreme so far: max for highs, min for lows
+    nws_forecast_high_f: float | None = None  # NWS point forecast for this kind (high or low)
+    kind: str = "high"
 
 
 def build_forecast(
@@ -37,9 +38,12 @@ def build_forecast(
     observed_max_f: float | None = None,
     nws_forecast_high_f: float | None = None,
     remaining: bool = False,
+    kind: str = "high",
 ) -> Forecast:
-    """`remaining`: `maxes` are each member's max over the REST of the day (-inf if none is left),
-    so a member's final high is the larger of that and the observed high so far."""
+    """`maxes`: each member's daily high (or, for kind="low", daily low). `observed_max_f`: the
+    observed extreme so far (max for highs, min for lows). With `remaining`, `maxes` cover only the
+    REST of the day (-inf/+inf if none is left), so a member's final value is the larger (highs) or
+    smaller (lows) of that and the observation."""
     if not maxes:
         raise ValueError(f"no ensemble member covers the {day} climate day; is the date within the models' range?")
     counts: dict[str, int] = {}
@@ -49,7 +53,8 @@ def build_forecast(
 
     keys = [k for k in sorted(maxes) if k[0] in w_member]
     weights = np.array([w_member[k[0]] for k in keys])
-    d = cfg.distribution
+    d = cfg.distribution_for(kind)
+    high = kind == "high"
     if remaining and observed_max_f is not None:
         obs = observed_max_f
         raw = np.array([maxes[k] for k in keys], dtype=float)
@@ -60,19 +65,23 @@ def build_forecast(
             part = HighDistribution.from_members(raw[finite], weights[finite], d.bias_f, d.spread_inflation, d.bandwidth_f)
             centers[finite] = part.centers
             bandwidth = part.bandwidth
-        # The day's high = max(observed so far, the member's forecast for the hours left). A member
-        # pinned at the observation only carries the uncertainty between hourly observations and
-        # the official high (obs_tolerance_f), not the spread of the models' cool evening.
-        pinned = centers <= obs
+        # The day's high = max(observed so far, the member's forecast for the hours left); the low
+        # = min(...). A member pinned at the observation only carries the uncertainty between hourly
+        # observations and the official value (obs_tolerance_f), not the models' spread.
+        pinned = centers <= obs if high else centers >= obs
         widths = np.where(pinned, d.obs_tolerance_f or 0.5, bandwidth)
-        dist = HighDistribution(np.maximum(centers, obs), weights / weights.sum(), widths)
-        dist = dist.conditioned_on_floor(obs - d.obs_tolerance_f)
-        maxes = {k: max(maxes[k], obs) for k in keys}  # what's stored and reported per member
+        final = np.maximum(centers, obs) if high else np.minimum(centers, obs)
+        dist = HighDistribution(final, weights / weights.sum(), widths)
+        dist = (dist.conditioned_on_floor(obs - d.obs_tolerance_f) if high
+                else dist.conditioned_on_ceiling(obs + d.obs_tolerance_f))
+        clamp = max if high else min
+        maxes = {k: clamp(maxes[k], obs) for k in keys}  # what's stored and reported per member
     else:
         dist = HighDistribution.from_members(np.array([maxes[k] for k in keys]), weights, d.bias_f,
                                              d.spread_inflation, d.bandwidth_f)
         if observed_max_f is not None:
-            dist = dist.conditioned_on_floor(observed_max_f - d.obs_tolerance_f)
+            dist = (dist.conditioned_on_floor(observed_max_f - d.obs_tolerance_f) if high
+                    else dist.conditioned_on_ceiling(observed_max_f + d.obs_tolerance_f))
     values = np.array([maxes[k] for k in keys])
 
     per_model = {
@@ -92,17 +101,19 @@ def build_forecast(
         probs=dist.bracket_probs(brackets),
         observed_max_f=observed_max_f,
         nws_forecast_high_f=nws_forecast_high_f,
+        kind=kind,
     )
 
 
 def run_record(f: Forecast, cfg: Config) -> dict:
     return {
         "created_utc": f.created.isoformat(timespec="seconds"),
+        "kind": f.kind,
         "station": f.station.code,
         "target_date": f.day.isoformat(),
         "lead_hours": round(f.lead_hours, 2),
-        "bias_f": cfg.distribution.bias_f,
-        "spread_inflation": cfg.distribution.spread_inflation,
+        "bias_f": cfg.distribution_for(f.kind).bias_f,
+        "spread_inflation": cfg.distribution_for(f.kind).spread_inflation,
         "bandwidth_f": f.dist.kernel_f,
         "pooled_mean_f": f.pooled_mean_f,
         "dist_mean_f": f.dist.mean(),

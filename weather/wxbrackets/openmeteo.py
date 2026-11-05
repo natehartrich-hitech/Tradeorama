@@ -82,7 +82,7 @@ def parse_members(payload: dict, model_ids: list[str], variable: str = VARIABLE)
 
 def member_daily_max(
     series: MemberSeries, start: datetime, end: datetime, min_valid: int, edge_tolerance_hours: float = 3.0,
-    since: datetime | None = None,
+    since: datetime | None = None, kind: str = "high",
 ) -> float | None:
     """Max over hourly values with start <= t <= end (both climate-day boundaries count).
 
@@ -92,7 +92,7 @@ def member_daily_max(
     is too low.
     """
     if since is not None and since > start:
-        return remaining_max(series, since, end, edge_tolerance_hours)
+        return remaining_max(series, since, end, edge_tolerance_hours, kind)
     lo, hi = int(start.timestamp()), int(end.timestamp())
     mask = (series.times >= lo) & (series.times <= hi) & ~np.isnan(series.values)
     times, vals = series.times[mask], series.values[mask]
@@ -101,17 +101,20 @@ def member_daily_max(
     slack = edge_tolerance_hours * 3600
     if times.min() > lo + slack or times.max() < hi - slack:
         return None
-    return float(vals.max())
+    return float(vals.max() if kind == "high" else vals.min())
 
 
-def remaining_max(series: MemberSeries, since: datetime, end: datetime, edge_tolerance_hours: float = 3.0) -> float | None:
-    """Max over the rest of the climate day, [since, end]. -inf once the day is over (no heating left).
+def remaining_max(series: MemberSeries, since: datetime, end: datetime, edge_tolerance_hours: float = 3.0,
+                  kind: str = "high") -> float | None:
+    """Max (or, for kind="low", min) over the rest of the climate day, [since, end]. Once the day is
+    over: -inf for highs, +inf for lows (nothing left to change the extreme).
 
-    Same-day forecasts combine this with the observed high so far: the day's high is the larger of
-    the two. A member's whole-day max would wrongly keep a warm afternoon alive after it has passed.
+    Same-day forecasts combine this with the observed extreme so far: the day's high is the larger
+    of the two, its low the smaller. A member's whole-day value would wrongly keep a warm afternoon
+    (or a cold dawn) alive after it has passed.
     """
     if since >= end:
-        return -math.inf
+        return -math.inf if kind == "high" else math.inf
     lo, hi = int(since.timestamp()), int(end.timestamp())
     mask = (series.times >= lo) & (series.times <= hi) & ~np.isnan(series.values)
     times, vals = series.times[mask], series.values[mask]
@@ -119,7 +122,7 @@ def remaining_max(series: MemberSeries, since: datetime, end: datetime, edge_tol
         return None
     if times.max() < hi - edge_tolerance_hours * 3600:
         return None  # run ends before the day does
-    return float(vals.max())
+    return float(vals.max() if kind == "high" else vals.min())
 
 
 class OpenMeteo:
@@ -152,7 +155,7 @@ class OpenMeteo:
         return self.http.json(self.url(source), self.request_params(station, day, model_ids))
 
     def member_maxes(self, station: Station, day: date, models: list[Model],
-                     since: datetime | None = None) -> tuple[dict[tuple[str, int], float], dict]:
+                     since: datetime | None = None, kind: str = "high") -> tuple[dict[tuple[str, int], float], dict]:
         """{(model, member): daily max °F} for members covering the climate day, plus raw payloads by model.
 
         One request per model. A combined multi-model request labels its keys differently from
@@ -167,7 +170,7 @@ class OpenMeteo:
                 continue
             payload = payloads[m.id] = self.fetch(station, day, [m.id], m.source)
             for s in parse_members(payload, [m.id]):
-                mx = member_daily_max(s, start, end, d.min_valid_hours, d.edge_tolerance_hours, since)
+                mx = member_daily_max(s, start, end, d.min_valid_hours, d.edge_tolerance_hours, since, kind)
                 if mx is not None:
                     maxes[(s.model, s.member)] = mx
         return maxes, payloads

@@ -24,7 +24,11 @@ class Station:
     timezone: str
     cli_office: str
     cli_location: str
-    pmus_event_prefix: str | None = None  # Polymarket US event slug prefix, e.g. "temp-mdwhigh"
+    pmus_event_prefix: str | None = None  # Polymarket US daily-HIGH event slug prefix, e.g. "temp-mdwhigh"
+    pmus_low_prefix: str | None = None  # daily-LOW prefix, e.g. "temp-mdwlow"
+
+    def prefix(self, kind: str) -> str | None:
+        return self.pmus_event_prefix if kind == "high" else self.pmus_low_prefix
 
     @property
     def tz(self) -> ZoneInfo:
@@ -59,7 +63,12 @@ class PaperSettings:
     max_event_usd: float = 25.0  # per city per day
     max_daily_usd: float = 100.0  # across all cities, per UTC day
     stop_hours_before_end: float = 2.0  # no new trades this close to the end of the climate day
-    same_day_last_hour: float = 12.0  # no trades on TODAY's market from this hour, local standard time
+    same_day_last_hour: float = 12.0  # no trades on TODAY's high market from this hour, local standard time
+    same_day_last_hour_low: float = 6.0  # same for today's LOW market: by dawn the low is mostly in
+    kinds: tuple[str, ...] = ("high", "low")  # which markets paper trades
+
+    def last_hour(self, kind: str) -> float:
+        return self.same_day_last_hour if kind == "high" else self.same_day_last_hour_low
 
 
 @dataclass(frozen=True)
@@ -78,12 +87,24 @@ class Config:
     rrfs_base_url: str = "https://noaa-rrfs-ops-pds.s3.amazonaws.com"
     pmus_gateway: str = "https://gateway.polymarket.us"
     paper: PaperSettings = PaperSettings()
+    distribution_low: DistributionSettings | None = None
+
+    def distribution_for(self, kind: str) -> DistributionSettings:
+        """Lows can be tuned separately: `distribution_low` in the config overrides `distribution`."""
+        return self.distribution_low if kind == "low" and self.distribution_low else self.distribution
 
     def station(self, code: str) -> Station:
         try:
             return self.stations[code.upper()]
         except KeyError:
             raise ConfigError(f"unknown station {code!r}; configured: {', '.join(sorted(self.stations))}") from None
+
+
+def parse_paper(raw: dict) -> PaperSettings:
+    kinds = tuple(raw.get("kinds") or ("high", "low"))
+    if not set(kinds) <= {"high", "low"}:
+        raise ConfigError("paper.kinds must be a list of high and/or low")
+    return PaperSettings(kinds=kinds, **{k: float(v) for k, v in raw.items() if k != "kinds"})
 
 
 def load_config(path: str | Path) -> Config:
@@ -108,6 +129,7 @@ def parse_config(raw: dict, base_dir: Path = Path(".")) -> Config:
                 cli_office=s["cli_office"].upper(),
                 cli_location=s["cli_location"].upper(),
                 pmus_event_prefix=s.get("pmus_event_prefix"),
+                pmus_low_prefix=s.get("pmus_low_prefix"),
             )
             st.tz  # validate the time zone name now rather than mid-run
         except (KeyError, TypeError, ValueError) as exc:
@@ -147,6 +169,18 @@ def parse_config(raw: dict, base_dir: Path = Path(".")) -> Config:
     )
     if dist.spread_inflation <= 0:
         raise ConfigError("spread_inflation must be positive")
+    dist_low = None
+    if raw.get("distribution_low"):
+        merged = {**d, **raw["distribution_low"]}
+        bw_low = merged.get("bandwidth_f", "auto")
+        dist_low = DistributionSettings(
+            bias_f=float(merged.get("bias_f", 0.0)),
+            spread_inflation=float(merged.get("spread_inflation", 1.0)),
+            bandwidth_f=None if bw_low in (None, "auto") else float(bw_low),
+            min_valid_hours=int(merged.get("min_valid_hours", 8)),
+            edge_tolerance_hours=float(merged.get("edge_tolerance_hours", 3.0)),
+            obs_tolerance_f=float(merged.get("obs_tolerance_f", 0.5)),
+        )
 
     nws = raw.get("nws") or {}
     om = raw.get("open_meteo") or {}
@@ -165,5 +199,6 @@ def parse_config(raw: dict, base_dir: Path = Path(".")) -> Config:
         open_meteo_min_interval=float(om.get("min_interval_sec", 0.5)),
         rrfs_base_url=(raw.get("rrfs") or {}).get("base_url") or "https://noaa-rrfs-ops-pds.s3.amazonaws.com",
         pmus_gateway=(raw.get("polymarket_us") or {}).get("gateway") or "https://gateway.polymarket.us",
-        paper=PaperSettings(**{k: float(v) for k, v in (raw.get("paper") or {}).items()}),
+        paper=parse_paper(raw.get("paper") or {}),
+        distribution_low=dist_low,
     )

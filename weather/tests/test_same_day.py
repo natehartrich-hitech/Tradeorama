@@ -2,7 +2,6 @@
 
 import math
 from datetime import date, datetime, timedelta, timezone
-from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 
 import numpy as np
@@ -11,6 +10,7 @@ import pytest
 from wxbrackets import paper
 from wxbrackets.brackets import make_brackets
 from wxbrackets.climate_day import climate_day_window
+from wxbrackets.config import PaperSettings
 from wxbrackets.forecast import build_forecast
 from wxbrackets.openmeteo import MemberSeries, member_daily_max, remaining_max
 
@@ -87,7 +87,7 @@ def test_day_over_for_every_member(cfg):
     assert probs["62-63"] > 0.6 and sum(f.probs) == pytest.approx(1.0)
 
 
-SETTINGS = SimpleNamespace(same_day_last_hour=12.0)
+SETTINGS = PaperSettings()  # cutoffs: highs 12:00, lows 06:00
 
 
 def test_same_day_cutoff():
@@ -97,4 +97,7 @@ def test_same_day_cutoff():
     assert paper.same_day_block(DAY + timedelta(days=1), today, START, afternoon, None, SETTINGS) is None  # tomorrow
     assert paper.same_day_block(DAY, today, START, morning, 55.0, SETTINGS) is None
     assert "12:00" in paper.same_day_block(DAY, today, START, afternoon, 55.0, SETTINGS)
+    # Lows stop at 6 AM: by dawn the low is mostly in.
+    assert paper.same_day_block(DAY, today, START, START + timedelta(hours=5), 40.0, SETTINGS, "low") is None
+    assert "6:00" in paper.same_day_block(DAY, today, START, START + timedelta(hours=7), 40.0, SETTINGS, "low")
     assert "no observations" in paper.same_day_block(DAY, today, START, morning, None, SETTINGS)

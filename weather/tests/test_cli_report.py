@@ -35,3 +35,16 @@ def test_archive_split_and_best_report():
     assert best_report(reports, date(2026, 11, 2)).max_f == 58
     assert best_report(reports, date(2026, 11, 4)) is None
     assert best_report(reports[:1], date(2026, 11, 3)).final is False  # partial if that's all there is
+
+
+def test_minimum_is_read_too():
+    r = parse_cli(fixture_text("cli_mdw_final.txt"))
+    assert (r.min_f, r.min_time) == (41, "633 AM")
+    assert r.value("high") == 58 and r.value("low") == 41
+    same_day = parse_cli(fixture_text("cli_mdw_sameday.txt"))
+    assert same_day.min_f == 44
+
+
+def test_best_report_by_kind():
+    reports = [parse_cli(p) for p in split_products(fixture_text("cli_archive.txt"))]
+    assert best_report(reports, date(2026, 11, 2), "low").min_f == 41

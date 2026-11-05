@@ -109,9 +109,11 @@ class FakeBucket:
     def file(self, fxx: int) -> tuple[bytes, str]:
         tmp = make_grib(self.value_for_hour(fxx) - 1)
         tmax = make_grib(self.value_for_hour(fxx))
+        tmin = make_grib(self.value_for_hour(fxx) - 3)
         idx = (f"1:0:d=2026110306:TMP:2 m above ground:{fxx} hour fcst:\n"
-               f"2:{len(tmp)}:d=2026110306:TMAX:2 m above ground:{fxx - 1}-{fxx} hour max fcst:\n")
-        return tmp + tmax, idx
+               f"2:{len(tmp)}:d=2026110306:TMAX:2 m above ground:{fxx - 1}-{fxx} hour max fcst:\n"
+               f"3:{len(tmp) + len(tmax)}:d=2026110306:TMIN:2 m above ground:{fxx - 1}-{fxx} hour min fcst:\n")
+        return tmp + tmax + tmin, idx
 
     def __call__(self, request: httpx.Request) -> httpx.Response:
         path = request.url.path

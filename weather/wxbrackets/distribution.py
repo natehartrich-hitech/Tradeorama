@@ -36,12 +36,15 @@ def silverman_bandwidth(x: np.ndarray, w: np.ndarray) -> float:
 
 @dataclass
 class HighDistribution:
-    """Weighted Gaussian mixture over (adjusted) member maxima, optionally truncated below."""
+    """Weighted Gaussian mixture over (adjusted) member values of the day's high or low, optionally
+    truncated: a high can't end below the observed max so far (floor), a low can't end above the
+    observed min so far (ceiling)."""
 
     centers: np.ndarray
     weights: np.ndarray
     bandwidth: float | np.ndarray  # one kernel width for all, or one per member
-    floor_f: float = -math.inf  # the high can't end below this (observed so far)
+    floor_f: float = -math.inf
+    ceiling_f: float = math.inf
 
     @property
     def kernel_f(self) -> float:
@@ -78,20 +81,30 @@ class HighDistribution:
     def cdf(self, x: float) -> float:
         if x <= self.floor_f:
             return 0.0
-        base = self._raw_cdf(self.floor_f)
-        mass = 1.0 - base
+        if x >= self.ceiling_f:
+            return 1.0
+        lo, hi = self._raw_cdf(self.floor_f), self._raw_cdf(self.ceiling_f)
+        mass = hi - lo
         if mass <= 1e-12:
-            return 1.0 if x >= self.floor_f else 0.0  # everything was below the floor: high = floor
-        return (self._raw_cdf(x) - base) / mass
+            # Every member fell past the bound (a high below its floor, a low above its ceiling):
+            # the value sits at that bound.
+            pin = self.floor_f if self.ceiling_f == math.inf else self.ceiling_f
+            return 1.0 if x >= pin else 0.0
+        return (self._raw_cdf(x) - lo) / mass
 
     def conditioned_on_floor(self, floor_f: float) -> "HighDistribution":
-        return HighDistribution(self.centers, self.weights, self.bandwidth, max(self.floor_f, floor_f))
+        return HighDistribution(self.centers, self.weights, self.bandwidth, max(self.floor_f, floor_f), self.ceiling_f)
+
+    def conditioned_on_ceiling(self, ceiling_f: float) -> "HighDistribution":
+        return HighDistribution(self.centers, self.weights, self.bandwidth, self.floor_f, min(self.ceiling_f, ceiling_f))
 
     def mean(self) -> float:
-        if self.floor_f == -math.inf:
+        if self.floor_f == -math.inf and self.ceiling_f == math.inf:
             return float(np.sum(self.weights * self.centers))
         # Numerical mean of the truncated mixture.
-        grid = np.linspace(min(self.floor_f, self.centers.min()) - 1, self.centers.max() + 6 * self.kernel_f, 4000)
+        lo = min(self.floor_f if self.floor_f > -math.inf else math.inf, self.centers.min() - 6 * self.kernel_f) - 1
+        hi = max(self.ceiling_f if self.ceiling_f < math.inf else -math.inf, self.centers.max() + 6 * self.kernel_f) + 1
+        grid = np.linspace(lo, hi, 4000)
         cdf = np.array([self.cdf(g) for g in grid])
         return float(grid[-1] - np.trapezoid(cdf, grid))
 

@@ -27,15 +27,15 @@ class CalibrationResult:
     market_brier: float | None = None  # the market's Brier on the same runs
 
 
-LEADS = ["same day AM", "same day PM", "next day", "2+ days"]
+LEADS = ["today (traded)", "today (shadow)", "next day", "2+ days"]
 
 
-def lead_bucket(lead_hours: float, afternoon_from: float = 12.0) -> str:
+def lead_bucket(lead_hours: float, cutoff_hour: float = 12.0) -> str:
     """lead_hours = hours from the forecast to the start of the climate day (negative once it has begun).
-    Same-day runs split at `afternoon_from` hours into the day (the paper trader's same-day cutoff), so
-    afternoon forecasts, which aren't traded, can be judged on their own."""
+    Same-day runs split at the paper trader's same-day cutoff (`cutoff_hour` hours into the day): runs
+    after it aren't traded ("shadow"), and are scored on their own to decide whether to move it."""
     if lead_hours < 0:
-        return "same day PM" if -lead_hours >= afternoon_from else "same day AM"
+        return "today (shadow)" if -lead_hours >= cutoff_hour else "today (traded)"
     return "next day" if lead_hours < 24 else "2+ days"
 
 
@@ -63,8 +63,8 @@ def reliability_table(pairs: list[tuple[float, int]], bins: int = 10) -> pd.Data
 
 
 def calibrate(db: DB, station: str, min_lead: float | None = None, max_lead: float | None = None,
-              afternoon_from: float = 12.0) -> CalibrationResult:
-    runs = db.scored_runs(station, min_lead, max_lead)
+              cutoff_hour: float = 12.0, kind: str = "high") -> CalibrationResult:
+    runs = db.scored_runs(station, min_lead, max_lead, kind)
     briers, pairs, raw_err, dist_err, nws_err = [], [], [], [], []
     model_vs, market_vs, by_lead = [], [], {}
     for r in runs:
@@ -82,7 +82,7 @@ def calibrate(db: DB, station: str, min_lead: float | None = None, max_lead: flo
                 market_brier = sum((p - h) ** 2 for p, h in zip(mkt, hits))
                 model_vs.append(brier)
                 market_vs.append(market_brier)
-                by_lead.setdefault(lead_bucket(r["lead_hours"], afternoon_from), []).append((brier, market_brier))
+                by_lead.setdefault(lead_bucket(r["lead_hours"], cutoff_hour), []).append((brier, market_brier))
         raw_err.append(r["pooled_mean_f"] - official)
         dist_err.append(r["dist_mean_f"] - official)
         if r["nws_forecast_high_f"] is not None:
@@ -91,11 +91,11 @@ def calibrate(db: DB, station: str, min_lead: float | None = None, max_lead: flo
     def mean(xs):
         return float(np.mean(xs)) if xs else None
 
-    rows = [dict(r) for r in db.member_errors(station, min_lead, max_lead)]
+    rows = [dict(r) for r in db.member_errors(station, min_lead, max_lead, kind)]
     stats = dict(runs=("err", "size"), bias_f=("err", "mean"), mae_f=("err", lambda e: e.abs().mean()))
     if rows:
         errs = pd.DataFrame(rows).assign(err=lambda d: d.mean_max_f - d.official_f,
-                                         lead=lambda d: d.lead_hours.map(lambda h: lead_bucket(h, afternoon_from)))
+                                         lead=lambda d: d.lead_hours.map(lambda h: lead_bucket(h, cutoff_hour)))
         per_model = errs.groupby("model").agg(**stats).reset_index()
         per_model_lead = errs.groupby(["model", "lead"]).agg(**stats).reset_index()
     else:

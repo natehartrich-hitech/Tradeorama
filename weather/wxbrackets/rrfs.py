@@ -34,10 +34,15 @@ class Product:
     cycle_every_h: int
     max_fxx: int
     multi: bool = False  # several time steps of `field` per file (15-minute output)
+    low_field: str | None = None  # field for daily LOWS (default: `field`, for instantaneous products)
+
+    def field_for(self, kind: str) -> str:
+        return self.field if kind == "high" else (self.low_field or self.field)
 
 
 DETERMINISTIC = Product(
-    "rrfs.{ymd}/{hh}/rrfs.t{hh}z.2dfld.3km.f{fxx:03d}.conus.grib2", "TMAX:2 m above ground", True, 6, 84
+    "rrfs.{ymd}/{hh}/rrfs.t{hh}z.2dfld.3km.f{fxx:03d}.conus.grib2", "TMAX:2 m above ground", True, 6, 84,
+    low_field="TMIN:2 m above ground",
 )
 # Hourly RRFS runs on AWS only publish 15-minute output for 18 hours: file fNNN holds TMP at
 # (N-1)h15m, (N-1)h30m, (N-1)h45m and Nh. Used for the rest of TODAY, where freshness matters.
@@ -258,14 +263,15 @@ class RRFS:
         return self.index(self.url(product, init, fxx, member)) is not None
 
     def _values(self, product: Product, init: datetime, hours: list[int], member: int, station: Station,
-                not_before: datetime) -> list[float] | None:
+                not_before: datetime, kind: str = "high") -> list[float] | None:
         values = []
+        field = product.field_for(kind)
         for fxx in hours:
             url = self.url(product, init, fxx, member)
             if product.multi:
-                got = self.points_from(url, product.field, station.lat, station.lon, init, not_before)
+                got = self.points_from(url, field, station.lat, station.lon, init, not_before)
             else:
-                v = self.point(url, product.field, station.lat, station.lon)
+                v = self.point(url, field, station.lat, station.lon)
                 got = None if v is None else [v]
             if got is None:
                 log.warning("RRFS f%03d missing for %s member %d; skipping this member", fxx, init, member)
@@ -282,7 +288,7 @@ class RRFS:
         return [f for f in hours if (1 if product.interval_max else 0) <= f <= product.max_fxx]
 
     def member_max(self, product: Product, station: Station, day: date, member: int, now: datetime,
-                   since: datetime | None = None) -> tuple[float, datetime] | None:
+                   since: datetime | None = None, kind: str = "high") -> tuple[float, datetime] | None:
         """(daily max °F, cycle used), or None if no published cycle covers the climate day.
 
         With `since` (same day): the max over the rest of the day only (-inf if none is left). For
@@ -292,8 +298,10 @@ class RRFS:
         """
         start, end = climate_day_window(day, station.tz)
         remaining = since is not None and since > start
+        done = -math.inf if kind == "high" else math.inf  # nothing left to change the extreme
+        pick = max if kind == "high" else min
         if remaining and since >= end:
-            return -math.inf, None
+            return done, None
         frm = since if remaining else start
 
         # The newest run of `product` that covers everything left and is fully published.
@@ -301,7 +309,7 @@ class RRFS:
         for init in candidate_cycles(frm, end, product, now):
             hours = self._hours(product, init, start, end, since if remaining else None)
             if not hours:
-                return -math.inf, init
+                return done, init
             if self.published(product, init, hours[-1], member):
                 base = (init, hours)
                 break
@@ -314,25 +322,25 @@ class RRFS:
                 h_hours = self._hours(SUBHOURLY, hinit, start, h_end, since)
                 if not h_hours or not self.published(SUBHOURLY, hinit, h_hours[-1]):
                     continue
-                values = self._values(SUBHOURLY, hinit, h_hours, member, station, since)
+                values = self._values(SUBHOURLY, hinit, h_hours, member, station, since, kind)
                 if values is None:
                     continue
                 if h_end < end:  # the evening tail beyond the hourly run's reach
                     if base is None:
                         continue
                     tail = [f for f in base[1] if base[0] + timedelta(hours=f) > h_end]
-                    more = self._values(DETERMINISTIC, base[0], tail, member, station, h_end)
+                    more = self._values(DETERMINISTIC, base[0], tail, member, station, h_end, kind)
                     if more is None:
                         continue
                     values += more
-                return (max(values) if values else -math.inf), hinit
+                return (pick(values) if values else done), hinit
 
         if base is None:
             return None
-        values = self._values(product, base[0], base[1], member, station, frm)
+        values = self._values(product, base[0], base[1], member, station, frm, kind)
         if values is None:
             return None
-        return (max(values) if values else -math.inf), base[0]
+        return (pick(values) if values else done), base[0]
 
     def check(self, product: Product, station: Station, day: date, member: int, now: datetime | None = None) -> str:
         """Describe availability without downloading GRIB data (for check-models)."""
@@ -346,17 +354,17 @@ class RRFS:
         return f"cycle {init:%Y-%m-%d %HZ}, field {product.field!r} {'found' if found else 'MISSING'}"
 
     def member_maxes(self, station: Station, day: date, models: list[Model], now: datetime | None = None,
-                     since: datetime | None = None) -> dict[tuple[str, int], float]:
+                     since: datetime | None = None, kind: str = "high") -> dict[tuple[str, int], float]:
         now = now or datetime.now(timezone.utc)
         out = {}
         for m in models:
             if m.source == "rrfs":
-                got = self.member_max(DETERMINISTIC, station, day, 0, now, since)
+                got = self.member_max(DETERMINISTIC, station, day, 0, now, since, kind)
                 if got:
                     out[(m.id, 0)] = got[0]
             elif m.source == "refs":
                 for member in m.members or range(1, 6):
-                    got = self.member_max(ENSEMBLE, station, day, member, now, since)
+                    got = self.member_max(ENSEMBLE, station, day, member, now, since, kind)
                     if got:
                         out[(m.id, member)] = got[0]
         return out

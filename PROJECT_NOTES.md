@@ -15,7 +15,7 @@ Shared memory for this project: who it's for, what was decided and why, what was
 | Part | Where | Status |
 |---|---|---|
 | Sports bot: Pinnacle +EV against Polymarket US | `tradeorama/strategy/` | Paper trading since early Nov 2026 |
-| Weather model and paper trader: daily highs | `weather/` (package `wxbrackets`, own venv and `config.yaml`) | Paper trading since Nov 5, 2026 |
+| Weather model and paper trader: daily highs and lows | `weather/` (package `wxbrackets`, own venv and `config.yaml`) | Highs paper trading since Nov 5, 2026; lows added Nov 5 |
 | Web app: browse markets, manual orders, bot panel | `tradeorama/app.py`, `tradeorama/static/` | Market browsing and orders still use the **international** site |
 
 Both bots run at once, in separate terminal windows.
@@ -46,13 +46,24 @@ Both bots run at once, in separate terminal windows.
 - **Same day:**
   - The high is the larger of the observed max so far and each member's forecast for the **remaining** hours.
   - Members pinned at the observation get a kernel of `obs_tolerance_f` (0.5°F).
-  - Paper trading doesn't trade today's market after noon local standard time, or without observations. After noon it still **forecasts and logs prices** ("shadow mode").
-  - Why the cutoff stays even though same-day forecasts are now correct: in the afternoon the market also knows the high, the NWS feed lags other traders' real-time data, and the remaining uncertainty (official versus hourly readings) is where specialists beat this model. Decision (Nov 5, 2026): **don't trade afternoons; measure them.** `calibration`'s model-vs-market table has a "same day PM" row. Move `same_day_last_hour` later only if the model beats the market there over weeks.
+  - Paper trading doesn't trade today's high market after noon local standard time (lows: 6 AM), or without observations. After the cutoff it still **forecasts and logs prices** ("shadow mode").
+  - Why the cutoff stays even though same-day forecasts are now correct: in the afternoon the market also knows the high, the NWS feed lags other traders' real-time data, and the remaining uncertainty (official versus hourly readings) is where specialists beat this model. Decision (Nov 5, 2026): **don't trade afternoons; measure them.** `calibration`'s model-vs-market table has a "today (shadow)" row. Move `same_day_last_hour` later only if the model beats the market there over weeks.
   - For the rest of today, RRFS uses the newest hourly run's 15-minute output, with the evening tail from the newest 6-hourly run. That data is about 1.5–2 hours old instead of up to a day.
   - The earlier version kept warm afternoons alive after the peak and paper-traded stale edges. Those fills were cleared.
 - **Paper trading:** 3¢ minimum edge, quarter Kelly on $200, $25 per city-day, $100 per day. It walks the real order book and settles from Polymarket US's results.
 - **Lead-time weighting (Nov 5, 2026):** the owner asked whether RRFS/HRRR should count more closer to the day. They probably should (3 km resolution, hourly refresh, RRFS's true hourly max), but RRFS is new and a single run is overconfident. Decision: **measure first.** `calibration` now splits each model's bias and MAE by lead (same day / next day / 2+ days). Weights stay unchanged until 3–4 weeks of data show which models earn more weight at which lead.
 - **The deciding metric:** in `calibration`, the model's Brier score against the market's on the same runs. No real money unless the model beats the market for a city over a month or more.
+
+## Daily lows (added Nov 5, 2026)
+
+- Polymarket US has daily-low series for all five cities (`temp-{mdw,nyc,mia,lax,sfo}low-YYYY-MM-DD`). They settle on the CLI MINIMUM line for the same climate day, with the same 2°F brackets and fee. In Nov 2026, only Chicago and NYC had events listed.
+- **The whole weather pipeline takes a `kind` (high/low):**
+  - Model minima come from Open-Meteo, from RRFS (`TMIN` on 6-hourly runs, 15-minute `TMP` on hourly runs) and from REFS (`TMP`).
+  - The observed running minimum is a ceiling. Each member's final low = min(observed, remaining-hours minimum).
+  - Outcomes store `min_f`, and forecast runs and paper fills store `kind`. Old databases are migrated automatically.
+  - Lows can be tuned separately via `distribution_low`.
+- **Same-day cutoff for lows: 6 AM local standard time** (`same_day_last_hour_low`), since by dawn the low is mostly in. Shadow-mode scoring decides whether to move it, as for highs.
+- Lows are expected to be harder (radiational cooling, Midway's urban heat, cloud and wind), so expect larger biases; calibrate them separately.
 
 ## Position sizing (both bots, Nov 5, 2026)
 

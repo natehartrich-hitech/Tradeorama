@@ -135,3 +135,14 @@ def test_hourly_reruns_hold_a_kelly_target_instead_of_buying_again(cfg, tmp_path
     third = bought(paper.trade(db, pmus, cfg.paper, "CHI", "2026-11-04", None, markets, probs2, 28, now=now))
     target = paper.kelly_fraction(0.65, 0.43 + paper.fee_per_contract(0.43, 0.0695)) * 0.25 * cfg.paper.bankroll_usd
     assert third[("yes", "64-65")] == pytest.approx(target - held, abs=0.05)
+
+
+def test_dry_run_respects_the_event_cap_across_opportunities(cfg, tmp_path):
+    db = DB(tmp_path / "d.db")
+    pmus = fake_gateway()
+    markets = pmus.markets("temp-mdwhigh", datetime(2026, 11, 4).date())
+    probs = [0.05, 0.90, 0.03, 0.01, 0.01, 0.0]  # strong edges on several brackets at once
+    opps = paper.trade(db, pmus, cfg.paper, "CHI", "2026-11-04", None, markets, probs, 30, execute=False,
+                       now=datetime(2026, 11, 3, 15, tzinfo=timezone.utc))
+    assert sum(o.fill.cost for o in opps if o.action == "buy") <= cfg.paper.max_event_usd + 0.01
+    assert db.paper_spent() == 0  # a dry run records nothing

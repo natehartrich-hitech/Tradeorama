@@ -8,15 +8,16 @@ SCHEMA = """
 CREATE TABLE IF NOT EXISTS forecast_runs (
     run_id INTEGER PRIMARY KEY,
     created_utc TEXT NOT NULL,
+    kind TEXT NOT NULL DEFAULT 'high',  -- 'high' or 'low': which daily extreme was forecast
     station TEXT NOT NULL,
     target_date TEXT NOT NULL,
     lead_hours REAL NOT NULL,          -- hours from run to the start of the climate day (negative = same day)
     bias_f REAL NOT NULL,
     spread_inflation REAL NOT NULL,
     bandwidth_f REAL NOT NULL,
-    pooled_mean_f REAL NOT NULL,       -- weighted mean of raw member maxima, before bias/inflation
+    pooled_mean_f REAL NOT NULL,       -- weighted mean of raw member values (maxima or minima), before bias/inflation
     dist_mean_f REAL NOT NULL,         -- mean of the final distribution (after bias and any conditioning)
-    observed_max_f REAL,               -- same-day conditioning value, if used
+    observed_max_f REAL,               -- same-day conditioning value, if used (observed min for lows)
     nws_forecast_high_f REAL
 );
 CREATE TABLE IF NOT EXISTS forecast_members (
@@ -64,6 +65,7 @@ CREATE TABLE IF NOT EXISTS paper_fills (
     run_id INTEGER REFERENCES forecast_runs(run_id),
     station TEXT NOT NULL,
     target_date TEXT NOT NULL,
+    kind TEXT NOT NULL DEFAULT 'high',
     slug TEXT NOT NULL,
     side TEXT NOT NULL,                -- 'yes' or 'no'
     label TEXT NOT NULL,               -- bracket, e.g. "64-65"
@@ -78,6 +80,7 @@ CREATE TABLE IF NOT EXISTS outcomes (
     climate_date TEXT NOT NULL,
     max_f INTEGER NOT NULL,
     final INTEGER NOT NULL,            -- 0 if only a same-day (partial) report was found
+    min_f INTEGER,                     -- the day's official low (NULL if not reported)
     source TEXT NOT NULL,
     fetched_utc TEXT NOT NULL,
     PRIMARY KEY (station, climate_date)
@@ -94,6 +97,19 @@ class DB:
         self.conn = sqlite3.connect(str(path))
         self.conn.row_factory = sqlite3.Row
         self.conn.executescript(SCHEMA)
+        self._migrate()
+
+    def _migrate(self) -> None:
+        """Add columns introduced after a database was created (lows: Nov 2026)."""
+        for table, column, ddl in (
+            ("forecast_runs", "kind", "TEXT NOT NULL DEFAULT 'high'"),
+            ("paper_fills", "kind", "TEXT NOT NULL DEFAULT 'high'"),
+            ("outcomes", "min_f", "INTEGER"),
+        ):
+            cols = {r[1] for r in self.conn.execute(f"PRAGMA table_info({table})")}
+            if column not in cols:
+                self.conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
+        self.conn.commit()
 
     def save_run(self, run: dict, members: list[tuple[str, int, float, float]], brackets: list[tuple]) -> int:
         """members: (model, member, max_f, weight); brackets: (label, low, high, prob)."""
@@ -113,23 +129,26 @@ class DB:
             )
         return run_id
 
-    def save_outcome(self, station: str, day: date, max_f: int, final: bool, source: str) -> None:
+    def save_outcome(self, station: str, day: date, max_f: int, final: bool, source: str, min_f: int | None = None) -> None:
         with self.conn:
             # Never let a partial same-day value overwrite a final one.
             self.conn.execute(
-                """INSERT INTO outcomes VALUES (?, ?, ?, ?, ?, ?)
+                """INSERT INTO outcomes (station, climate_date, max_f, final, source, fetched_utc, min_f)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)
                    ON CONFLICT(station, climate_date) DO UPDATE SET
-                     max_f = excluded.max_f, final = excluded.final,
+                     max_f = excluded.max_f, final = excluded.final, min_f = excluded.min_f,
                      source = excluded.source, fetched_utc = excluded.fetched_utc
                    WHERE excluded.final >= outcomes.final""",
-                (station, day.isoformat(), max_f, int(final), source, now_utc()),
+                (station, day.isoformat(), max_f, int(final), source, now_utc(), min_f),
             )
 
-    def scored_runs(self, station: str, min_lead: float | None = None, max_lead: float | None = None) -> list[sqlite3.Row]:
-        sql = """SELECT r.*, o.max_f AS official_f FROM forecast_runs r
+    def scored_runs(self, station: str, min_lead: float | None = None, max_lead: float | None = None,
+                    kind: str = "high") -> list[sqlite3.Row]:
+        official = "o.max_f" if kind == "high" else "o.min_f"
+        sql = f"""SELECT r.*, {official} AS official_f FROM forecast_runs r
                  JOIN outcomes o ON o.station = r.station AND o.climate_date = r.target_date AND o.final = 1
-                 WHERE r.station = ?"""
-        args: list = [station]
+                 WHERE r.station = ? AND r.kind = ? AND {official} IS NOT NULL"""
+        args: list = [station, kind]
         if min_lead is not None:
             sql += " AND r.lead_hours >= ?"
             args.append(min_lead)
@@ -138,14 +157,17 @@ class DB:
             args.append(max_lead)
         return self.conn.execute(sql + " ORDER BY r.target_date, r.created_utc", args).fetchall()
 
-    def member_errors(self, station: str, min_lead: float | None = None, max_lead: float | None = None) -> list[sqlite3.Row]:
-        """Each model's mean member max per scored run, with the official high."""
-        sql = """SELECT m.model, m.run_id, r.lead_hours, AVG(m.member_max_f) AS mean_max_f, COUNT(*) AS members, o.max_f AS official_f
+    def member_errors(self, station: str, min_lead: float | None = None, max_lead: float | None = None,
+                      kind: str = "high") -> list[sqlite3.Row]:
+        """Each model's mean member value per scored run, with the official high (or low)."""
+        official = "o.max_f" if kind == "high" else "o.min_f"
+        sql = f"""SELECT m.model, m.run_id, r.lead_hours, AVG(m.member_max_f) AS mean_max_f, COUNT(*) AS members,
+                        {official} AS official_f
                  FROM forecast_members m
                  JOIN forecast_runs r ON r.run_id = m.run_id
                  JOIN outcomes o ON o.station = m.station AND o.climate_date = m.target_date AND o.final = 1
-                 WHERE m.station = ?"""
-        args: list = [station]
+                 WHERE m.station = ? AND r.kind = ? AND {official} IS NOT NULL"""
+        args: list = [station, kind]
         if min_lead is not None:
             sql += " AND r.lead_hours >= ?"
             args.append(min_lead)
@@ -168,9 +190,11 @@ class DB:
         with self.conn:
             self.conn.execute(f"INSERT INTO paper_fills ({', '.join(f)}) VALUES ({', '.join('?' * len(f))})", list(f.values()))
 
-    def paper_spent(self, station: str | None = None, target_date: str | None = None, since_utc: str | None = None) -> float:
+    def paper_spent(self, station: str | None = None, target_date: str | None = None, since_utc: str | None = None,
+                    kind: str | None = None) -> float:
         sql, args = "SELECT COALESCE(SUM(cost), 0) FROM paper_fills WHERE 1 = 1", []
-        for col, val, op in (("station", station, "="), ("target_date", target_date, "="), ("created_utc", since_utc, ">=")):
+        for col, val, op in (("station", station, "="), ("target_date", target_date, "="),
+                             ("created_utc", since_utc, ">="), ("kind", kind, "=")):
             if val is not None:
                 sql += f" AND {col} {op} ?"
                 args.append(val)
@@ -189,11 +213,14 @@ class DB:
         with self.conn:
             self.conn.execute("UPDATE paper_fills SET payout = ? WHERE id = ?", (payout, fill_id))
 
-    def paper_fills(self, station: str | None = None) -> list[sqlite3.Row]:
-        sql, args = "SELECT * FROM paper_fills", []
-        if station:
-            sql, args = sql + " WHERE station = ?", [station]
-        return self.conn.execute(sql + " ORDER BY created_utc DESC", args).fetchall()
+    def paper_fills(self, station: str | None = None, kind: str | None = None) -> list[sqlite3.Row]:
+        conds, args = [], []
+        for col, val in (("station", station), ("kind", kind)):
+            if val:
+                conds.append(f"{col} = ?")
+                args.append(val)
+        where = (" WHERE " + " AND ".join(conds)) if conds else ""
+        return self.conn.execute(f"SELECT * FROM paper_fills{where} ORDER BY created_utc DESC", args).fetchall()
 
     def get_point(self, url: str, field: str, lat: float, lon: float) -> float | None:
         row = self.conn.execute(

@@ -1,7 +1,7 @@
 """api.weather.gov: point forecast high, station observations, and CLI products."""
 
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from .cli_report import CliParseError, CliReport, parse_cli
 from .climate_day import climate_day_window
@@ -23,6 +23,11 @@ class RunningMax:
     at: datetime | None
     observations: int
     latest: datetime | None
+    min_f: float | None = None
+    min_at: datetime | None = None
+
+    def value(self, kind: str) -> float | None:
+        return self.max_f if kind == "high" else self.min_f
 
 
 def parse_point_forecast_high(forecast: dict, day: date, station: Station) -> int | None:
@@ -36,8 +41,20 @@ def parse_point_forecast_high(forecast: dict, day: date, station: Station) -> in
     return None
 
 
+def parse_point_forecast_low(forecast: dict, day: date, station: Station) -> int | None:
+    """Overnight-period temperature for the night that ends on the morning of `day` (the climate
+    day's low is usually set then; an evening cold front can still undercut it)."""
+    for period in (forecast.get("properties") or {}).get("periods") or []:
+        if period.get("isDaytime"):
+            continue
+        start = datetime.fromisoformat(period["startTime"]).astimezone(station.tz)
+        if start.date() == day - timedelta(days=1) and period.get("temperatureUnit", "F") == "F":
+            return period.get("temperature")
+    return None
+
+
 def parse_running_max(observations: dict, start: datetime, end: datetime) -> RunningMax:
-    best = best_at = latest = None
+    best = best_at = latest = low = low_at = None
     count = 0
     for feat in observations.get("features") or []:
         props = feat.get("properties") or {}
@@ -54,17 +71,20 @@ def parse_running_max(observations: dict, start: datetime, end: datetime) -> Run
         latest = ts if latest is None or ts > latest else latest
         if best is None or f > best:
             best, best_at = f, ts
-    return RunningMax(best, best_at, count, latest)
+        if low is None or f < low:
+            low, low_at = f, ts
+    return RunningMax(best, best_at, count, latest, low, low_at)
 
 
 class NWS:
     def __init__(self, http: Http):
         self.http = http
 
-    def forecast_high(self, station: Station, day: date) -> int | None:
+    def forecast_high(self, station: Station, day: date, kind: str = "high") -> int | None:
         point = self.http.json(f"{NWS_API}/points/{station.lat:.4f},{station.lon:.4f}", headers=GEOJSON)
-        url = point["properties"]["forecast"]
-        return parse_point_forecast_high(self.http.json(url, headers=GEOJSON), day, station)
+        forecast = self.http.json(point["properties"]["forecast"], headers=GEOJSON)
+        parse = parse_point_forecast_high if kind == "high" else parse_point_forecast_low
+        return parse(forecast, day, station)
 
     def running_max(self, station: Station, day: date, now: datetime | None = None) -> RunningMax:
         start, end = climate_day_window(day, station.tz)

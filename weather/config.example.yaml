@@ -74,7 +74,13 @@ distribution:
   bandwidth_f: auto      # kernel width in °F, or "auto" (weighted Silverman rule)
   min_valid_hours: 8     # a member needs this many non-missing hourly values in the climate day
   edge_tolerance_hours: 3  # ...and data within this many hours of both ends of the day
-  obs_tolerance_f: 0.5   # same-day conditioning: high must be >= observed max minus this
+  obs_tolerance_f: 0.5   # same-day conditioning: high >= observed max minus this (low <= observed min plus this)
+
+# Optional: separate settings for daily LOWS (overnight temperatures have different biases).
+# Any field left out is taken from `distribution` above. Fill in from `calibration --kind low`.
+# distribution_low:
+#   bias_f: 0.0
+#   spread_inflation: 1.3
 
 rrfs:
   base_url: https://noaa-rrfs-ops-pds.s3.amazonaws.com
@@ -91,8 +97,10 @@ paper:
   max_event_usd: 25          # most on one city's day
   max_daily_usd: 100         # most per UTC day across all cities
   stop_hours_before_end: 2   # no new trades this close to the end of the climate day
-  same_day_last_hour: 12     # no trades on today's market from this hour (local standard time):
+  same_day_last_hour: 12     # no trades on today's HIGH market from this hour (local standard time):
                              # by midday the high is mostly set and the observation feed lags
+  same_day_last_hour_low: 6  # same for today's LOW market: by dawn the low is mostly in
+  kinds: [high, low]         # which markets to paper trade
 
 # Market brackets used when --brackets isn't given (upper edges, inclusive).
 default_brackets: [45, 47, 49, 51, 53, 55]
@@ -102,10 +110,11 @@ database: wxbrackets.db
 # Stations. VERIFY which station each market settles on before trusting any number:
 # read the contract rules on the exchange. cli_location is the 3-letter code in the
 # CLI product ID (e.g. CLIMDW -> MDW); cli_office is the issuing NWS office.
-# pmus_event_prefix links a station to its Polymarket US daily-high events
-# (slug <prefix>-YYYY-MM-DD). Polymarket US lists Chicago (Midway), New York (Central
-# Park), Miami, Los Angeles and San Francisco, all settled on the NWS CLI
-# (https://docs.polymarket.us/faqs/weather-faqs).
+# pmus_event_prefix / pmus_low_prefix link a station to its Polymarket US daily-high and
+# daily-low events (slug <prefix>-YYYY-MM-DD). Polymarket US has high and low series for
+# Chicago (Midway), New York (Central Park), Miami, Los Angeles and San Francisco, all
+# settled on the NWS CLI (https://docs.polymarket.us/faqs/weather-faqs). As of Nov 2026
+# only Chicago and New York had low events listed; the others start working once they appear.
 stations:
   CHI:
     name: Chicago Midway
@@ -116,6 +125,7 @@ stations:
     cli_office: LOT
     cli_location: MDW
     pmus_event_prefix: temp-mdwhigh
+    pmus_low_prefix: temp-mdwlow
   ORD:
     name: Chicago O'Hare
     icao: KORD
@@ -133,6 +143,7 @@ stations:
     cli_office: OKX
     cli_location: NYC
     pmus_event_prefix: temp-nychigh
+    pmus_low_prefix: temp-nyclow
   MIA:
     name: Miami International
     icao: KMIA
@@ -142,6 +153,7 @@ stations:
     cli_office: MFL
     cli_location: MIA
     pmus_event_prefix: temp-miahigh
+    pmus_low_prefix: temp-mialow
   AUS:
     name: Austin Bergstrom
     icao: KAUS
@@ -159,6 +171,7 @@ stations:
     cli_office: LOX
     cli_location: LAX
     pmus_event_prefix: temp-laxhigh
+    pmus_low_prefix: temp-laxlow
   SFO:
     name: San Francisco International
     icao: KSFO
@@ -168,6 +181,7 @@ stations:
     cli_office: MTR
     cli_location: SFO
     pmus_event_prefix: temp-sfohigh
+    pmus_low_prefix: temp-sfolow
   DEN:
     name: Denver International
     icao: KDEN

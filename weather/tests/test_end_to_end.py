@@ -228,7 +228,7 @@ def test_calibration_splits_model_errors_by_lead_time(cfg, tmp_path):
     from wxbrackets.calibration import calibrate, lead_bucket
 
     assert [lead_bucket(h) for h in (-3, -12, -15, 0, 10, 23.9, 24, 60)] == [
-        "same day AM", "same day PM", "same day PM", "next day", "next day", "next day", "2+ days", "2+ days"]
+        "today (traded)", "today (shadow)", "today (shadow)", "next day", "next day", "next day", "2+ days", "2+ days"]
     db = DB(cfg.database)
     base = dict(station="CHI", target_date="2026-11-03", bias_f=0, spread_inflation=1, bandwidth_f=1,
                 dist_mean_f=60, observed_max_f=None, nws_forecast_high_f=None)
@@ -239,7 +239,7 @@ def test_calibration_splits_model_errors_by_lead_time(cfg, tmp_path):
     db.save_outcome("CHI", date(2026, 11, 3), 60, True, "test")
     res = calibrate(db, "CHI")
     cells = {(r.model, r.lead): (r.runs, round(r.bias_f, 2)) for r in res.per_model_lead.itertuples()}
-    assert cells[("rrfs", "same day AM")] == (1, 1.0)
+    assert cells[("rrfs", "today (traded)")] == (1, 1.0)
     assert cells[("rrfs", "next day")] == (1, -1.0)
     assert cells[("rrfs", "2+ days")] == (1, -4.0)
     assert cells[("gfs025", "2+ days")] == (1, 2.0)
@@ -259,7 +259,36 @@ def test_model_vs_market_is_split_by_lead_including_untraded_afternoons(cfg):
         db.save_market_prices(run_id, [("a", "≤60", None, 60, mkt_mid - 0.01, mkt_mid + 0.01, 0.0695),
                                        ("b", "≥61", 61, None, 1 - mkt_mid - 0.01, 1 - mkt_mid + 0.01, 0.0695)])
     db.save_outcome("CHI", date(2026, 11, 3), 60, True, "test")  # ≤60 hit
-    res = calibrate(db, "CHI", afternoon_from=12)
-    am, pm = res.market_by_lead["same day AM"], res.market_by_lead["same day PM"]
+    res = calibrate(db, "CHI", cutoff_hour=12)
+    am, pm = res.market_by_lead["today (traded)"], res.market_by_lead["today (shadow)"]
     assert am[0] == 1 and am[1] == pytest.approx(2 * 0.3 ** 2) and am[2] == pytest.approx(2 * 0.5 ** 2)
     assert pm[0] == 1 and pm[1] < pm[2]  # the model was sharper than the market in the afternoon too
+
+
+def test_low_forecast_backfill_and_calibration(run, cfg, monkeypatch, capsys):
+    def network(request):
+        if request.url.host == "gateway.polymarket.us":
+            if request.url.path.startswith("/v1/events/slug/temp-mdwlow-"):
+                return httpx.Response(200, json=fixture_json("pmus_temp_mdwlow_2026-11-06.json"))
+            return httpx.Response(404)
+        return fake_network(request)
+
+    monkeypatch.setattr(cli, "make_http", lambda cfg, needs_nws=True: Http(
+        "tests", client=httpx.Client(transport=httpx.MockTransport(network)), sleep=lambda s: None))
+    run("forecast", "--station", "CHI", "--date", "2026-11-03", "--kind", "low")
+    out = capsys.readouterr().out
+    assert "Chicago Midway (KMDW)  low for 2026-11-03" in out
+    assert "mean min" in out and "Polymarket US" in out
+    db = DB(cfg.database)
+    assert db.conn.execute("SELECT kind FROM forecast_runs").fetchone()[0] == "low"
+
+    run("backfill-outcomes", "--station", "CHI", "--days", "3")
+    out = capsys.readouterr().out
+    assert "2026-11-02  high 58°F at 238 PM LST, low 41°F at 633 AM LST" in out
+    assert db.conn.execute("SELECT min_f FROM outcomes WHERE climate_date = '2026-11-02'").fetchone()[0] == 41
+
+    run("calibration", "--station", "CHI", "--kind", "low")
+    out = capsys.readouterr().out
+    assert "daily lows: 1 forecast runs over 1 days" in out
+    run("calibration", "--station", "CHI")  # highs: none logged, so nothing to score
+    assert "No forecasts with a final official high yet" in capsys.readouterr().out

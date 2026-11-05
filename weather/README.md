@@ -1,6 +1,6 @@
 # wxbrackets
 
-Probabilities for daily high-temperature bracket markets ("≤45 / 46-47 / … / ≥56"), built from weather-model ensembles and settled against the NWS Daily Climate Report. Both **Polymarket US** and Kalshi settle their daily-high markets on that report. The project reads Polymarket US's markets, compares them with the model, and can **paper trade** them. It never places real orders.
+Probabilities for daily **high and low** temperature bracket markets ("≤45 / 46-47 / … / ≥56"), built from weather-model ensembles and settled against the NWS Daily Climate Report. Both **Polymarket US** and Kalshi settle their daily-high markets on that report. The project reads Polymarket US's markets, compares them with the model, and can **paper trade** them. It never places real orders.
 
 ## Setup
 
@@ -32,10 +32,21 @@ python -m wxbrackets observe --station CHI
 python -m wxbrackets backfill-outcomes --station CHI --days 30
 python -m wxbrackets calibration --station CHI
 python -m wxbrackets check-models --station CHI --dump raw/
+python -m wxbrackets forecast --station CHI --date 2026-11-04 --kind low   # the day's low instead
+python -m wxbrackets calibration --station CHI --kind low
 python -m wxbrackets paper --dry                # what it would buy right now, records nothing
 python -m wxbrackets paper --every 30           # paper trade every 30 minutes (Ctrl+C to stop)
 python -m wxbrackets paper-report
 ```
+
+### Daily lows
+
+Everything works for the day's **low** as well, with `--kind low` on `forecast`, `calibration` and `paper-report`. `paper` trades both by default (`paper.kinds`).
+- **Settlement:** the low is the CLI report's MINIMUM line, for the same standard-time climate day. `backfill-outcomes` stores both values.
+- **Models:** members give their minimum over the day. RRFS's 6-hourly runs use `TMIN` (the minimum over each hour); hourly runs use their 15-minute readings; other models use hourly snapshots, which miss brief dips, so they tend to read slightly warm for lows.
+- **Same day:** the observed minimum so far is a ceiling. Each member's final low is the lower of that and its forecast for the hours left. Paper trading stops on today's low market at `paper.same_day_last_hour_low` (6 AM local standard time), because by dawn the low is usually in. An evening cold front can still undercut it, which the forecast allows for.
+- **Calibration:** lows get their own bias and spread settings through an optional `distribution_low` section, since overnight temperatures have different errors. Calibration and the shadow-mode comparison run per kind.
+- **Cities:** Polymarket US has low series for all five cities. In November 2026 only Chicago and New York had low events listed; the others are linked (`pmus_low_prefix`) and start working once events appear.
 
 ### Polymarket US
 
@@ -46,9 +57,9 @@ python -m wxbrackets paper-report
   - It walks the real order book, and stops at any price where the edge runs out.
   - Bet size is quarter-Kelly on `paper.bankroll_usd`, as the **total** to hold in that bracket and side. Hourly reruns only buy what isn't held yet: nothing for an unchanged edge, a top-up if it grows. It's capped per city-day and per day, and positions are held to settlement, never sold early.
   - It stops trading `paper.stop_hours_before_end` hours before the climate day ends. For **today's** market, it stops trading at `paper.same_day_last_hour` (noon local standard time by default), and doesn't trade at all without today's observations. By midday the high is mostly set, the NWS observation feed can lag by up to an hour, and other traders watch real-time data, so late same-day "edges" are usually stale information on our side.
-  - After the cutoff it keeps **forecasting and logging prices** for today without trading. `calibration` reports the afternoon ("same day PM") separately, so if the model turns out to beat the market there, the cutoff can be moved later.
+  - After the cutoff it keeps **forecasting and logging prices** for today without trading. `calibration` reports those untraded forecasts ("today (shadow)") separately, so if the model turns out to beat the market there, the cutoff can be moved later.
   - Finished markets are settled from Polymarket US's own results. Buying No means taking the Yes bids, at 1 − bid.
-- **`calibration`** adds a **model vs. market** Brier comparison on the runs where prices were saved. The market's probabilities are each bracket's mid price, scaled to sum to 100%. This comparison is also split by lead time. The "same day PM" row covers untraded afternoon forecasts and decides whether the noon cutoff should move. Only a model that scores better than the market has an edge worth paper trading.
+- **`calibration`** adds a **model vs. market** Brier comparison on the runs where prices were saved. The market's probabilities are each bracket's mid price, scaled to sum to 100%. This comparison is also split by lead time. The "today (shadow)" row covers untraded same-day forecasts and decides whether the cutoff should move. Only a model that scores better than the market has an edge worth paper trading.
 
 `--brackets` takes the upper edge of each bracket, inclusive: `45,47,49` means ≤45, 46-47, 48-49, ≥50. Without it, `default_brackets` from the config is used.
 
@@ -106,7 +117,7 @@ All runs are stored in SQLite (`database` in the config):
 - the multi-category Brier score (the sum over brackets of (p − hit)², averaged over runs; 0 is perfect)
 - a reliability table of bracket probabilities against how often those brackets hit
 - the mean bias and mean absolute error of the raw pooled ensemble mean against the official high, plus the NWS point forecast's bias for comparison
-- each model's own bias and mean absolute error, overall and split by lead time (same day AM, same day PM, next day, 2+ days), to guide model weights at each distance from the day. Same-day errors are of each model's final high (observed so far combined with its remaining-hours forecast).
+- each model's own bias and mean absolute error, overall and split by lead time (today before the same-day cutoff, "today (shadow)" after it, next day, 2+ days), to guide model weights at each distance from the day. Same-day errors are of each model's final high (observed so far combined with its remaining-hours forecast).
 
 Use `--min-lead` and `--max-lead` to score day-ahead and same-day runs separately. Once there are a few weeks of data, set `bias_f` from the reported bias, and adjust `spread_inflation` until the reliability table lines up.
 

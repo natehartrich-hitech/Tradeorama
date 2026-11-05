@@ -66,14 +66,16 @@ class ForecastRun:
 
 
 def run_forecast(cfg: Config, station: Station, day: date, edges: list[int] | None, save: bool, http: Http,
-                 db: DB, quiet: bool = False, rrfs: RRFS | None = None) -> ForecastRun:
-    """Forecast one station-day. Brackets: `edges` if given, else that day's Polymarket US event, else the config."""
+                 db: DB, quiet: bool = False, rrfs: RRFS | None = None, kind: str = "high") -> ForecastRun:
+    """Forecast one station-day's high or low. Brackets: `edges` if given, else that day's Polymarket
+    US event, else the config."""
     nws = NWS(http)
     today = today_for(station)
     markets = None
-    if edges is None and station.pmus_event_prefix:
+    prefix = station.prefix(kind)
+    if edges is None and prefix:
         try:
-            markets = PolymarketUS(http, cfg.pmus_gateway).markets(station.pmus_event_prefix, day)
+            markets = PolymarketUS(http, cfg.pmus_gateway).markets(prefix, day)
         except (httpx.HTTPError, ValueError) as exc:
             log.warning("Polymarket US market unavailable: %s", exc)
     if markets:
@@ -85,28 +87,28 @@ def run_forecast(cfg: Config, station: Station, day: date, edges: list[int] | No
     observed = None
     if day == today:
         try:
-            observed = nws.running_max(station, day).max_f
+            observed = nws.running_max(station, day).value(kind)
         except httpx.HTTPError as exc:
-            log.warning("NWS observations unavailable, so not conditioning on today's max: %s", exc)
+            log.warning("NWS observations unavailable, so not conditioning on today's %s: %s", kind, exc)
     now = datetime.now(timezone.utc)
     since = now if observed is not None else None
 
     active = [m for m in cfg.models if m.weight > 0]
-    maxes, _ = OpenMeteo(cfg, http).member_maxes(station, day, active, since)
+    maxes, _ = OpenMeteo(cfg, http).member_maxes(station, day, active, since, kind)
     noaa = [m for m in active if m.source in ("rrfs", "refs")]
     if noaa:
         if not quiet:
             print("Fetching RRFS/REFS from NOAA's AWS bucket (cached after the first run)...", file=sys.stderr)
         rrfs = rrfs or RRFS(http, cache=db, base_url=cfg.rrfs_base_url)
-        maxes.update(rrfs.member_maxes(station, day, noaa, now, since))
+        maxes.update(rrfs.member_maxes(station, day, noaa, now, since, kind))
 
     try:
-        nws_high = nws.forecast_high(station, day)
+        nws_high = nws.forecast_high(station, day, kind)
     except httpx.HTTPError as exc:
         log.warning("NWS point forecast unavailable: %s", exc)
         nws_high = None
 
-    f = build_forecast(cfg, station, day, maxes, brackets, now, observed, nws_high, remaining=since is not None)
+    f = build_forecast(cfg, station, day, maxes, brackets, now, observed, nws_high, remaining=since is not None, kind=kind)
     run_id = None
     if save:
         run_id = db.save_run(run_record(f, cfg), f.members, [(b.label, b.low, b.high, p) for b, p in zip(brackets, f.probs)])
@@ -140,15 +142,18 @@ def print_bracket_table(fr: ForecastRun) -> None:
 
 def cmd_forecast(cfg: Config, args) -> None:
     station = cfg.station(args.station)
+    kind = args.kind
     day = date.fromisoformat(args.date) if args.date else today_for(station)
     if day < today_for(station):
-        print(f"Note: {day} is already over at {station.name}. Use backfill-outcomes for the official high.")
+        print(f"Note: {day} is already over at {station.name}. Use backfill-outcomes for the official {kind}.")
     fr = run_forecast(cfg, station, day, parse_edges(args.brackets) if args.brackets else None,
-                      not args.no_save, make_http(cfg), DB(cfg.database))
+                      not args.no_save, make_http(cfg), DB(cfg.database), kind=kind)
     f = fr.forecast
     start, end = fr.window
+    d = cfg.distribution_for(kind)
+    stat = "max" if kind == "high" else "min"
 
-    print(f"{station.name} ({station.icao})  high for {day}")
+    print(f"{station.name} ({station.icao})  {kind} for {day}")
     print(f"Climate day (local standard time): {start.astimezone(station.tz):%m-%d %H:%M %Z} to "
           f"{end.astimezone(station.tz):%m-%d %H:%M %Z}  |  lead {f.lead_hours:+.1f} h")
     print("\nModels:")
@@ -156,14 +161,18 @@ def cmd_forecast(cfg: Config, args) -> None:
         n, avg = f.per_model.get(m.id, (0, None))
         exp = f" of {m.expected_members}" if m.expected_members else ""
         flag = "" if n else "  (no members cover this day)"
-        print(f"  {m.name:32} {n:3d}{exp:>6} members  mean max {fmt_f(avg)}  weight {m.weight:g}{flag}")
+        print(f"  {m.name:32} {n:3d}{exp:>6} members  mean {stat} {fmt_f(avg)}  weight {m.weight:g}{flag}")
     print(f"\nPooled ensemble mean:   {fmt_f(f.pooled_mean_f)}")
-    print(f"Distribution mean:      {fmt_f(f.dist.mean())}  (bias {cfg.distribution.bias_f:+.1f}, "
-          f"spread x{cfg.distribution.spread_inflation:g}, kernel {f.dist.kernel_f:.2f}°F)")
+    print(f"Distribution mean:      {fmt_f(f.dist.mean())}  (bias {d.bias_f:+.1f}, "
+          f"spread x{d.spread_inflation:g}, kernel {f.dist.kernel_f:.2f}°F)")
     print(f"NWS point forecast:     {fmt_f(f.nws_forecast_high_f, 0)}")
     if f.observed_max_f is not None:
-        print(f"Observed max so far:    {fmt_f(f.observed_max_f)}  (models cover only the hours left; the high is "
-              f"the larger of the two, and can't finish below {f.observed_max_f - cfg.distribution.obs_tolerance_f:.1f}°F)")
+        if kind == "high":
+            bound = f"can't finish below {f.observed_max_f - d.obs_tolerance_f:.1f}°F"
+        else:
+            bound = f"can't finish above {f.observed_max_f + d.obs_tolerance_f:.1f}°F"
+        print(f"Observed {stat} so far:    {fmt_f(f.observed_max_f)}  (models cover only the hours left; "
+              f"the {kind} combines the two, and {bound})")
     print_bracket_table(fr)
     if fr.run_id is not None:
         print(f"\nSaved as run {fr.run_id} in {cfg.database}")
@@ -173,9 +182,11 @@ def cmd_forecast(cfg: Config, args) -> None:
 
 
 def cmd_paper(cfg: Config, args) -> None:
-    stations = [cfg.station(args.station)] if args.station else [s for s in cfg.stations.values() if s.pmus_event_prefix]
-    if not stations or any(not s.pmus_event_prefix for s in stations):
-        raise ConfigError("paper trading needs a station with pmus_event_prefix (a Polymarket US weather city)")
+    kinds = [args.kind] if args.kind else list(cfg.paper.kinds)
+    linked = lambda s: any(s.prefix(k) for k in kinds)  # noqa: E731
+    stations = [cfg.station(args.station)] if args.station else [s for s in cfg.stations.values() if linked(s)]
+    if not stations or not all(linked(s) for s in stations):
+        raise ConfigError("paper trading needs a station with pmus_event_prefix / pmus_low_prefix (a Polymarket US weather city)")
     http, db = make_http(cfg), DB(cfg.database)
     pmus = PolymarketUS(http, cfg.pmus_gateway)
     grib = None  # shared across loops, so each city's grid point is located only once
@@ -188,29 +199,30 @@ def cmd_paper(cfg: Config, args) -> None:
         for station in stations:
             today = today_for(station)
             days = [date.fromisoformat(args.date)] if args.date else [today, today + timedelta(days=1)]
-            for day in days:
+            for day, kind in [(d, k) for d in days for k in kinds if station.prefix(k)]:
+                tag = f"{station.code} {kind:4} {day}"
                 try:
-                    fr = run_forecast(cfg, station, day, None, True, http, db, quiet=True, rrfs=rrfs)
+                    fr = run_forecast(cfg, station, day, None, True, http, db, quiet=True, rrfs=rrfs, kind=kind)
                 except (httpx.HTTPError, ValueError) as exc:
-                    print(f"{station.code} {day}: skipped ({exc})")
+                    print(f"{tag}: skipped ({exc})")
                     continue
                 if not fr.markets:
-                    print(f"{station.code} {day}: no Polymarket US event")
+                    print(f"{tag}: no Polymarket US event")
                     continue
                 blocked = paper.same_day_block(day, today, fr.window[0], datetime.now(timezone.utc),
-                                               fr.forecast.observed_max_f, cfg.paper)
+                                               fr.forecast.observed_max_f, cfg.paper, kind)
                 if blocked:
-                    # Still forecast and log prices (done above): calibration's "same day PM" row
+                    # Still forecast and log prices (done above): calibration's "today (shadow)" row
                     # shows whether the model beats the market there, i.e. whether to move the cutoff.
-                    print(f"{station.code} {day}: no trades ({blocked}); forecast and prices logged for evaluation")
+                    print(f"{tag}: no trades ({blocked}); forecast and prices logged for evaluation")
                     continue
                 hours_left = (fr.window[1] - datetime.now(timezone.utc)).total_seconds() / 3600
                 opps = paper.trade(db, pmus, cfg.paper, station.code, day.isoformat(), fr.run_id, fr.markets,
-                                   fr.forecast.probs, hours_left, execute=not args.dry)
+                                   fr.forecast.probs, hours_left, execute=not args.dry, kind=kind)
                 buys = [o for o in opps if o.action == "buy"]
                 best = max((o for o in opps if o.edge is not None), key=lambda o: o.edge, default=None)
                 note = f"best edge {100 * best.edge:+.1f}¢ ({best.side} {best.market.bracket.label})" if best else "no quotes"
-                print(f"{station.code} {day}: mean {fr.forecast.dist.mean():.1f}°F, {note}, {len(buys)} buys")
+                print(f"{tag}: mean {fr.forecast.dist.mean():.1f}°F, {note}, {len(buys)} buys")
                 for o in buys:
                     verb = "would buy" if args.dry else "paper buy"
                     print(f"    {verb} {o.side.upper()} {o.market.bracket.label}: {o.fill.contracts:.2f} contracts "
@@ -225,25 +237,28 @@ def cmd_paper(cfg: Config, args) -> None:
 
 def cmd_paper_report(cfg: Config, args) -> None:
     db = DB(cfg.database)
-    stations = [args.station.upper()] if args.station else sorted({f["station"] for f in db.paper_fills()})
-    if not stations:
+    station = args.station.upper() if args.station else None
+    fills = db.paper_fills(station, args.kind)
+    if not fills:
         print("No paper trades yet. Run: python -m wxbrackets paper")
         return
-    print(f"{'station':8} {'trades':>6} {'staked':>9} {'open':>8} {'avg edge':>9} {'settled':>8} {'P&L':>9} {'ROI':>7}")
-    for code in [*stations, None]:
-        s = paper.summary(db, code)
+    groups = sorted({(f["station"], f["kind"]) for f in fills})
+    print(f"{'station':8} {'kind':5} {'trades':>6} {'staked':>9} {'open':>8} {'avg edge':>9} {'settled':>8} {'P&L':>9} {'ROI':>7}")
+    for code, kind in [*groups, (None, args.kind)]:
+        s = paper.summary(db, code or station, kind)
         if not s["trades"]:
             continue
         roi = "–" if s["roi_pct"] is None else f"{s['roi_pct']:+.1f}%"
         edge_c = "–" if s["avg_edge_cents"] is None else f"{s['avg_edge_cents']:+.1f}¢"
-        print(f"{code or 'ALL':8} {s['trades']:6d} {'$' + format(s['staked_usd'], '.2f'):>9} "
-              f"{'$' + format(s['open_usd'], '.2f'):>8} {edge_c:>9} {s['settled']:8d} "
-              f"{('-' if s['settled_pnl_usd'] < 0 else '+') + '$' + format(abs(s['settled_pnl_usd']), '.2f'):>9} {roi:>7}")
+        pnl = ("-" if s["settled_pnl_usd"] < 0 else "+") + "$" + format(abs(s["settled_pnl_usd"]), ".2f")
+        print(f"{code or 'ALL':8} {kind or 'both':5} {s['trades']:6d} {'$' + format(s['staked_usd'], '.2f'):>9} "
+              f"{'$' + format(s['open_usd'], '.2f'):>8} {edge_c:>9} {s['settled']:8d} {pnl:>9} {roi:>7}")
     print("\nRecent:")
-    for f in db.paper_fills(args.station.upper() if args.station else None)[: args.limit]:
+    for f in fills[: args.limit]:
         res = "open" if f["payout"] is None else f"{f['payout'] - f['cost']:+.2f}"
-        print(f"  {f['created_utc'][:16]} {f['station']} {f['target_date']} {f['side'].upper():3} {f['label']:>6} "
-              f"{f['contracts']:7.2f} for ${f['cost']:6.2f}  model {100 * f['prob']:3.0f}%  edge {100 * f['edge']:+.1f}¢  {res}")
+        print(f"  {f['created_utc'][:16]} {f['station']} {f['kind']:4} {f['target_date']} {f['side'].upper():3} "
+              f"{f['label']:>6} {f['contracts']:7.2f} for ${f['cost']:6.2f}  model {100 * f['prob']:3.0f}%  "
+              f"edge {100 * f['edge']:+.1f}¢  {res}")
 
 
 # --- observe ----------------------------------------------------------------------------
@@ -260,8 +275,11 @@ def cmd_observe(cfg: Config, args) -> None:
         return
     print(f"Running max: {rm.max_f:.1f}°F at {rm.at.astimezone(station.tz):%H:%M %Z} "
           f"(reports as {round_half_up(rm.max_f)}°F if it holds)")
+    print(f"Running min: {rm.min_f:.1f}°F at {rm.min_at.astimezone(station.tz):%H:%M %Z} "
+          f"(reports as {round_half_up(rm.min_f)}°F if it holds)")
     print(f"{rm.observations} observations, latest {rm.latest.astimezone(station.tz):%H:%M %Z}")
-    print("Hourly/5-minute observations can miss the true peak; the official CLI high may be a degree higher.")
+    print("Hourly/5-minute observations can miss the true extremes; the official CLI high may be a degree "
+          "higher and the low a degree lower.")
 
 
 # --- backfill ---------------------------------------------------------------------------
@@ -296,10 +314,11 @@ def cmd_backfill(cfg: Config, args) -> None:
         if r is None:
             print(f"{d}  no report found")
             continue
-        db.save_outcome(station.code, d, r.max_f, r.final, args.source)
+        db.save_outcome(station.code, d, r.max_f, r.final, args.source, r.min_f)
         found += 1
         tag = "" if r.final else "  (same-day report only, not final)"
-        print(f"{d}  high {r.max_f}°F" + (f" at {r.max_time} LST" if r.max_time else "") + tag)
+        low = "" if r.min_f is None else f", low {r.min_f}°F" + (f" at {r.min_time} LST" if r.min_time else "")
+        print(f"{d}  high {r.max_f}°F" + (f" at {r.max_time} LST" if r.max_time else "") + low + tag)
     print(f"\nStored {found} of {len(days)} days in {cfg.database}")
 
 
@@ -308,11 +327,11 @@ def cmd_backfill(cfg: Config, args) -> None:
 
 def cmd_calibration(cfg: Config, args) -> None:
     station = cfg.station(args.station)
-    res = calibrate(DB(cfg.database), station.code, args.min_lead, args.max_lead, cfg.paper.same_day_last_hour)
+    res = calibrate(DB(cfg.database), station.code, args.min_lead, args.max_lead, cfg.paper.last_hour(args.kind), args.kind)
     if not res.runs:
-        print("No forecasts with a final official high yet. Run forecasts, then backfill-outcomes.")
+        print(f"No forecasts with a final official {args.kind} yet. Run forecasts, then backfill-outcomes.")
         return
-    print(f"{station.name}: {res.runs} forecast runs over {res.days} days")
+    print(f"{station.name} daily {args.kind}s: {res.runs} forecast runs over {res.days} days")
     print(f"Brier score (multi-category, 0 = perfect): {res.brier:.3f}")
     print(f"Ensemble mean bias (raw mean - official): {res.mean_bias_f:+.2f}°F   MAE {res.mean_abs_err_f:.2f}°F")
     print(f"Distribution mean bias (after bias_f):    {res.dist_bias_f:+.2f}°F")
@@ -339,7 +358,7 @@ def cmd_calibration(cfg: Config, args) -> None:
         for lead in LEADS:
             if lead in res.market_by_lead:
                 n, mb, kb = res.market_by_lead[lead]
-                note = "  (not traded: tells whether to move the noon cutoff)" if lead == "same day PM" else ""
+                note = "  (not traded: tells whether to move the same-day cutoff)" if lead == "today (shadow)" else ""
                 print(f"  {lead:12} {n:5d} {mb:7.3f} {kb:7.3f}  {'model better' if mb < kb else 'market better'}{note}")
     print(f"\nTo remove the raw bias, set distribution.bias_f to about {-res.mean_bias_f:+.1f}"
           " (needs many days to be meaningful).")
@@ -396,6 +415,7 @@ def main(argv=None) -> None:
     f.add_argument("--date", help="YYYY-MM-DD (default: today's climate day)")
     f.add_argument("--brackets", help="upper edges, e.g. 45,47,49,51,53,55 (default: the day's Polymarket US "
                    "brackets if the station has them, else the config)")
+    f.add_argument("--kind", choices=["high", "low"], default="high", help="the day's high (default) or low")
     f.add_argument("--no-save", action="store_true", help="don't log this run to the database")
     f.set_defaults(fn=cmd_forecast)
 
@@ -404,11 +424,13 @@ def main(argv=None) -> None:
     pp.add_argument("--date", help="YYYY-MM-DD (default: today and tomorrow)")
     pp.add_argument("--every", type=float, help="repeat every N minutes")
     pp.add_argument("--dry", action="store_true", help="show what it would buy without recording anything")
+    pp.add_argument("--kind", choices=["high", "low"], help="only highs or only lows (default: paper.kinds)")
     pp.set_defaults(fn=cmd_paper)
 
     pr = sub.add_parser("paper-report", help="paper trading results")
     pr.add_argument("--station")
     pr.add_argument("--limit", type=int, default=20)
+    pr.add_argument("--kind", choices=["high", "low"])
     pr.set_defaults(fn=cmd_paper_report)
 
     o = sub.add_parser("observe", help="today's running max from NWS observations")
@@ -426,6 +448,7 @@ def main(argv=None) -> None:
     c.add_argument("--station", required=True)
     c.add_argument("--min-lead", type=float, help="only runs at least this many hours before the day starts")
     c.add_argument("--max-lead", type=float, help="only runs at most this many hours before the day starts")
+    c.add_argument("--kind", choices=["high", "low"], default="high", help="score high (default) or low forecasts")
     c.set_defaults(fn=cmd_calibration)
 
     m = sub.add_parser("check-models", help="confirm each configured Open-Meteo model returns its members")

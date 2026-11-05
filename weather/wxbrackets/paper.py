@@ -42,7 +42,8 @@ def plan_buy(prob: float, asks: list[tuple[float, float]], budget: float, min_ed
     return Fill(round(contracts, 2), round(cost, 4), ev / contracts) if contracts else None
 
 
-def same_day_block(day, today, day_start: datetime, now: datetime, observed_max_f: float | None, settings) -> str | None:
+def same_day_block(day, today, day_start: datetime, now: datetime, observed_max_f: float | None, settings,
+                   kind: str = "high") -> str | None:
     """Why today's market shouldn't be traded now, or None.
 
     After midday the high is mostly set, the NWS observation feed can lag by up to an hour, and
@@ -53,8 +54,9 @@ def same_day_block(day, today, day_start: datetime, now: datetime, observed_max_
     if observed_max_f is None:
         return "no observations for today, so the forecast can't account for what has already happened"
     local_hour = (now - day_start).total_seconds() / 3600  # hours since midnight local standard time
-    if local_hour >= settings.same_day_last_hour:
-        return f"same-day trading stops at {settings.same_day_last_hour:g}:00 local standard time"
+    last = settings.last_hour(kind)
+    if local_hour >= last:
+        return f"same-day {kind} trading stops at {last:g}:00 local standard time"
     return None
 
 
@@ -91,11 +93,16 @@ def trade(
     hours_left: float,
     execute: bool = True,
     now: datetime | None = None,
+    kind: str = "high",
 ) -> list[Opportunity]:
     """Size and record paper buys where the model beats the market by at least min_edge after fees."""
     now = now or datetime.now(timezone.utc)
     day_start = now.replace(hour=0, minute=0, second=0, microsecond=0).isoformat(timespec="seconds")
     opps = opportunities(markets, probs)
+    # Buys made earlier in this same call: recorded in the database when executing, but a dry run
+    # records nothing, so count them here too, or every opportunity would see the full caps.
+    pending_event = pending_daily = 0.0
+    pending_held: dict[tuple[str, str], float] = {}
     for o in sorted(opps, key=lambda o: -(o.edge or -1)):
         if o.ask is None:
             o.reason = "no offer"
@@ -108,14 +115,15 @@ def trade(
             continue
         # Kelly gives the TOTAL stake to hold in this bracket and side; only buy what isn't held yet.
         target_usd = kelly_fraction(o.prob, o.ask + fee_per_contract(o.ask, o.market.fee_rate)) * settings.kelly_multiplier * settings.bankroll_usd
-        held_usd = db.paper_position(o.market.slug, o.side)
+        held_usd = db.paper_position(o.market.slug, o.side) + (0 if execute else pending_held.get((o.market.slug, o.side), 0))
         if target_usd - held_usd < 1:
             o.reason = f"already holding its target position (${held_usd:.2f} of ${target_usd:.2f})"
             continue
         budget = min(
             target_usd - held_usd,
-            settings.max_event_usd - db.paper_spent(station=station, target_date=target_date),
-            settings.max_daily_usd - db.paper_spent(since_utc=day_start),
+            settings.max_event_usd - db.paper_spent(station=station, target_date=target_date, kind=kind)
+            - (0 if execute else pending_event),
+            settings.max_daily_usd - db.paper_spent(since_utc=day_start) - (0 if execute else pending_daily),
         )
         if budget < 1:
             o.reason = "risk limit reached or bet too small"
@@ -126,9 +134,12 @@ def trade(
             o.reason = "not enough size at a good price"
             continue
         o.action, o.fill = "buy", fill
+        pending_event += fill.cost
+        pending_daily += fill.cost
+        pending_held[(o.market.slug, o.side)] = pending_held.get((o.market.slug, o.side), 0) + fill.cost
         if execute:
             db.record_paper_fill(
-                created_utc=now.isoformat(timespec="seconds"), run_id=run_id, station=station, target_date=target_date,
+                created_utc=now.isoformat(timespec="seconds"), run_id=run_id, station=station, target_date=target_date, kind=kind,
                 slug=o.market.slug, side=o.side, label=o.market.bracket.label, contracts=fill.contracts, cost=fill.cost,
                 prob=o.prob, edge=fill.edge_per_contract,
             )
@@ -149,8 +160,8 @@ def settle(db: DB, pmus: PolymarketUS) -> int:
     return done
 
 
-def summary(db: DB, station: str | None = None) -> dict:
-    fills = db.paper_fills(station)
+def summary(db: DB, station: str | None = None, kind: str | None = None) -> dict:
+    fills = db.paper_fills(station, kind)
     settled = [f for f in fills if f["payout"] is not None]
     staked = sum(f["cost"] for f in settled)
     pnl = sum(f["payout"] - f["cost"] for f in settled)
