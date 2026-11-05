@@ -1,0 +1,1 @@
+Read PROJECT_NOTES.md first: it records the owner's setup, the decisions made so far and why, lessons learned about the external APIs, and open items. Everything here is paper trading; don't add real-order placement without the owner explicitly asking. Keep PROJECT_NOTES.md current when a decision changes.
