@@ -189,13 +189,6 @@ def cmd_paper(cfg: Config, args) -> None:
             today = today_for(station)
             days = [date.fromisoformat(args.date)] if args.date else [today, today + timedelta(days=1)]
             for day in days:
-                if day == today:
-                    # Past the same-day cutoff there's nothing to trade: skip the downloads too.
-                    late = paper.same_day_block(day, today, climate_day_window(day, station.tz)[0],
-                                                datetime.now(timezone.utc), 0.0, cfg.paper)
-                    if late:
-                        print(f"{station.code} {day}: no trades ({late})")
-                        continue
                 try:
                     fr = run_forecast(cfg, station, day, None, True, http, db, quiet=True, rrfs=rrfs)
                 except (httpx.HTTPError, ValueError) as exc:
@@ -207,7 +200,9 @@ def cmd_paper(cfg: Config, args) -> None:
                 blocked = paper.same_day_block(day, today, fr.window[0], datetime.now(timezone.utc),
                                                fr.forecast.observed_max_f, cfg.paper)
                 if blocked:
-                    print(f"{station.code} {day}: no trades ({blocked})")
+                    # Still forecast and log prices (done above): calibration's "same day PM" row
+                    # shows whether the model beats the market there, i.e. whether to move the cutoff.
+                    print(f"{station.code} {day}: no trades ({blocked}); forecast and prices logged for evaluation")
                     continue
                 hours_left = (fr.window[1] - datetime.now(timezone.utc)).total_seconds() / 3600
                 opps = paper.trade(db, pmus, cfg.paper, station.code, day.isoformat(), fr.run_id, fr.markets,
@@ -313,7 +308,7 @@ def cmd_backfill(cfg: Config, args) -> None:
 
 def cmd_calibration(cfg: Config, args) -> None:
     station = cfg.station(args.station)
-    res = calibrate(DB(cfg.database), station.code, args.min_lead, args.max_lead)
+    res = calibrate(DB(cfg.database), station.code, args.min_lead, args.max_lead, cfg.paper.same_day_last_hour)
     if not res.runs:
         print("No forecasts with a final official high yet. Run forecasts, then backfill-outcomes.")
         return
@@ -329,10 +324,10 @@ def cmd_calibration(cfg: Config, args) -> None:
         for row in res.per_model.itertuples():
             print(f"{row.model:24} {row.runs:5d} {row.bias_f:+7.2f}° {row.mae_f:6.2f}°")
         print("\nBy model and lead time (bias / MAE, runs): which models to trust at which distance from the day")
-        print(f"{'model':24} " + " ".join(f"{lead:>22}" for lead in LEADS))
+        print(f"{'model':24} " + " ".join(f"{lead:>20}" for lead in LEADS))
         cells = {(r.model, r.lead): f"{r.bias_f:+.2f} / {r.mae_f:.2f} ({r.runs})" for r in res.per_model_lead.itertuples()}
         for model in res.per_model.model:
-            print(f"{model:24} " + " ".join(f"{cells.get((model, lead), '–'):>22}" for lead in LEADS))
+            print(f"{model:24} " + " ".join(f"{cells.get((model, lead), '–'):>20}" for lead in LEADS))
         print("Same-day errors are of each model's final high (observed so far combined with its forecast for the"
               " hours left).")
     if res.market_runs:
@@ -340,6 +335,12 @@ def cmd_calibration(cfg: Config, args) -> None:
         print(f"\nModel vs. Polymarket US on the {res.market_runs} runs with market prices (lower is better):")
         print(f"  model Brier {res.model_brier_vs_market:.3f}   market Brier {res.market_brier:.3f}   -> model is {better}")
         print("  Market probabilities are each bracket's mid price, scaled so the brackets sum to 100%.")
+        print(f"\n  {'lead':12} {'runs':>5} {'model':>7} {'market':>7}")
+        for lead in LEADS:
+            if lead in res.market_by_lead:
+                n, mb, kb = res.market_by_lead[lead]
+                note = "  (not traded: tells whether to move the noon cutoff)" if lead == "same day PM" else ""
+                print(f"  {lead:12} {n:5d} {mb:7.3f} {kb:7.3f}  {'model better' if mb < kb else 'market better'}{note}")
     print(f"\nTo remove the raw bias, set distribution.bias_f to about {-res.mean_bias_f:+.1f}"
           " (needs many days to be meaningful).")
     print("\nReliability (bracket probabilities vs. how often they hit):")

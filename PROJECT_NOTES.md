@@ -46,7 +46,8 @@ Both bots run at once, in separate terminal windows.
 - **Same day:**
   - The high is the larger of the observed max so far and each member's forecast for the **remaining** hours.
   - Members pinned at the observation get a kernel of `obs_tolerance_f` (0.5°F).
-  - Paper trading doesn't touch today's market after noon local standard time (it skips today's forecast and downloads entirely then), or without observations.
+  - Paper trading doesn't trade today's market after noon local standard time, or without observations. After noon it still **forecasts and logs prices** ("shadow mode").
+  - Why the cutoff stays even though same-day forecasts are now correct: in the afternoon the market also knows the high, the NWS feed lags other traders' real-time data, and the remaining uncertainty (official versus hourly readings) is where specialists beat this model. Decision (Nov 5, 2026): **don't trade afternoons; measure them.** `calibration`'s model-vs-market table has a "same day PM" row. Move `same_day_last_hour` later only if the model beats the market there over weeks.
   - For the rest of today, RRFS uses the newest hourly run's 15-minute output, with the evening tail from the newest 6-hourly run. That data is about 1.5–2 hours old instead of up to a day.
   - The earlier version kept warm afternoons alive after the peak and paper-traded stale edges. Those fills were cleared.
 - **Paper trading:** 3¢ minimum edge, quarter Kelly on $200, $25 per city-day, $100 per day. It walks the real order book and settles from Polymarket US's results.

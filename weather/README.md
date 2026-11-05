@@ -45,9 +45,10 @@ python -m wxbrackets paper-report
 - **`paper`** forecasts today and tomorrow for every linked city. Where buying Yes or No beats the market by at least `paper.min_edge` after fees, it records a paper buy:
   - It walks the real order book, and stops at any price where the edge runs out.
   - Bet size is quarter-Kelly on `paper.bankroll_usd`, capped per city-day and per day.
-  - It stops trading `paper.stop_hours_before_end` hours before the climate day ends. For **today's** market, it stops at `paper.same_day_last_hour` (noon local standard time by default) and doesn't trade at all without today's observations. By midday the high is mostly set, the NWS observation feed can lag by up to an hour, and other traders watch real-time data, so late same-day "edges" are usually stale information on our side.
+  - It stops trading `paper.stop_hours_before_end` hours before the climate day ends. For **today's** market, it stops trading at `paper.same_day_last_hour` (noon local standard time by default), and doesn't trade at all without today's observations. By midday the high is mostly set, the NWS observation feed can lag by up to an hour, and other traders watch real-time data, so late same-day "edges" are usually stale information on our side.
+  - After the cutoff it keeps **forecasting and logging prices** for today without trading. `calibration` reports the afternoon ("same day PM") separately, so if the model turns out to beat the market there, the cutoff can be moved later.
   - Finished markets are settled from Polymarket US's own results. Buying No means taking the Yes bids, at 1 − bid.
-- **`calibration`** adds a **model vs. market** Brier comparison on the runs where prices were saved. The market's probabilities are each bracket's mid price, scaled to sum to 100%. Only a model that scores better than the market has an edge worth paper trading.
+- **`calibration`** adds a **model vs. market** Brier comparison on the runs where prices were saved. The market's probabilities are each bracket's mid price, scaled to sum to 100%. This comparison is also split by lead time. The "same day PM" row covers untraded afternoon forecasts and decides whether the noon cutoff should move. Only a model that scores better than the market has an edge worth paper trading.
 
 `--brackets` takes the upper edge of each bracket, inclusive: `45,47,49` means ≤45, 46-47, 48-49, ≥50. Without it, `default_brackets` from the config is used.
 
@@ -105,7 +106,7 @@ All runs are stored in SQLite (`database` in the config):
 - the multi-category Brier score (the sum over brackets of (p − hit)², averaged over runs; 0 is perfect)
 - a reliability table of bracket probabilities against how often those brackets hit
 - the mean bias and mean absolute error of the raw pooled ensemble mean against the official high, plus the NWS point forecast's bias for comparison
-- each model's own bias and mean absolute error, overall and split by lead time (same day, next day, 2+ days), to guide model weights at each distance from the day. Same-day errors are of each model's final high (observed so far combined with its remaining-hours forecast).
+- each model's own bias and mean absolute error, overall and split by lead time (same day AM, same day PM, next day, 2+ days), to guide model weights at each distance from the day. Same-day errors are of each model's final high (observed so far combined with its remaining-hours forecast).
 
 Use `--min-lead` and `--max-lead` to score day-ahead and same-day runs separately. Once there are a few weeks of data, set `bias_f` from the reported bias, and adjust `spread_inflation` until the reliability table lines up.
 

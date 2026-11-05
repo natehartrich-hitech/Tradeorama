@@ -227,8 +227,8 @@ def test_forecast_uses_polymarket_us_brackets_and_calibration_compares(run, cfg,
 def test_calibration_splits_model_errors_by_lead_time(cfg, tmp_path):
     from wxbrackets.calibration import calibrate, lead_bucket
 
-    assert [lead_bucket(h) for h in (-3, 0, 10, 23.9, 24, 60)] == [
-        "same day", "next day", "next day", "next day", "2+ days", "2+ days"]
+    assert [lead_bucket(h) for h in (-3, -12, -15, 0, 10, 23.9, 24, 60)] == [
+        "same day AM", "same day PM", "same day PM", "next day", "next day", "next day", "2+ days", "2+ days"]
     db = DB(cfg.database)
     base = dict(station="CHI", target_date="2026-11-03", bias_f=0, spread_inflation=1, bandwidth_f=1,
                 dist_mean_f=60, observed_max_f=None, nws_forecast_high_f=None)
@@ -239,7 +239,27 @@ def test_calibration_splits_model_errors_by_lead_time(cfg, tmp_path):
     db.save_outcome("CHI", date(2026, 11, 3), 60, True, "test")
     res = calibrate(db, "CHI")
     cells = {(r.model, r.lead): (r.runs, round(r.bias_f, 2)) for r in res.per_model_lead.itertuples()}
-    assert cells[("rrfs", "same day")] == (1, 1.0)
+    assert cells[("rrfs", "same day AM")] == (1, 1.0)
     assert cells[("rrfs", "next day")] == (1, -1.0)
     assert cells[("rrfs", "2+ days")] == (1, -4.0)
     assert cells[("gfs025", "2+ days")] == (1, 2.0)
+
+
+def test_model_vs_market_is_split_by_lead_including_untraded_afternoons(cfg):
+    from wxbrackets.calibration import calibrate
+
+    db = DB(cfg.database)
+    base = dict(station="CHI", target_date="2026-11-03", bias_f=0, spread_inflation=1, bandwidth_f=1,
+                pooled_mean_f=60.0, dist_mean_f=60, observed_max_f=None, nws_forecast_high_f=None)
+    brackets = [("≤60", None, 60), ("≥61", 61, None)]
+    # Morning: model 70% on ≤60 vs market 50%. Afternoon (15 h in): model 95% vs market 80%.
+    for lead, model_p, mkt_mid in ((-8, 0.7, 0.5), (-15, 0.95, 0.8)):
+        run_id = db.save_run({"created_utc": "2026-11-03T12:00:00", "lead_hours": lead, **base}, [("rrfs", 0, 60.0, 1.0)],
+                             [(*brackets[0], model_p), (*brackets[1], 1 - model_p)])
+        db.save_market_prices(run_id, [("a", "≤60", None, 60, mkt_mid - 0.01, mkt_mid + 0.01, 0.0695),
+                                       ("b", "≥61", 61, None, 1 - mkt_mid - 0.01, 1 - mkt_mid + 0.01, 0.0695)])
+    db.save_outcome("CHI", date(2026, 11, 3), 60, True, "test")  # ≤60 hit
+    res = calibrate(db, "CHI", afternoon_from=12)
+    am, pm = res.market_by_lead["same day AM"], res.market_by_lead["same day PM"]
+    assert am[0] == 1 and am[1] == pytest.approx(2 * 0.3 ** 2) and am[2] == pytest.approx(2 * 0.5 ** 2)
+    assert pm[0] == 1 and pm[1] < pm[2]  # the model was sharper than the market in the afternoon too
