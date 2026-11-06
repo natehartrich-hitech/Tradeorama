@@ -49,11 +49,11 @@ def build_forecast(
     counts: dict[str, int] = {}
     for model, _ in maxes:
         counts[model] = counts.get(model, 0) + 1
-    w_member = member_weights(counts, {m.id: m.weight for m in cfg.models})
+    w_member = member_weights(counts, cfg.weights_for(kind, station))
 
     keys = [k for k in sorted(maxes) if k[0] in w_member]
     weights = np.array([w_member[k[0]] for k in keys])
-    d = cfg.distribution_for(kind)
+    d = cfg.distribution_for(kind, station)
     high = kind == "high"
     if remaining and observed_max_f is not None:
         obs = observed_max_f
@@ -112,8 +112,8 @@ def run_record(f: Forecast, cfg: Config) -> dict:
         "station": f.station.code,
         "target_date": f.day.isoformat(),
         "lead_hours": round(f.lead_hours, 2),
-        "bias_f": cfg.distribution_for(f.kind).bias_f,
-        "spread_inflation": cfg.distribution_for(f.kind).spread_inflation,
+        "bias_f": cfg.distribution_for(f.kind, f.station).bias_f,
+        "spread_inflation": cfg.distribution_for(f.kind, f.station).spread_inflation,
         "bandwidth_f": f.dist.kernel_f,
         "pooled_mean_f": f.pooled_mean_f,
         "dist_mean_f": f.dist.mean(),

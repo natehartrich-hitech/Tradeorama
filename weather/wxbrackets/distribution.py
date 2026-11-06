@@ -12,7 +12,8 @@ from .brackets import Bracket
 def member_weights(members_per_model: dict[str, int], model_weights: dict[str, float]) -> dict[str, float]:
     """Weight of ONE member of each model: each model's weight is split evenly across its members,
     then normalised so all members together sum to 1."""
-    active = {m: model_weights.get(m, 0.0) for m, n in members_per_model.items() if n > 0}
+    active = {m: model_weights.get(m, 0.0) for m, n in members_per_model.items()
+              if n > 0 and model_weights.get(m, 0.0) > 0}  # weight 0 = model switched off
     total = sum(active.values())
     if total <= 0:
         raise ValueError("no model with members and a positive weight")

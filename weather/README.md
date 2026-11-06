@@ -113,13 +113,19 @@ All runs are stored in SQLite (`database` in the config):
 | `bracket_probs` | Each bracket's probability, per run |
 | `outcomes` | Official CLI highs by station and date. A final report always replaces a same-day partial. |
 
-`calibration` joins runs to final outcomes and reports:
+`calibration --station X --kind high|low` joins runs to final outcomes for that city and kind, and reports:
 - the multi-category Brier score (the sum over brackets of (p − hit)², averaged over runs; 0 is perfect)
 - a reliability table of bracket probabilities against how often those brackets hit
 - the mean bias and mean absolute error of the raw pooled ensemble mean against the official high, plus the NWS point forecast's bias for comparison
 - each model's own bias and mean absolute error, overall and split by lead time (today before the same-day cutoff, "today (shadow)" after it, next day, 2+ days), to guide model weights at each distance from the day. Same-day errors are of each model's final high (observed so far combined with its remaining-hours forecast).
 
-Use `--min-lead` and `--max-lead` to score day-ahead and same-day runs separately. Once there are a few weeks of data, set `bias_f` from the reported bias, and adjust `spread_inflation` until the reliability table lines up.
+Use `--min-lead` and `--max-lead` to score day-ahead and same-day runs separately.
+
+### Per-city calibration
+
+Each place has its own quirks: Midway's urban heat and lake breezes, Central Park's trees, Miami's sea breeze, and the marine layer and fog at LAX and SFO. So any station can override the shared settings with its own `distribution` (highs) and `distribution_low` (lows) sections, and its own `weights` / `weights_low`. Settings resolve in layers: `distribution`, then `distribution_low` for lows, then the city's own section. A weight of 0 switches a model off for that city.
+
+`calibration` prints the correction in use for that city and kind, and a ready-to-paste section with the suggested `bias_f`. Until a city has about **30 settled days** for that kind, it warns that the number mostly reflects noise, since day-to-day errors are 2–3°F. Start shared, and give a city its own settings once its bias clearly differs from the others. Then adjust `spread_inflation` until the reliability table lines up.
 
 ## Data sources and their limits
 

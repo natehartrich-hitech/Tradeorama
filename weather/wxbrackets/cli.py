@@ -93,7 +93,8 @@ def run_forecast(cfg: Config, station: Station, day: date, edges: list[int] | No
     now = datetime.now(timezone.utc)
     since = now if observed is not None else None
 
-    active = [m for m in cfg.models if m.weight > 0]
+    weights = cfg.weights_for(kind, station)
+    active = [m for m in cfg.models if weights[m.id] > 0]
     maxes, _ = OpenMeteo(cfg, http).member_maxes(station, day, active, since, kind)
     noaa = [m for m in active if m.source in ("rrfs", "refs")]
     if noaa:
@@ -150,7 +151,8 @@ def cmd_forecast(cfg: Config, args) -> None:
                       not args.no_save, make_http(cfg), DB(cfg.database), kind=kind)
     f = fr.forecast
     start, end = fr.window
-    d = cfg.distribution_for(kind)
+    d = cfg.distribution_for(kind, station)
+    weights = cfg.weights_for(kind, station)
     stat = "max" if kind == "high" else "min"
 
     print(f"{station.name} ({station.icao})  {kind} for {day}")
@@ -161,7 +163,7 @@ def cmd_forecast(cfg: Config, args) -> None:
         n, avg = f.per_model.get(m.id, (0, None))
         exp = f" of {m.expected_members}" if m.expected_members else ""
         flag = "" if n else "  (no members cover this day)"
-        print(f"  {m.name:32} {n:3d}{exp:>6} members  mean {stat} {fmt_f(avg)}  weight {m.weight:g}{flag}")
+        print(f"  {m.name:32} {n:3d}{exp:>6} members  mean {stat} {fmt_f(avg)}  weight {weights[m.id]:g}{flag}")
     print(f"\nPooled ensemble mean:   {fmt_f(f.pooled_mean_f)}")
     print(f"Distribution mean:      {fmt_f(f.dist.mean())}  (bias {d.bias_f:+.1f}, "
           f"spread x{d.spread_inflation:g}, kernel {f.dist.kernel_f:.2f}°F)")
@@ -360,12 +362,29 @@ def cmd_calibration(cfg: Config, args) -> None:
                 n, mb, kb = res.market_by_lead[lead]
                 note = "  (not traded: tells whether to move the same-day cutoff)" if lead == "today (shadow)" else ""
                 print(f"  {lead:12} {n:5d} {mb:7.3f} {kb:7.3f}  {'model better' if mb < kb else 'market better'}{note}")
-    print(f"\nTo remove the raw bias, set distribution.bias_f to about {-res.mean_bias_f:+.1f}"
-          " (needs many days to be meaningful).")
+    print_bias_suggestion(cfg, station, args.kind, res)
     print("\nReliability (bracket probabilities vs. how often they hit):")
     print(f"{'forecast bin':>14} {'count':>6} {'avg forecast':>13} {'observed':>9}")
     for row in res.reliability.itertuples():
         print(f"{str(row.bin):>14} {row.count:6d} {row.mean_forecast:13.2f} {row.observed_freq:9.2f}")
+
+
+MIN_DAYS_FOR_CITY_SETTINGS = 30
+
+
+def print_bias_suggestion(cfg: Config, station: Station, kind: str, res) -> None:
+    """A ready-to-paste per-city correction, with how much data it rests on."""
+    current = cfg.distribution_for(kind, station)
+    section = "distribution" if kind == "high" else "distribution_low"
+    own = station.overrides.get(kind)
+    source = f"this city's own {section}" if own else "the shared settings"
+    print(f"\nCorrection in use for {station.code} {kind}s: bias_f {current.bias_f:+.1f} (from {source})")
+    suggested = round(-res.mean_bias_f, 1)  # the raw ensemble error, measured before any correction
+    print(f"Suggested for {station.code} {kind}s: bias_f {suggested:+.1f}, from {res.days} settled days. In config.yaml:")
+    print(f"  stations:\n    {station.code}:\n      {section}:\n        bias_f: {suggested}")
+    if res.days < MIN_DAYS_FOR_CITY_SETTINGS:
+        print(f"Only {res.days} days so far: with day-to-day errors of 2-3°F, wait for about "
+              f"{MIN_DAYS_FOR_CITY_SETTINGS} before trusting a city's own correction (until then it mostly chases noise).")
 
 
 # --- check-models -----------------------------------------------------------------------

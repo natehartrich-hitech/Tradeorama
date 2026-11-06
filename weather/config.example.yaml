@@ -110,6 +110,18 @@ database: wxbrackets.db
 # Stations. VERIFY which station each market settles on before trusting any number:
 # read the contract rules on the exchange. cli_location is the 3-letter code in the
 # CLI product ID (e.g. CLIMDW -> MDW); cli_office is the issuing NWS office.
+# Per-city calibration (optional). A station can override the shared settings, separately
+# for highs and lows; anything left out comes from `distribution` / `distribution_low`.
+# Weights work the same way (0 switches a model off for that city). `calibration --station X
+# --kind high|low` prints a ready-to-paste section; wait for ~30 settled days per city and
+# kind first. Example:
+#   CHI:
+#     ...
+#     distribution_low:
+#       bias_f: -1.2
+#     weights:
+#       gem_global: 0.5
+#
 # pmus_event_prefix / pmus_low_prefix link a station to its Polymarket US daily-high and
 # daily-low events (slug <prefix>-YYYY-MM-DD). Polymarket US has high and low series for
 # Chicago (Midway), New York (Central Park), Miami, Los Angeles and San Francisco, all

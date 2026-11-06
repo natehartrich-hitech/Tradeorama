@@ -1,6 +1,6 @@
 """Settings loaded from a YAML file."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field, fields, replace
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -26,6 +26,10 @@ class Station:
     cli_location: str
     pmus_event_prefix: str | None = None  # Polymarket US daily-HIGH event slug prefix, e.g. "temp-mdwhigh"
     pmus_low_prefix: str | None = None  # daily-LOW prefix, e.g. "temp-mdwlow"
+    # Per-city calibration, from the station's own `distribution` / `distribution_low` and
+    # `weights` / `weights_low` sections: {kind: {setting: value}} and {kind: {model id: weight}}.
+    overrides: dict = field(default_factory=dict, hash=False, compare=False)
+    weight_overrides: dict = field(default_factory=dict, hash=False, compare=False)
 
     def prefix(self, kind: str) -> str | None:
         return self.pmus_event_prefix if kind == "high" else self.pmus_low_prefix
@@ -89,15 +93,46 @@ class Config:
     paper: PaperSettings = PaperSettings()
     distribution_low: DistributionSettings | None = None
 
-    def distribution_for(self, kind: str) -> DistributionSettings:
-        """Lows can be tuned separately: `distribution_low` in the config overrides `distribution`."""
-        return self.distribution_low if kind == "low" and self.distribution_low else self.distribution
+    def distribution_for(self, kind: str, station: Station | None = None) -> DistributionSettings:
+        """Settings in layers: `distribution`, then `distribution_low` for lows, then the city's own
+        `distribution` / `distribution_low` section, so each city and kind can be calibrated alone."""
+        base = self.distribution_low if kind == "low" and self.distribution_low else self.distribution
+        own = station.overrides.get(kind) if station else None
+        return replace(base, **own) if own else base
+
+    def weights_for(self, kind: str, station: Station | None = None) -> dict[str, float]:
+        """Model weights, with the city's own `weights` / `weights_low` on top (0 turns a model off there)."""
+        weights = {m.id: m.weight for m in self.models}
+        if station:
+            weights.update(station.weight_overrides.get(kind) or {})
+        return weights
 
     def station(self, code: str) -> Station:
         try:
             return self.stations[code.upper()]
         except KeyError:
             raise ConfigError(f"unknown station {code!r}; configured: {', '.join(sorted(self.stations))}") from None
+
+
+DISTRIBUTION_KEYS = {f.name for f in fields(DistributionSettings)}
+
+
+def distribution_values(raw: dict, where: str) -> dict:
+    """Validated, typed DistributionSettings fields from a config section."""
+    unknown = set(raw) - DISTRIBUTION_KEYS
+    if unknown:
+        raise ConfigError(f"{where}: unknown setting(s) {', '.join(sorted(unknown))}; allowed: {', '.join(sorted(DISTRIBUTION_KEYS))}")
+    out = {}
+    for k, v in raw.items():
+        if k == "bandwidth_f":
+            out[k] = None if v in (None, "auto") else float(v)
+        elif k == "min_valid_hours":
+            out[k] = int(v)
+        else:
+            out[k] = float(v)
+    if out.get("spread_inflation", 1.0) <= 0:
+        raise ConfigError(f"{where}: spread_inflation must be positive")
+    return out
 
 
 def parse_paper(raw: dict) -> PaperSettings:
@@ -130,6 +165,10 @@ def parse_config(raw: dict, base_dir: Path = Path(".")) -> Config:
                 cli_location=s["cli_location"].upper(),
                 pmus_event_prefix=s.get("pmus_event_prefix"),
                 pmus_low_prefix=s.get("pmus_low_prefix"),
+                overrides={kind: distribution_values(s[key], f"station {code} {key}")
+                           for kind, key in (("high", "distribution"), ("low", "distribution_low")) if s.get(key)},
+                weight_overrides={kind: {str(m): float(w) for m, w in s[key].items()}
+                                  for kind, key in (("high", "weights"), ("low", "weights_low")) if s.get(key)},
             )
             st.tz  # validate the time zone name now rather than mid-run
         except (KeyError, TypeError, ValueError) as exc:
@@ -156,31 +195,21 @@ def parse_config(raw: dict, base_dir: Path = Path(".")) -> Config:
         raise ConfigError("no models configured")
     if any(m.weight < 0 for m in models) or sum(m.weight for m in models) <= 0:
         raise ConfigError("model weights must be non-negative and not all zero")
+    ids = {m.id for m in models}
+    for st in stations.values():
+        for kind, weights in st.weight_overrides.items():
+            bad = set(weights) - ids
+            if bad:
+                raise ConfigError(f"station {st.code} weights{'' if kind == 'high' else '_low'}: unknown model(s) {', '.join(sorted(bad))}")
+            merged = {m.id: m.weight for m in models} | weights
+            if any(w < 0 for w in merged.values()) or sum(merged.values()) <= 0:
+                raise ConfigError(f"station {st.code}: model weights must be non-negative and not all zero")
 
-    d = raw.get("distribution") or {}
-    bw = d.get("bandwidth_f", "auto")
-    dist = DistributionSettings(
-        bias_f=float(d.get("bias_f", 0.0)),
-        spread_inflation=float(d.get("spread_inflation", 1.0)),
-        bandwidth_f=None if bw in (None, "auto") else float(bw),
-        min_valid_hours=int(d.get("min_valid_hours", 8)),
-        edge_tolerance_hours=float(d.get("edge_tolerance_hours", 3.0)),
-        obs_tolerance_f=float(d.get("obs_tolerance_f", 0.5)),
-    )
-    if dist.spread_inflation <= 0:
-        raise ConfigError("spread_inflation must be positive")
+    d = distribution_values(raw.get("distribution") or {}, "distribution")
+    dist = DistributionSettings(**d)
     dist_low = None
     if raw.get("distribution_low"):
-        merged = {**d, **raw["distribution_low"]}
-        bw_low = merged.get("bandwidth_f", "auto")
-        dist_low = DistributionSettings(
-            bias_f=float(merged.get("bias_f", 0.0)),
-            spread_inflation=float(merged.get("spread_inflation", 1.0)),
-            bandwidth_f=None if bw_low in (None, "auto") else float(bw_low),
-            min_valid_hours=int(merged.get("min_valid_hours", 8)),
-            edge_tolerance_hours=float(merged.get("edge_tolerance_hours", 3.0)),
-            obs_tolerance_f=float(merged.get("obs_tolerance_f", 0.5)),
-        )
+        dist_low = replace(dist, **distribution_values(raw["distribution_low"], "distribution_low"))
 
     nws = raw.get("nws") or {}
     om = raw.get("open_meteo") or {}

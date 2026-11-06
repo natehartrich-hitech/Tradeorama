@@ -65,6 +65,12 @@ Both bots run at once, in separate terminal windows.
 - **Same-day cutoff for lows: 6 AM local standard time** (`same_day_last_hour_low`), since by dawn the low is mostly in. Shadow-mode scoring decides whether to move it, as for highs.
 - Lows are expected to be harder (radiational cooling, Midway's urban heat, cloud and wind), so expect larger biases; calibrate them separately.
 
+## Per-city calibration (added Nov 6, 2026)
+
+- Measurement was already per city (`calibration --station`). Now the **settings** can be per city and per kind too: a station's own `distribution` / `distribution_low` and `weights` / `weights_low` sections layer over the shared ones. A weight of 0 drops a model for that city (and `member_weights` ignores zero-weight models).
+- `calibration` prints a ready-to-paste city section with the suggested `bias_f`, and warns under **30 settled days** per city and kind, since with 2–3°F daily errors a smaller sample mostly fits noise.
+- Plan: run on shared settings first; give a city its own once its bias clearly differs. Expect differences: Midway urban heat and lake breeze, Central Park trees, Miami sea breeze, LAX/SFO marine layer and fog. Biases may also shift with the seasons.
+
 ## Position sizing (both bots, Nov 5, 2026)
 
 Kelly is a **target position**: each check computes the total stake Kelly wants in an outcome, subtracts what's already held (open positions), and buys only the difference, if it's at least $1. Before this change, every check re-bought a full Kelly amount, so any edge that lasted a few checks grew to the per-game or per-city-day cap ($25). Positions are held to settlement; there's no selling when an edge disappears.
