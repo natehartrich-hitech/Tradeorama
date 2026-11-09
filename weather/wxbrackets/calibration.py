@@ -22,6 +22,9 @@ class CalibrationResult:
     per_model: pd.DataFrame  # model, runs, bias_f, mae_f: each model's own mean vs. the official high
     per_model_lead: pd.DataFrame  # the same, split by lead: model, lead, runs, bias_f, mae_f
     market_by_lead: dict = None  # lead -> (runs, model Brier, market Brier)
+    brier_diff: float | None = None  # mean over days of (model - market) Brier; negative = model better
+    brier_diff_se: float | None = None  # its standard error (days as the independent unit)
+    brier_days: int = 0
     market_runs: int = 0  # runs that also captured Polymarket US prices
     model_brier_vs_market: float | None = None  # the model's Brier on just those runs
     market_brier: float | None = None  # the market's Brier on the same runs
@@ -37,6 +40,16 @@ def lead_bucket(lead_hours: float, cutoff_hour: float = 12.0) -> str:
     if lead_hours < 0:
         return "today (shadow)" if -lead_hours >= cutoff_hour else "today (traded)"
     return "next day" if lead_hours < 24 else "2+ days"
+
+
+def brier_difference(diff_by_day: dict[str, list[float]]) -> dict:
+    """Mean (model - market) Brier with a standard error. Runs on the same day share one outcome, so
+    they're averaged into one number per day first; days are treated as independent."""
+    daily = [float(np.mean(v)) for v in diff_by_day.values()]
+    if not daily:
+        return {}
+    se = float(np.std(daily, ddof=1) / np.sqrt(len(daily))) if len(daily) > 1 else None
+    return {"brier_diff": float(np.mean(daily)), "brier_diff_se": se, "brier_days": len(daily)}
 
 
 def market_probs(rows) -> list[float] | None:
@@ -66,7 +79,7 @@ def calibrate(db: DB, station: str, min_lead: float | None = None, max_lead: flo
               cutoff_hour: float = 12.0, kind: str = "high") -> CalibrationResult:
     runs = db.scored_runs(station, min_lead, max_lead, kind)
     briers, pairs, raw_err, dist_err, nws_err = [], [], [], [], []
-    model_vs, market_vs, by_lead = [], [], {}
+    model_vs, market_vs, by_lead, diff_by_day = [], [], {}, {}
     for r in runs:
         official = r["official_f"]
         rows = db.brackets_for(r["run_id"])
@@ -83,6 +96,7 @@ def calibrate(db: DB, station: str, min_lead: float | None = None, max_lead: flo
                 model_vs.append(brier)
                 market_vs.append(market_brier)
                 by_lead.setdefault(lead_bucket(r["lead_hours"], cutoff_hour), []).append((brier, market_brier))
+                diff_by_day.setdefault(r["target_date"], []).append(brier - market_brier)
         raw_err.append(r["pooled_mean_f"] - official)
         dist_err.append(r["dist_mean_f"] - official)
         if r["nws_forecast_high_f"] is not None:
@@ -116,6 +130,7 @@ def calibrate(db: DB, station: str, min_lead: float | None = None, max_lead: flo
         market_by_lead={lead: (len(v), float(np.mean([a for a, _ in v])), float(np.mean([b for _, b in v])))
                         for lead, v in by_lead.items()},
         market_runs=len(market_vs),
+        **brier_difference(diff_by_day),
         model_brier_vs_market=mean(model_vs),
         market_brier=mean(market_vs),
     )

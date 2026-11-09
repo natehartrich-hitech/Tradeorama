@@ -121,6 +121,18 @@ All runs are stored in SQLite (`database` in the config):
 
 Use `--min-lead` and `--max-lead` to score day-ahead and same-day runs separately.
 
+### Is it skill or luck?
+
+A few weeks of paper P&L is mostly noise: cheap brackets pay 10× when they hit, so a couple of lucky wins can make a month look great. Two checks put margins of error on the results:
+- **`paper-report`, "Is it luck?":** settled positions (top-ups of the same bracket counted once), with the actual P&L against two references:
+  - what the model's own odds expected
+  - what you'd get with **no skill**, if the market's prices were the true odds
+  
+  It reports how often no skill alone does at least as well. Under about 5% means it's unlikely to be luck. The no-skill reference ignores fees, which makes skill slightly harder, not easier, to claim.
+- **`calibration`:** the model-minus-market Brier difference, with a ~95% range. Runs from the same day share one outcome, so each day counts once. It says "model clearly better" only when the whole range is below zero.
+
+Move toward real money only when both agree: the model beats the market's Brier score, and the paper profit is unlikely to be luck.
+
 ### Per-city calibration
 
 Each place has its own quirks: Midway's urban heat and lake breezes, Central Park's trees, Miami's sea breeze, and the marine layer and fog at LAX and SFO. So any station can override the shared settings with its own `distribution` (highs) and `distribution_low` (lows) sections, and its own `weights` / `weights_low`. Settings resolve in layers: `distribution`, then `distribution_low` for lows, then the city's own section. A weight of 0 switches a model off for that city.

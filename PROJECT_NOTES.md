@@ -71,6 +71,12 @@ Both bots run at once, in separate terminal windows.
 - `calibration` prints a ready-to-paste city section with the suggested `bias_f`, and warns under **30 settled days** per city and kind, since with 2–3°F daily errors a smaller sample mostly fits noise.
 - Plan: run on shared settings first; give a city its own once its bias clearly differs. Expect differences: Midway urban heat and lake breeze, Central Park trees, Miami sea breeze, LAX/SFO marine layer and fog. Biases may also shift with the seasons.
 
+## Skill vs. luck checks (added Nov 9, 2026)
+
+- `paper-report` "Is it luck?": settled P&L against the model's expected P&L, and against a no-skill reference (market price = true odds), with the chance that no skill does at least as well. Top-ups of one bracket are grouped, since they share one outcome. Brackets of the same event are treated as independent, which slightly overstates the variance (conservative).
+- `calibration`: model-minus-market Brier with a ~95% range, using days as the independent unit.
+- Why both are required before real money: Brier uses every bracket every day, so it's a fast, fill-independent test of better probabilities. Profit shows the edge survives fees, spread and trade selection. Profit alone over weeks is dominated by a few long-shot outcomes.
+
 ## Position sizing (both bots, Nov 5, 2026)
 
 Kelly is a **target position**: each check computes the total stake Kelly wants in an outcome, subtracts what's already held (open positions), and buys only the difference, if it's at least $1. Before this change, every check re-bought a full Kelly amount, so any edge that lasted a few checks grew to the per-game or per-city-day cap ($25). Positions are held to settlement; there's no selling when an edge disappears.

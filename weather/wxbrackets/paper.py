@@ -176,3 +176,49 @@ def summary(db: DB, station: str | None = None, kind: str | None = None) -> dict
         "settled_pnl_usd": round(pnl, 2),
         "roi_pct": round(100 * pnl / staked, 1) if staked else None,
     }
+
+
+@dataclass
+class LuckCheck:
+    """Is the settled paper P&L more than chance? Two reference points for the same trades:
+    - no skill: the market's prices were the true odds (each contract wins with probability equal
+      to what it cost), so the expected P&L is about zero (slightly below, after fees: ignored here,
+      which makes skill a little harder, not easier, to claim);
+    - the model was right: each contract wins with the model's probability.
+    """
+
+    positions: int  # settled bracket-sides (top-ups of the same bracket count once)
+    pnl: float
+    model_expected: float
+    model_sd: float
+    null_sd: float
+    chance_pct: float  # how often no skill alone would do at least this well
+
+
+def luck_check(db: DB, station: str | None = None, kind: str | None = None) -> LuckCheck | None:
+    from scipy.stats import norm
+
+    # Top-ups of one bracket and side win or lose together: combine them first.
+    groups: dict[tuple[str, str], dict] = {}
+    for f in db.paper_fills(station, kind):
+        if f["payout"] is None:
+            continue
+        g = groups.setdefault((f["slug"], f["side"]), {"contracts": 0.0, "cost": 0.0, "payout": 0.0, "model_win": 0.0})
+        g["contracts"] += f["contracts"]
+        g["cost"] += f["cost"]
+        g["payout"] += f["payout"]
+        g["model_win"] += f["prob"] * f["contracts"]  # contract-weighted model probability
+    if not groups:
+        return None
+    pnl = model_exp = model_var = null_var = 0.0
+    for g in groups.values():
+        n = g["contracts"]
+        p_model = g["model_win"] / n
+        p_null = min(max(g["cost"] / n, 0.0), 1.0)  # the market's odds = price paid per contract
+        pnl += g["payout"] - g["cost"]
+        model_exp += n * p_model - g["cost"]
+        model_var += n * n * p_model * (1 - p_model)
+        null_var += n * n * p_null * (1 - p_null)
+    null_sd = null_var ** 0.5
+    chance = 100 * float(norm.sf(pnl / null_sd)) if null_sd > 0 else (0.0 if pnl > 0 else 100.0)
+    return LuckCheck(len(groups), pnl, model_exp, model_var ** 0.5, null_sd, chance)

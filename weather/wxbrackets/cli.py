@@ -119,6 +119,10 @@ def run_forecast(cfg: Config, station: Station, day: date, edges: list[int] | No
     return ForecastRun(f, markets, run_id, climate_day_window(day, station.tz))
 
 
+def fmt_usd(v: float) -> str:
+    return f"{'-' if v < 0 else '+'}${abs(v):.2f}"
+
+
 def cents(x: float | None) -> str:
     return "–" if x is None else f"{100 * x:.0f}¢"
 
@@ -255,6 +259,14 @@ def cmd_paper_report(cfg: Config, args) -> None:
         pnl = ("-" if s["settled_pnl_usd"] < 0 else "+") + "$" + format(abs(s["settled_pnl_usd"]), ".2f")
         print(f"{code or 'ALL':8} {kind or 'both':5} {s['trades']:6d} {'$' + format(s['staked_usd'], '.2f'):>9} "
               f"{'$' + format(s['open_usd'], '.2f'):>8} {edge_c:>9} {s['settled']:8d} {pnl:>9} {roi:>7}")
+    luck = paper.luck_check(db, station, args.kind)
+    if luck:
+        print(f"\nIs it luck? {luck.positions} settled positions, P&L {fmt_usd(luck.pnl)}:")
+        print(f"  If the model's odds were right: expected {fmt_usd(luck.model_expected)}, "
+              f"typically within ±${2 * luck.model_sd:.2f}")
+        print(f"  If the market's odds were right (no skill): expected about $0.00, typically within ±${2 * luck.null_sd:.2f}")
+        print(f"  With no skill, a result at least this good happens about {luck.chance_pct:.0f}% of the time"
+              + (" -> unlikely to be luck" if luck.chance_pct < 5 else " -> can't rule out luck yet"))
     print("\nRecent:")
     for f in fills[: args.limit]:
         res = "open" if f["payout"] is None else f"{f['payout'] - f['cost']:+.2f}"
@@ -356,6 +368,7 @@ def cmd_calibration(cfg: Config, args) -> None:
         print(f"\nModel vs. Polymarket US on the {res.market_runs} runs with market prices (lower is better):")
         print(f"  model Brier {res.model_brier_vs_market:.3f}   market Brier {res.market_brier:.3f}   -> model is {better}")
         print("  Market probabilities are each bracket's mid price, scaled so the brackets sum to 100%.")
+        print_brier_margin(res)
         print(f"\n  {'lead':12} {'runs':>5} {'model':>7} {'market':>7}")
         for lead in LEADS:
             if lead in res.market_by_lead:
@@ -367,6 +380,24 @@ def cmd_calibration(cfg: Config, args) -> None:
     print(f"{'forecast bin':>14} {'count':>6} {'avg forecast':>13} {'observed':>9}")
     for row in res.reliability.itertuples():
         print(f"{str(row.bin):>14} {row.count:6d} {row.mean_forecast:13.2f} {row.observed_freq:9.2f}")
+
+
+def print_brier_margin(res) -> None:
+    """Model minus market Brier, with a ~95% range: is "model better" clear, or still a coin flip?"""
+    if res.brier_diff is None:
+        return
+    if res.brier_diff_se is None:
+        print(f"  Difference (model - market): {res.brier_diff:+.3f} from 1 day; a margin of error needs at least 2.")
+        return
+    lo, hi = res.brier_diff - 2 * res.brier_diff_se, res.brier_diff + 2 * res.brier_diff_se
+    if hi < 0:
+        verdict = "model clearly better"
+    elif lo > 0:
+        verdict = "market clearly better"
+    else:
+        verdict = "not clear yet: the range includes zero"
+    print(f"  Difference (model - market): {res.brier_diff:+.3f}, likely between {lo:+.3f} and {hi:+.3f} "
+          f"over {res.brier_days} days -> {verdict}")
 
 
 MIN_DAYS_FOR_CITY_SETTINGS = 30
