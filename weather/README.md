@@ -158,7 +158,10 @@ python -m wxbrackets backtest --models hrrr,gefs,rrfs,refs,ecmwf --start 2026-09
 - **Output, per city and kind:** the fitted biases and spread, the model-vs-market Brier with a 95% range, simulated trades under the paper rules, their P&L and the luck check. There's also a per-bracket CSV.
   - Simulated fills assume the decision-time price was available for these small sizes, since the history has no order-book depth.
   - "Model expected" P&L far above the actual P&L means the model is overconfident.
-- **Size:** about 51 GB for the default models over all cities and days; ECMWF adds about 160 GB. Downloads are cached in `backtest.db`, so an interrupted run resumes.
+- **Size:** about 51 GB is *downloaded* for the default models over all cities and days (ECMWF adds about 160 GB), but almost none of it is stored.
+  - Each message is held in memory only until it's decoded, with at most about 16 in flight, so memory stays at a few hundred MB.
+  - Only each city's temperatures are kept, in `backtest.db`: about 350 MB for the full default run. An interrupted run resumes from there.
+  - `backtest.db` goes in the same folder as the paper database (`database:` in `config.yaml`), unless you pass `--db`. To keep both on another drive, set `database: 'F:\wxdata\wxbrackets.db'`.
 
 ### Per-city calibration
 

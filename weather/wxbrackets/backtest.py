@@ -15,7 +15,8 @@ import json
 import logging
 import math
 from collections import defaultdict
-from concurrent.futures import ThreadPoolExecutor
+import threading
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 
@@ -112,9 +113,17 @@ def model_of(url: str) -> str:
     return "?"
 
 
+CHUNK = 10  # messages per download task (an ECMWF file holds every member, so split it up)
+SAVE_EVERY = 200  # messages between database commits (a crash loses at most these; they're re-fetched)
+
+
 def download(cases: list[Case], db: DB, stations: list[Station], client: httpx.Client, workers: int = 8,
              progress=print) -> int:
-    """Fetch every uncached message once, read all stations' values from it, cache them. Resumable."""
+    """Fetch every uncached message once, read all stations' values from it, cache them. Resumable.
+
+    Messages are only held in memory between download and decoding, and at most about
+    2 x workers tasks are in flight at once, so memory stays around 100 MB however long the
+    run is: nothing is written to disk except the decoded values in the database."""
     points = [(s.lat, s.lon) for s in stations]
     by_url: dict[str, list[Piece]] = defaultdict(list)
     for (url, key), p in unique_pieces(cases).items():
@@ -123,15 +132,32 @@ def download(cases: list[Case], db: DB, stations: list[Station], client: httpx.C
     if not by_url:
         return 0
     kinds = {url: ("ecmwf" if model_of(url) == "ecmwf" else "wgrib2") for url in by_url}
+    tasks = [(url, ps[i:i + CHUNK]) for url, ps in by_url.items() for i in range(0, len(ps), CHUNK)]
+    remaining = defaultdict(int)
+    for url, _ in tasks:
+        remaining[url] += 1
+    indexes: dict[str, str | None] = {}  # index text per file, kept only while its tasks run
+    lock = threading.Lock()
 
-    def fetch(url: str) -> list[tuple[Piece, bytes | None]]:
+    def index_text(url: str) -> str | None:
+        with lock:
+            if url in indexes:
+                return indexes[url]
+        r = client.get(index_url(url, kinds[url]))
+        text = r.text if r.status_code == 200 else None
+        with lock:
+            indexes.setdefault(url, text)
+        return text
+
+    def fetch(task) -> list[tuple[Piece, bytes | None]]:
+        url, pieces = task
         try:
-            r = client.get(index_url(url, kinds[url]))
-            if r.status_code != 200:
-                return [(p, None) for p in by_url[url]]
+            text = index_text(url)
+            if text is None:
+                return [(p, None) for p in pieces]
             out = []
-            for p in by_url[url]:
-                rng = byte_range_for(r.text, p.selector)
+            for p in pieces:
+                rng = byte_range_for(text, p.selector)
                 if rng is None:
                     out.append((p, None))
                     continue
@@ -140,7 +166,7 @@ def download(cases: list[Case], db: DB, stations: list[Station], client: httpx.C
             return out
         except httpx.HTTPError as exc:
             log.warning("download failed for %s: %s", url, exc)
-            return [(p, None) for p in by_url[url]]
+            return [(p, None) for p in pieces]
 
     grib = GribPoint()
     for mid in sorted({model_of(u) for u in by_url}):
@@ -151,24 +177,50 @@ def download(cases: list[Case], db: DB, stations: list[Station], client: httpx.C
             log.warning("no land-sea mask for %s: using the nearest grid point, which may be over water", mid)
     done = missing = 0
     total = sum(len(v) for v in by_url.values())
-    with ThreadPoolExecutor(max_workers=workers) as pool:
-        for results in pool.map(fetch, list(by_url)):
-            for piece, data in results:
-                done += 1
-                if data is None:
-                    missing += 1
-                    continue
-                try:
-                    values = grib.values(data, points)
-                except Exception as exc:  # a corrupt or unexpected message: skip it, keep going
-                    log.warning("couldn't decode %s %s: %s", piece.url, piece.key, exc)
-                    missing += 1
-                    continue
-                for (lat, lon), v in zip(points, values):
-                    if not math.isnan(v):
-                        db.put_point(piece.url, piece.key, lat, lon, kelvin_to_f(v))
-            if done and (done % 500 < len(results) or done == total):
-                progress(f"  {done}/{total} messages ({missing} unavailable)")
+    rows: list[tuple] = []
+    unsaved = 0
+    max_in_flight = max(2, workers * 2)
+    todo = iter(tasks)
+    try:
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            running = set()
+            while True:
+                for task in todo:
+                    running.add(pool.submit(fetch, task))
+                    if len(running) >= max_in_flight:
+                        break
+                if not running:
+                    break
+                finished, running = wait(running, return_when=FIRST_COMPLETED)
+                for fut in finished:
+                    results = fut.result()
+                    url = results[0][0].url if results else None
+                    for piece, data in results:
+                        done += 1
+                        unsaved += 1
+                        if data is None:
+                            missing += 1
+                            continue
+                        try:
+                            values = grib.values(data, points)
+                        except Exception as exc:  # a corrupt or unexpected message: skip it, keep going
+                            log.warning("couldn't decode %s %s: %s", piece.url, piece.key, exc)
+                            missing += 1
+                            continue
+                        rows += [(piece.url, piece.key, lat, lon, kelvin_to_f(v))
+                                 for (lat, lon), v in zip(points, values) if not math.isnan(v)]
+                    if url is not None:
+                        remaining[url] -= 1
+                        if remaining[url] == 0:
+                            with lock:
+                                indexes.pop(url, None)
+                    if unsaved >= SAVE_EVERY:
+                        db.put_points(rows)
+                        rows, unsaved = [], 0
+                    if done and (done % 500 < len(results) or done == total):
+                        progress(f"  {done}/{total} messages ({missing} unavailable)")
+    finally:
+        db.put_points(rows)  # keep what was decoded, even if interrupted (Ctrl+C)
     return done - missing
 
 

@@ -112,3 +112,48 @@ def test_land_mask_moves_a_station_off_the_water():
     gp = GribPoint()
     gp.set_mask(land)
     assert gp.value(temps, 42.1, 272.1 - 360) == pytest.approx(280)  # nearest land point
+
+
+def test_download_holds_few_messages_in_memory_and_saves_everything(tmp_path, monkeypatch):
+    import threading
+
+    from wxbrackets.archive import Piece
+    from wxbrackets.db import DB
+
+    t = datetime(2026, 10, 21, tzinfo=UTC)
+    pieces = {}
+    for f in range(400):  # 400 files, two messages each
+        url = f"https://noaa-gefs-pds.s3.amazonaws.com/f{f:03d}"
+        for fld in ("TMP:2 m above ground", "TMAX:2 m above ground"):
+            pieces[(url, fld)] = Piece(url, fld, ("wgrib2", fld), t, t)
+    monkeypatch.setattr(bt, "unique_pieces", lambda cases: pieces)
+    monkeypatch.setattr(bt, "MASKS", {})
+    idx = "1:0:d=2026102100:TMP:2 m above ground:3 hour fcst:\n2:100:d=2026102100:TMAX:2 m above ground:0-3 hour max fcst:\n"
+    held = {"now": 0, "max": 0}
+    lock = threading.Lock()
+
+    class Client:
+        def get(self, url, headers=None):
+            if url.endswith(".idx"):
+                return SimpleNamespace(status_code=200, text=idx)
+            with lock:
+                held["now"] += 1
+                held["max"] = max(held["max"], held["now"])
+            return SimpleNamespace(status_code=206, content=b"x" * 10)
+
+    class Grib:
+        def set_mask(self, message):
+            pass
+
+        def values(self, data, points):
+            with lock:
+                held["now"] -= 1
+            return [273.15] * len(points)
+
+    monkeypatch.setattr(bt, "GribPoint", Grib)
+    db = DB(tmp_path / "bt.db")
+    stations = [SimpleNamespace(lat=41.8, lon=-87.8), SimpleNamespace(lat=40.8, lon=-74.0)]
+    assert bt.download([], db, stations, Client(), workers=4, progress=lambda s: None) == 800
+    assert held["max"] <= 4 * 2 * 2  # in-flight tasks x messages per task, not the whole run
+    assert db.conn.execute("SELECT COUNT(*) FROM grib_points").fetchone()[0] == 800 * 2
+    assert db.get_point("https://noaa-gefs-pds.s3.amazonaws.com/f399", "TMAX:2 m above ground", 40.8, -74.0) == pytest.approx(32.0)

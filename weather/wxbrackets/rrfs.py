@@ -165,8 +165,7 @@ class GribPoint:
 
     def set_mask(self, message: bytes) -> None:
         """Register a land-sea mask. Points on its grid then use the nearest LAND point: on coarse
-        grids the nearest point to a lakeside or coastal station can be over water (Midway's
-        nearest GEFS 0.5° point is in Lake Michigan, whose ~55°F October water became its 'low')."""
+        grids the nearest point to a coastal station can be over water (SFO's is in the bay)."""
         gid = self.ec.codes_new_from_message(message)
         try:
             self._masks[self._grid(gid)] = message

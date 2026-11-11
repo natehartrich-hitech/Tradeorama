@@ -232,5 +232,11 @@ class DB:
         with self.conn:
             self.conn.execute("INSERT OR REPLACE INTO grib_points VALUES (?, ?, ?, ?, ?)", (url, field, lat, lon, value_f))
 
+    def put_points(self, rows: list[tuple]) -> None:
+        """Save many (url, field, lat, lon, value_f) rows in one transaction."""
+        if rows:
+            with self.conn:
+                self.conn.executemany("INSERT OR REPLACE INTO grib_points VALUES (?, ?, ?, ?, ?)", rows)
+
     def brackets_for(self, run_id: int) -> list[sqlite3.Row]:
         return self.conn.execute("SELECT * FROM bracket_probs WHERE run_id = ? ORDER BY idx", (run_id,)).fetchall()

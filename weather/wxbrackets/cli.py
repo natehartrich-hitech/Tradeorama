@@ -435,7 +435,8 @@ def cmd_backtest(cfg: Config, args) -> None:
     start = date.fromisoformat(args.start)
     end = date.fromisoformat(args.end) if args.end else date.today() - timedelta(days=2)
     days = [start + timedelta(days=i) for i in range((end - start).days + 1)]
-    db = DB(args.db)
+    db_path = Path(args.db) if args.db else cfg.database.parent / "backtest.db"
+    db = DB(db_path)
 
     print(f"Backtest: {len(stations)} cities ({', '.join(codes)}), {', '.join(kinds)}, {start} to {end} ({len(days)} days)")
     print(f"Decision: {args.hours_before:g} h before 00:00 UTC the evening before each day "
@@ -609,7 +610,8 @@ def main(argv=None) -> None:
     bk.add_argument("--hours-before", type=float, default=0.0, help="decision time: hours before 00:00 UTC the evening before")
     bk.add_argument("--workers", type=int, default=8, help="parallel downloads")
     bk.add_argument("--estimate", action="store_true", help="only show how much would be downloaded")
-    bk.add_argument("--db", default="backtest.db", help="cache of downloaded values and prices (separate from paper trading)")
+    bk.add_argument("--db", help="cache of downloaded values and prices, separate from paper trading "
+                    "(default: backtest.db in the same folder as config.yaml's database)")
     bk.add_argument("--csv", default="backtest_results.csv")
     bk.set_defaults(fn=cmd_backtest)
 
