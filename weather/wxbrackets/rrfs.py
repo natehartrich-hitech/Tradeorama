@@ -156,6 +156,22 @@ class GribPoint:
 
         self.ec = eccodes
         self._index: dict[tuple, int] = {}
+        self._masks: dict[tuple, bytes] = {}  # grid -> land-sea mask message for that grid
+
+    def _grid(self, gid) -> tuple:
+        return tuple(self.ec.codes_get(gid, k) for k in (
+            "gridType", "Nx", "Ny", "latitudeOfFirstGridPointInDegrees", "longitudeOfFirstGridPointInDegrees",
+        ))
+
+    def set_mask(self, message: bytes) -> None:
+        """Register a land-sea mask. Points on its grid then use the nearest LAND point: on coarse
+        grids the nearest point to a lakeside or coastal station can be over water (Midway's
+        nearest GEFS 0.5° point is in Lake Michigan, whose ~55°F October water became its 'low')."""
+        gid = self.ec.codes_new_from_message(message)
+        try:
+            self._masks[self._grid(gid)] = message
+        finally:
+            self.ec.codes_release(gid)
 
     def value(self, message: bytes, lat: float, lon: float) -> float:
         return self.values(message, [(lat, lon)])[0]
@@ -165,20 +181,29 @@ class GribPoint:
         ec = self.ec
         gid = ec.codes_new_from_message(message)
         try:
-            grid = tuple(ec.codes_get(gid, k) for k in (
-                "gridType", "Nx", "Ny", "latitudeOfFirstGridPointInDegrees", "longitudeOfFirstGridPointInDegrees",
-            ))
+            grid = self._grid(gid)
             missing = ec.codes_get_double(gid, "missingValue") if ec.codes_is_defined(gid, "missingValue") else None
             out = []
             for lat, lon in points:
                 key = grid + (round(lat, 4), round(lon, 4))
                 if key not in self._index:
-                    self._index[key] = ec.codes_grib_find_nearest(gid, lat, lon)[0].index
+                    self._index[key] = self._nearest(gid, grid, lat, lon)
                 v = ec.codes_get_double_element(gid, "values", self._index[key])
                 out.append(math.nan if missing is not None and v == missing else v)
             return out
         finally:
             ec.codes_release(gid)
+
+
+    def _nearest(self, gid, grid: tuple, lat: float, lon: float) -> int:
+        mask = self._masks.get(grid)
+        if mask is None:
+            return self.ec.codes_grib_find_nearest(gid, lat, lon)[0].index
+        mid = self.ec.codes_new_from_message(mask)
+        try:
+            return self.ec.codes_grib_find_nearest(mid, lat, lon, is_lsm=True)[0].index
+        finally:
+            self.ec.codes_release(mid)
 
 
 class RRFS:

@@ -418,6 +418,104 @@ def print_bias_suggestion(cfg: Config, station: Station, kind: str, res) -> None
               f"{MIN_DAYS_FOR_CITY_SETTINGS} before trusting a city's own correction (until then it mostly chases noise).")
 
 
+# --- backtest -----------------------------------------------------------------------------
+
+
+def cmd_backtest(cfg: Config, args) -> None:
+    from . import backtest as bt
+    from .archive import MODELS
+
+    kinds = args.kinds.split(",")
+    model_ids = args.models.split(",")
+    bad = [m for m in model_ids if m not in MODELS]
+    if bad:
+        raise ConfigError(f"unknown backtest model(s) {', '.join(bad)}; available: {', '.join(MODELS)}")
+    codes = args.stations.split(",") if args.stations else [s.code for s in cfg.stations.values() if s.pmus_event_prefix]
+    stations = [cfg.station(c) for c in codes]
+    start = date.fromisoformat(args.start)
+    end = date.fromisoformat(args.end) if args.end else date.today() - timedelta(days=2)
+    days = [start + timedelta(days=i) for i in range((end - start).days + 1)]
+    db = DB(args.db)
+
+    print(f"Backtest: {len(stations)} cities ({', '.join(codes)}), {', '.join(kinds)}, {start} to {end} ({len(days)} days)")
+    print(f"Decision: {args.hours_before:g} h before 00:00 UTC the evening before each day "
+          "(about 6 PM Chicago, 7 PM New York, 4 PM Los Angeles), using only runs published by then.")
+    late = [f"{MODELS[m].name} from {MODELS[m].first_day}" for m in model_ids if MODELS[m].first_day > start]
+    if late:
+        print("Archive starts later for: " + "; ".join(late) + " (earlier days run without them).")
+    cases = bt.plan(stations, kinds, days, model_ids, args.hours_before)
+    est = bt.estimate(cases, db, stations)
+    total_gb = sum(gb for _, gb in est.values())
+    print("\nStill to download (cached messages are skipped, so an interrupted run resumes):")
+    for mid in model_ids:
+        n, gb = est.get(mid, (0, 0.0))
+        print(f"  {MODELS[mid].name:24} {n:8d} messages  ~{gb:6.1f} GB")
+    print(f"  {'total':24} {sum(n for n, _ in est.values()):8d} messages  ~{total_gb:6.1f} GB")
+    if args.estimate:
+        return
+
+    client = httpx.Client(timeout=60, headers={"User-Agent": cfg.nws_user_agent or "wxbrackets"},
+                          limits=httpx.Limits(max_connections=args.workers * 2))
+    if est:
+        print("\nDownloading model data...")
+        bt.download(cases, db, stations, client, args.workers)
+    print("\nFetching Polymarket US markets and decision-time prices...")
+    bt.load_markets(cases, db, client, cfg.pmus_gateway)
+
+    print("Fetching official highs/lows (NWS climate reports, IEM archive)...")
+    http = make_http(cfg)
+    for st in stations:
+        try:
+            reports = [r for r in IEM(http).cli_reports(st, start, end) if r.location in (None, st.cli_location)]
+        except httpx.HTTPError as exc:
+            print(f"  {st.code}: archive unavailable ({exc}); fitting corrections to the winning brackets instead")
+            continue
+        for c in cases:
+            if c.station.code == st.code and (r := best_report(reports, c.day, c.kind)) and r.final:
+                c.official = r.value(c.kind)
+
+    rows = bt.run(cfg, cases, db, model_ids, args.csv)
+    print("\nFitted on the EARLIER half of days, applied to the later half: each model's bias (forecast minus "
+          "actual; + = too warm) and the spread widening that scored best:")
+    for r in rows:
+        biases = "  ".join(f"{m} {b:+.1f}°" for m, b in sorted(r["model_bias"].items()))
+        spread = "–" if r["spread"] is None else f"x{r['spread']:g}"
+        note = " (from winning brackets: official archive unavailable)" if r["truth"] == "bracket" else ""
+        print(f"  {r['station']:5} {r['kind']:4} {biases or '–'}   spread {spread}{note}")
+    print(f"\nResults on each city's LATER half of days, {', '.join(MODELS[m].id for m in model_ids)}:")
+    print(f"{'city':5} {'kind':4} {'days':>5} {'raw bias':>9}  {'Brier model':>11} {'market':>7}  "
+          f"{'difference (95% range)':34} {'trades':>6} {'P&L':>9} {'luck':>6}")
+    all_positions = []
+    for r in rows:
+        bias = "–" if r["raw_bias"] is None else f"{r['raw_bias']:+.2f}°"
+        if r["brier_diff"] is None:
+            diff = "no market prices"
+        elif r.get("brier_diff_se") is None:
+            diff = f"{r['brier_diff']:+.3f} (1 day)"
+        else:
+            lo, hi = r["brier_diff"] - 2 * r["brier_diff_se"], r["brier_diff"] + 2 * r["brier_diff_se"]
+            verdict = "model better" if hi < 0 else "market better" if lo > 0 else "not clear"
+            diff = f"{r['brier_diff']:+.3f} ({lo:+.3f}..{hi:+.3f}) {verdict}"
+        mb = "–" if r["model_brier"] is None else f"{r['model_brier']:.3f}"
+        kb = "–" if r["market_brier"] is None else f"{r['market_brier']:.3f}"
+        luck = "–" if r["luck"] is None else f"{r['luck'].chance_pct:.0f}%"
+        print(f"{r['station']:5} {r['kind']:4} {r['test_days']:5d} {bias:>9}  {mb:>11} {kb:>7}  {diff:34} "
+              f"{r['trades']:6d} {fmt_usd(r['pnl']):>9} {luck:>6}")
+        all_positions += [{"contracts": t["contracts"], "cost": t["cost"], "payout": t["payout"], "prob": t["prob"]}
+                          for s in r["scored"] for t in s.trades]
+    if all_positions:
+        overall = paper.luck_from_positions(all_positions)
+        print(f"\nAll cities: {overall.positions} simulated trades, P&L {fmt_usd(overall.pnl)} "
+              f"(model expected {fmt_usd(overall.model_expected)}); with no skill, at least this good "
+              f"{overall.chance_pct:.0f}% of the time.")
+    print("raw bias = how far the uncorrected pooled forecast ran from the actual value on the earlier days "
+          "(+ = too warm); the per-model corrections above remove it for the later days.")
+    print("luck = how often a no-skill trader would do at least as well with the same trades (under ~5%: unlikely luck).")
+    print("Simulated fills use the best price at the decision time; the history has no order-book depth.")
+    if args.csv:
+        print(f"Per-day, per-bracket details: {args.csv}")
+
+
 # --- check-models -----------------------------------------------------------------------
 
 
@@ -500,6 +598,20 @@ def main(argv=None) -> None:
     c.add_argument("--max-lead", type=float, help="only runs at most this many hours before the day starts")
     c.add_argument("--kind", choices=["high", "low"], default="high", help="score high (default) or low forecasts")
     c.set_defaults(fn=cmd_calibration)
+
+    bk = sub.add_parser("backtest", help="replay archived model runs against Polymarket US's past prices")
+    bk.add_argument("--start", default="2026-04-23", help="first day (default: when Polymarket US weather markets began)")
+    bk.add_argument("--end", help="last day (default: two days ago)")
+    bk.add_argument("--stations", help="comma-separated (default: every Polymarket US weather city)")
+    bk.add_argument("--kinds", default="high,low")
+    bk.add_argument("--models", default="hrrr,gefs,rrfs,refs",
+                    help="from hrrr, rrfs, refs, gefs, ecmwf (ecmwf is large: check --estimate first)")
+    bk.add_argument("--hours-before", type=float, default=0.0, help="decision time: hours before 00:00 UTC the evening before")
+    bk.add_argument("--workers", type=int, default=8, help="parallel downloads")
+    bk.add_argument("--estimate", action="store_true", help="only show how much would be downloaded")
+    bk.add_argument("--db", default="backtest.db", help="cache of downloaded values and prices (separate from paper trading)")
+    bk.add_argument("--csv", default="backtest_results.csv")
+    bk.set_defaults(fn=cmd_backtest)
 
     m = sub.add_parser("check-models", help="confirm each configured Open-Meteo model returns its members")
     m.add_argument("--station", required=True)

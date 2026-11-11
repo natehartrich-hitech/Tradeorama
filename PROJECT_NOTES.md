@@ -77,6 +77,14 @@ Both bots run at once, in separate terminal windows.
 - `calibration`: model-minus-market Brier with a ~95% range, using days as the independent unit.
 - Why both are required before real money: Brier uses every bracket every day, so it's a fast, fill-independent test of better probabilities. Profit shows the edge survives fees, spread and trade selection. Profit alone over weeks is dominated by a few long-shot outcomes.
 
+## Backtest (added Nov 11, 2026)
+
+- `wxbrackets backtest`: archived runs (HRRR, RRFS, REFS, GEFS 0.5°, optional ECMWF ENS) against Polymarket US price history at a fixed decision time (00:00 UTC the evening before, runs gated by conservative publishing delays). It fits per-model bias and spread on the earlier half of each city/kind and scores the later half. Values are cached in `backtest.db` (separate from paper data).
+- Weather market history on Polymarket US: highs since Apr 23, 2026 for all five cities; lows since Oct 15 for Chicago and NYC only.
+- **Findings from small live runs in the cloud** (Chicago, Oct 15–30, HRRR+GEFS only, bracket midpoints as truth): models err in opposite directions on lows (GEFS +3.6°F, HRRR −3.7°F). The model was overconfident ("model expected" P&L far above actual). The market was better on that small sample. Too little data to conclude anything; the real run is on the owner's PC.
+- A wrong guess, corrected: GEFS's mild lows at Midway were **not** a lake grid point. GEFS really forecast ~56°F against HRRR's 47°F and an actual ~50°F. Land-sea masks were added anyway, since SFO's nearest coarse-grid point is over the bay.
+- **Open:** live forecasts don't apply per-model bias corrections, only pooled ones (shared or per city). If the backtest shows large opposite per-model biases, add per-model, per-city corrections to the live config.
+
 ## Position sizing (both bots, Nov 5, 2026)
 
 Kelly is a **target position**: each check computes the total stake Kelly wants in an outcome, subtracts what's already held (open positions), and buys only the difference, if it's at least $1. Before this change, every check re-bought a full Kelly amount, so any edge that lasted a few checks grew to the per-game or per-city-day cap ($25). Positions are held to settlement; there's no selling when an edge disappears.

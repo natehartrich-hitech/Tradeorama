@@ -133,6 +133,33 @@ A few weeks of paper P&L is mostly noise: cheap brackets pay 10× when they hit,
 
 Move toward real money only when both agree: the model beats the market's Brier score, and the paper profit is unlikely to be luck.
 
+### Backtest
+
+`python -m wxbrackets backtest` replays past days instead of waiting for paper results. It covers every Polymarket US city since the weather markets began (Apr 23, 2026; lows since Oct 15 for Chicago and New York).
+
+```bash
+python -m wxbrackets backtest --estimate      # how much it would download (GB per model)
+python -m wxbrackets backtest                 # all cities, highs and lows, default models; resumable
+python -m wxbrackets backtest --models hrrr,gefs,rrfs,refs,ecmwf --start 2026-09-09   # add ECMWF, shorter range
+```
+
+- **Point in time:** each day is "traded" at 00:00 UTC the evening before (about 6 PM Chicago, 4 PM LA). It uses only runs published by then, with conservative publishing delays: HRRR 2 h, RRFS 3 h, REFS 5 h, GEFS 6 h, ECMWF 9 h.
+- **Models from archives on AWS:**
+  - HRRR (2 m temperature, hourly)
+  - RRFS (hourly max/min, from Aug 12 2026)
+  - REFS (from Sep 9 2026)
+  - GEFS 0.5° (31 members, 3-hourly temperature plus max/min)
+  - optionally the ECMWF ensemble (50 members, from 2023)
+  
+  ICON and GEM have no usable archive, so the backtest tests these models, not the live seven-model blend. Days before a model's archive starts run without it.
+- **Land points:** each station reads the nearest **land** grid point, using each model's land-sea mask. On coarse grids the nearest point can be over a lake or the sea; at SFO it's in the bay.
+- **Fitted on earlier days, judged on later days:** for each city and kind, the earlier half of the days sets each **model's own bias** and the spread widening that scored best. The later half is scored with those settings. Models can err in opposite directions: on Chicago's October lows, GEFS ran about +3.6°F and HRRR about −3.7°F, so they're corrected separately, not as one pooled shift.
+- **Market and truth:** prices are the best "Yes" and "No" prices at the decision minute, from Polymarket US's price history. Results come from its resolved markets, and exact values from the climate-report archive (IEM). If the archive is unreachable, it uses the winning bracket's midpoint to fit biases.
+- **Output, per city and kind:** the fitted biases and spread, the model-vs-market Brier with a 95% range, simulated trades under the paper rules, their P&L and the luck check. There's also a per-bracket CSV.
+  - Simulated fills assume the decision-time price was available for these small sizes, since the history has no order-book depth.
+  - "Model expected" P&L far above the actual P&L means the model is overconfident.
+- **Size:** about 51 GB for the default models over all cities and days; ECMWF adds about 160 GB. Downloads are cached in `backtest.db`, so an interrupted run resumes.
+
 ### Per-city calibration
 
 Each place has its own quirks: Midway's urban heat and lake breezes, Central Park's trees, Miami's sea breeze, and the marine layer and fog at LAX and SFO. So any station can override the shared settings with its own `distribution` (highs) and `distribution_low` (lows) sections, and its own `weights` / `weights_low`. Settings resolve in layers: `distribution`, then `distribution_low` for lows, then the city's own section. A weight of 0 switches a model off for that city.

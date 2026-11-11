@@ -196,8 +196,6 @@ class LuckCheck:
 
 
 def luck_check(db: DB, station: str | None = None, kind: str | None = None) -> LuckCheck | None:
-    from scipy.stats import norm
-
     # Top-ups of one bracket and side win or lose together: combine them first.
     groups: dict[tuple[str, str], dict] = {}
     for f in db.paper_fills(station, kind):
@@ -208,12 +206,18 @@ def luck_check(db: DB, station: str | None = None, kind: str | None = None) -> L
         g["cost"] += f["cost"]
         g["payout"] += f["payout"]
         g["model_win"] += f["prob"] * f["contracts"]  # contract-weighted model probability
-    if not groups:
-        return None
+    positions = [{"contracts": g["contracts"], "cost": g["cost"], "payout": g["payout"],
+                  "prob": g["model_win"] / g["contracts"]} for g in groups.values()]
+    return luck_from_positions(positions) if positions else None
+
+
+def luck_from_positions(positions: list[dict]) -> LuckCheck:
+    """positions: independent bets, each {contracts, cost, payout, prob (model's win probability)}."""
+    from scipy.stats import norm
+
     pnl = model_exp = model_var = null_var = 0.0
-    for g in groups.values():
-        n = g["contracts"]
-        p_model = g["model_win"] / n
+    for g in positions:
+        n, p_model = g["contracts"], g["prob"]
         p_null = min(max(g["cost"] / n, 0.0), 1.0)  # the market's odds = price paid per contract
         pnl += g["payout"] - g["cost"]
         model_exp += n * p_model - g["cost"]
@@ -221,4 +225,4 @@ def luck_check(db: DB, station: str | None = None, kind: str | None = None) -> L
         null_var += n * n * p_null * (1 - p_null)
     null_sd = null_var ** 0.5
     chance = 100 * float(norm.sf(pnl / null_sd)) if null_sd > 0 else (0.0 if pnl > 0 else 100.0)
-    return LuckCheck(len(groups), pnl, model_exp, model_var ** 0.5, null_sd, chance)
+    return LuckCheck(len(positions), pnl, model_exp, model_var ** 0.5, null_sd, chance)
