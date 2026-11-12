@@ -157,3 +157,13 @@ def test_download_holds_few_messages_in_memory_and_saves_everything(tmp_path, mo
     assert held["max"] <= 4 * 2 * 2  # in-flight tasks x messages per task, not the whole run
     assert db.conn.execute("SELECT COUNT(*) FROM grib_points").fetchone()[0] == 800 * 2
     assert db.get_point("https://noaa-gefs-pds.s3.amazonaws.com/f399", "TMAX:2 m above ground", 40.8, -74.0) == pytest.approx(32.0)
+
+
+def test_rolling_biases_use_only_results_known_at_the_decision():
+    d = date(2026, 10, 20)
+    history = {"gefs": [(d - timedelta(days=i), float(i)) for i in range(0, 40)],  # error = days before d
+               "refs": [(d - timedelta(days=i), 5.0) for i in range(2, 6)]}  # only 4 days: not enough yet
+    b = bt.rolling_biases(history, d)
+    assert set(b) == {"gefs"}
+    # Days d-2 .. d-31 are used (d and d-1 aren't final at the decision): mean of 2..31.
+    assert b["gefs"] == pytest.approx(sum(range(2, 32)) / 30)

@@ -97,10 +97,9 @@ def unique_pieces(cases: list[Case]) -> dict[tuple[str, str], Piece]:
 
 def estimate(cases: list[Case], db: DB, stations: list[Station]) -> dict[str, tuple[int, float]]:
     """Per model: (messages still to download, approximate GB)."""
-    first = stations[0]
     todo = defaultdict(int)
     for (url, key), p in unique_pieces(cases).items():
-        if db.get_point(url, key, first.lat, first.lon) is None:
+        if any(db.get_point(url, key, s.lat, s.lon) is None for s in stations):
             todo[model_of(url)] += 1
     return {m: (n, n * MESSAGE_MB[m] / 1024) for m, n in todo.items()}
 
@@ -127,7 +126,7 @@ def download(cases: list[Case], db: DB, stations: list[Station], client: httpx.C
     points = [(s.lat, s.lon) for s in stations]
     by_url: dict[str, list[Piece]] = defaultdict(list)
     for (url, key), p in unique_pieces(cases).items():
-        if db.get_point(url, key, *points[0]) is None:
+        if any(db.get_point(url, key, *pt) is None for pt in points):
             by_url[url].append(p)
     if not by_url:
         return 0
@@ -397,12 +396,41 @@ def truth(case: Case) -> tuple[float | None, str]:
     return (won.low + won.high) / 2, "bracket"
 
 
-def run(cfg: Config, cases: list[Case], db: DB, model_ids: list[str], csv_path: str | None = None) -> list[dict]:
-    """Fit each model's bias on the earlier half of each station/kind, then score and trade the later half
-    with every member corrected by its own model's bias.
+BIAS_DAYS = 30  # each model's bias: its mean error over this many days before the day traded
+MIN_BIAS_DAYS = 7  # a model joins a city's forecast once it has this many days of results there
+TRUTH_LAG_DAYS = 2  # at the decision (the evening before day D), the latest final report is for D-2
 
-    Per-model, not pooled: models can err in opposite directions (e.g. GEFS mild and HRRR cold on a
-    clear, calm night), and one shared shift can't fix that."""
+
+def rolling_biases(history: dict, day: date) -> dict[str, float]:
+    """Each model's mean error (forecast minus actual) over the BIAS_DAYS whose results were
+    known at the decision for `day`. Models with too few of those days are left out."""
+    last = day - timedelta(days=TRUTH_LAG_DAYS)
+    first = last - timedelta(days=BIAS_DAYS - 1)
+    out = {}
+    for mid, errs in history.items():
+        recent = [e for d, e in errs if first <= d <= last]
+        if len(recent) >= MIN_BIAS_DAYS:
+            out[mid] = float(np.mean(recent))
+    return out
+
+
+def model_means(members: dict) -> dict[str, float]:
+    by = defaultdict(list)
+    for (mid, _), v in members.items():
+        by[mid].append(v)
+    return {mid: float(np.mean(v)) for mid, v in by.items()}
+
+
+def run(cfg: Config, cases: list[Case], db: DB, model_ids: list[str], csv_path: str | None = None) -> list[dict]:
+    """Walk forward through each station/kind: every day, each model is corrected by its own mean
+    error over the previous BIAS_DAYS (only results known by the decision), as live calibration
+    would. The earlier half of the corrected days picks the spread widening; the later half is
+    scored and traded.
+
+    Per-model, not pooled: models can err in opposite directions (GEFS mild and HRRR cold on a
+    clear, calm night). Rolling, not fixed: biases drift with the seasons, and a model whose
+    archive starts partway through (RRFS, REFS) is corrected from its own first weeks instead of
+    being left raw."""
     bt_cfg = backtest_config(cfg, model_ids)
     groups = defaultdict(list)
     for c in cases:
@@ -411,37 +439,54 @@ def run(cfg: Config, cases: list[Case], db: DB, model_ids: list[str], csv_path: 
     rows, all_test = [], []
     for (code, kind), cs in sorted(groups.items()):
         cs.sort(key=lambda c: c.day)
-        half = len(cs) // 2
-        train, test = cs[:half], cs[half:]
-        pooled_errs, model_errs, sources = [], defaultdict(list), set()
-        for c in train:
-            maxes = member_values(c, db)
-            value, source = truth(c)
-            if not maxes or value is None:
+        prepared, history, pooled_errs, sources = [], defaultdict(list), [], set()
+        for c in cs:
+            mv = member_values(c, db)
+            if not mv:
                 continue
-            sources.add(source)
-            for mid in {m for m, _ in maxes}:
-                model_errs[mid].append(float(np.mean([v for (m, _), v in maxes.items() if m == mid])) - value)
-            if (raw := score_case(bt_cfg, c, maxes, 0.0)):
-                pooled_errs.append(raw.pooled_mean - value)
-        model_bias = {m: float(np.mean(e)) for m, e in model_errs.items()}
+            value, source = truth(c)
+            if value is not None:
+                sources.add(source)
+                for mid, mean in model_means(mv).items():
+                    history[mid].append((c.day, mean - value))
+                if (raw := score_case(bt_cfg, c, mv, 0.0)):
+                    pooled_errs.append(raw.pooled_mean - value)
+            prepared.append((c, mv))
 
-        def corrected(c):
-            return {k: v - model_bias.get(k[0], 0.0) for k, v in member_values(c, db).items()}
+        usable, applied = [], defaultdict(list)
+        for c, mv in prepared:
+            biases = rolling_biases(history, c.day)
+            members = {k: v - biases[k[0]] for k, v in mv.items() if k[0] in biases}
+            if members:
+                usable.append((c, members))
+                for mid, b in biases.items():
+                    applied[mid].append(b)
+        half = len(usable) // 2
+        train, test = usable[:half], usable[half:]
 
         # Spread: raw ensembles are too narrow; pick the widening that scored best on the earlier days.
         fit = {}
         for spread in SPREADS:
-            scores = [brier(s.probs, s.hit) for c in train if (s := score_case(bt_cfg, c, corrected(c), 0.0, spread))]
+            scores = [brier(s.probs, s.hit) for c, m in train if (s := score_case(bt_cfg, c, m, 0.0, spread))]
             if scores:
                 fit[spread] = float(np.mean(scores))
         spread = min(fit, key=fit.get) if fit else None
-        scored = [s for c in test if (s := score_case(bt_cfg, c, corrected(c), 0.0, spread))]
+        scored = [s for c, m in test if (s := score_case(bt_cfg, c, m, 0.0, spread))]
+
+        # How far each corrected model still misses on the scored days: shows which models help where.
+        misses = defaultdict(list)
+        for c, m in test:
+            value, _ = truth(c)
+            if value is not None:
+                for mid, mean in model_means(m).items():
+                    misses[mid].append(abs(mean - value))
         all_test += scored
-        rows.append({"station": code, "kind": kind, "train_days": len(train), "test_days": len(scored),
+        rows.append({"station": code, "kind": kind, "warmup_days": len(prepared) - len(usable),
+                     "train_days": len(train), "test_days": len(scored),
                      "raw_bias": float(np.mean(pooled_errs)) if pooled_errs else None,
-                     "model_bias": model_bias, "spread": spread, "truth": "/".join(sorted(sources)) or "none",
-                     "scored": scored})
+                     "model_bias": {mid: (float(np.mean(b)), min(b), max(b)) for mid, b in applied.items()},
+                     "model_miss": {mid: float(np.mean(v)) for mid, v in misses.items()},
+                     "spread": spread, "truth": "/".join(sorted(sources)) or "none", "scored": scored})
     simulate(all_test, cfg.paper)
     for row in rows:
         summarize(row)

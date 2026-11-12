@@ -476,14 +476,19 @@ def cmd_backtest(cfg: Config, args) -> None:
                 c.official = r.value(c.kind)
 
     rows = bt.run(cfg, cases, db, model_ids, args.csv)
-    print("\nFitted on the EARLIER half of days, applied to the later half: each model's bias (forecast minus "
-          "actual; + = too warm) and the spread widening that scored best:")
+    print(f"\nEach model's bias (forecast minus actual; + = too warm), refitted every day from the previous "
+          f"{bt.BIAS_DAYS} days, as average and range; how far it still missed after correction; and the spread "
+          "widening that scored best on the earlier half:")
     for r in rows:
-        biases = "  ".join(f"{m} {b:+.1f}°" for m, b in sorted(r["model_bias"].items()))
-        spread = "–" if r["spread"] is None else f"x{r['spread']:g}"
-        note = " (from winning brackets: official archive unavailable)" if r["truth"] == "bracket" else ""
-        print(f"  {r['station']:5} {r['kind']:4} {biases or '–'}   spread {spread}{note}")
-    print(f"\nResults on each city's LATER half of days, {', '.join(MODELS[m].id for m in model_ids)}:")
+        print(f"  {r['station']:5} {r['kind']:4} spread "
+              + ("–" if r["spread"] is None else f"x{r['spread']:g}")
+              + (" (from winning brackets: official archive unavailable)" if r["truth"] == "bracket" else ""))
+        for m, (avg, lo, hi) in sorted(r["model_bias"].items()):
+            miss = r["model_miss"].get(m)
+            print(f"      {m:5} bias {avg:+5.1f}° ({lo:+.1f}..{hi:+.1f})   still misses by "
+                  + ("–" if miss is None else f"{miss:.1f}°") + " on average")
+    print(f"\nResults on each city's LATER half of corrected days (the first ~{bt.MIN_BIAS_DAYS + bt.TRUTH_LAG_DAYS} days "
+          f"of each only build up history), {', '.join(MODELS[m].id for m in model_ids)}:")
     print(f"{'city':5} {'kind':4} {'days':>5} {'raw bias':>9}  {'Brier model':>11} {'market':>7}  "
           f"{'difference (95% range)':34} {'trades':>6} {'P&L':>9} {'luck':>6}")
     all_positions = []
@@ -509,8 +514,8 @@ def cmd_backtest(cfg: Config, args) -> None:
         print(f"\nAll cities: {overall.positions} simulated trades, P&L {fmt_usd(overall.pnl)} "
               f"(model expected {fmt_usd(overall.model_expected)}); with no skill, at least this good "
               f"{overall.chance_pct:.0f}% of the time.")
-    print("raw bias = how far the uncorrected pooled forecast ran from the actual value on the earlier days "
-          "(+ = too warm); the per-model corrections above remove it for the later days.")
+    print("raw bias = how far the uncorrected pooled forecast ran from the actual value, over all days "
+          "(+ = too warm); the daily per-model corrections above remove it.")
     print("luck = how often a no-skill trader would do at least as well with the same trades (under ~5%: unlikely luck).")
     print("Simulated fills use the best price at the decision time; the history has no order-book depth.")
     if args.csv:
