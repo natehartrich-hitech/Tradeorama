@@ -6,3 +6,4 @@ __pycache__/
 tradeorama.db
 tradeorama.stop
 replay.db
+scan.db

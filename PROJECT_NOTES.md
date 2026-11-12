@@ -23,6 +23,7 @@ Shared memory for this project: who it's for, what was decided and why, what was
 | Weather model and paper trader: daily highs and lows | `weather/` (package `wxbrackets`, own venv and `config.yaml`) | Highs paper trading since Nov 5, 2026; lows added Nov 5 |
 | Web app: browse markets, manual orders, bot panel | `tradeorama/app.py`, `tradeorama/static/` | Market browsing and orders still use the **international** site |
 | Replay: Kalshi's past sports trades against Pinnacle | `tradeorama/replay/` (`python -m tradeorama.replay`) | Built Nov 12, 2026. NBA Feb 2026 run: **fails**; idea dropped (see next-project section) |
+| Structural scan: Kalshi's favorite-longshot bias after fees | `tradeorama/scan/` (`python -m tradeorama.scan`) | Rules fixed Nov 12, 2026; first run pending |
 
 Both bots run at once, in separate terminal windows.
 
@@ -144,6 +145,34 @@ Both bots run at once, in separate terminal windows.
     - The ~1¢ that takers pay above fair is the makers' gross margin, which is shortlist item 2's question.
 - Smoke test of the pipeline on real Kalshi data, with a stand-in for the Odds API: all 166 Feb 2026 games matched, about 640,000 pregame trades in about 1½ minutes, a ~40–50 MB cache, and a 5-second report. The stand-in's flat 50/50 lines showed why the kill rules alone aren't enough: against a wrong reference, every window "beat the close" by +8¢, while the luck check against real results said 42% (no skill). If the real run passes, check the largest-gap rows and the luck check too.
 
+## Structural scan: rules fixed before the first run (Nov 12, 2026)
+
+Shortlist item 2: `tradeorama/scan` (`python -m tradeorama.scan fetch`, then `report`). Kalshi public data only, analysis only. These rules were committed before any real data was downloaded. The constants live in `tradeorama/scan/analysis.py`, so they can't be changed from the command line.
+
+- **Question:** do contracts priced 85–97¢ (the opposite side of overpriced longshots) win more often than their price, by enough to beat fees?
+- **Universe:**
+  - Settled Kalshi markets whose reference time falls between Oct 1, 2025 and Aug 31, 2026 (the archive ends Sept 13, 2026).
+  - The top 25 series by all-time volume in each category, plus the top 30 sports series. A series needs at least 1M contracts traded. Combos ("Exotics") are excluded.
+  - **Non-sports** markets need their event's `strike_date`: a scheduled time fixed when the market is created. Series without one are left out and counted (mostly Mentions, Entertainment, and some Politics and Economics, such as CPI and TSA).
+  - **Sports** use each game's scheduled `expected_expiration_time` and get their own verdict, because of Illinois.
+  - Why not the actual close: many markets close early once their result is known, so measuring back from the actual close would leak the outcome.
+- **Sample:** deterministic, from a hash of each ticker. About 3 events per series per month and at most 8 markets per event. Markets carry an inverse-sampling weight so volumes scale back up. Series whose markets open less than about an hour before their time (the 15-minute crypto series) can't be tested and are skipped. These sizes were set for download time, before any returns were seen.
+- **Bets:** at 24, 6 and 1 hour before the reference time, the market must be open, with a two-sided quote from the hourly candle that ended in the hour up to then. A side whose ask is 85–97¢ is bought: YES at the YES ask, or NO at 1 − the YES bid. The stake is $100.
+  - **Taker:** pays the ask plus the fee: 0.07 × the series' (or the event's override) multiplier × p × (1 − p), rounded up per 100-contract order.
+  - **Maker:** bids 1¢ under the ask. It's filled only if a trade printed at or through the bid in the next hour, or strictly through it when the bid joins an existing level. It pays the maker fee (0.0175 × multiplier) only on series with maker fees.
+  - Current fee settings are used. Kalshi's fee history isn't applied.
+- **Fit and holdout:** Oct–Apr is for choosing; May–Aug is scored once with the choices frozen.
+  - **(a) Taker, all groups pooled:** the decision time with the best fit-period return.
+  - **(b) Taker, best groups:** up to 3 (group, decision time) pairs. Each needs at least 200 fit-period bets and at least +1¢ per contract on fit. A group is a category, or a series for sports.
+  - **(c) Maker:** chosen the same way as (b), on maker returns.
+- **Kill rules on the holdout.** A hypothesis fails if any one fails:
+  - under +1¢ per contract after fees;
+  - a luck check of 5% or more (day-resampling bootstrap, with no-edge returns centered at zero);
+  - positive in fewer than 3 of the 4 months;
+  - under $2,000 a week traded at qualifying prices (the decision hour's volume × price, scaled up by the sampling weights).
+- **The idea passes if any hypothesis passes.** With three tries, a narrow pass is weak evidence. A pass leads to live paper trading against the real order book, not to money.
+- **Known optimism:** maker fills ignore the queue beyond the join rule, and the hour's volume is market volume, not volume you would get. The tail risk of buying favorites (one loss wipes out 10–35 wins) shows up only if the holdout contains it. The report prints the worst day.
+
 ## Position sizing (both bots, Nov 5, 2026)
 
 Kelly is a **target position**: each check computes the total stake Kelly wants in an outcome, subtracts what's already held (open positions), and buys only the difference, if it's at least $1. Before this change, every check re-bought a full Kelly amount, so any edge that lasted a few checks grew to the per-game or per-city-day cap ($25). Positions are held to settlement; there's no selling when an edge disappears.
@@ -187,7 +216,7 @@ Since Nov 12, 2026, a personal cloud environment named "tradeorama" also allows 
 ## Open items
 
 - [x] Replay of Kalshi NBA trades against Pinnacle, Feb 2026: failed the kill rules (Nov 12). Idea dropped.
-- [ ] Next from the shortlist: the Kalshi structural scan (item 2), with its kill rules written down before the first run.
+- [ ] Structural scan (item 2): rules fixed (section above); run `fetch` and `report` and apply them as written.
 
 - [ ] After about 3–4 weeks of weather data: tune `bias_f`, `spread_inflation` and model weights from `calibration`, run per city. Consider **lead-dependent weights** (for example, heavier RRFS/HRRR for same-day mornings) if the per-lead table supports it. Weights are currently fixed per model, so that would need a small config change.
 - [ ] Sports: judge CLV per sport at about 100 trades with a closing line; drop any sport with CLV ≤ 0.

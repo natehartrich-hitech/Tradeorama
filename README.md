@@ -144,6 +144,24 @@ Limits to keep in mind:
 - Games whose Kalshi market closed sooner after the listed start than a whole game takes (NBA 1¾ h, NFL 2½ h) are left out and listed. Their start time is almost certainly wrong, which would make in-game trading look like pregame gaps.
 - Look over the "largest gaps" list: each row must be the right game and team.
 
+## Structural scan: Kalshi's favorite-longshot bias
+
+`python -m tradeorama.scan` tests whether contracts priced 85–97¢ on Kalshi win more often than their price, by enough to beat fees. That's the flip side of overpriced longshots, documented by Bürgi, Deng and Whelan. It uses only Kalshi's public data (no key, no Odds API credits) and places no orders.
+
+```powershell
+python -m tradeorama.scan fetch    # samples ~10,000–60,000 settled markets and downloads hourly candles; resumable
+python -m tradeorama.scan report
+```
+
+- `fetch` picks the top series by volume in each category. It samples a few events a month from each and a few markets from each event, deterministically, by ticker hash. Then it downloads each market's hourly candles (bid, ask, trade range, volume) for the day before its scheduled time. Everything is cached in `scan.db`, and a rerun continues where it stopped.
+- `report` prints three things:
+  - a calibration table: how often YES won at each price, 24, 6 and 1 hour out, fit vs holdout;
+  - fit-period returns by category and decision time;
+  - three hypotheses chosen on Oct 2025–Apr 2026 and scored once on May–Aug 2026, against kill rules.
+
+  The rules are fixed in `tradeorama/scan/analysis.py` and explained in PROJECT_NOTES.md ("Structural scan"). Sports get a separate verdict.
+- Bets are timed from each event's scheduled time, not its actual close. Many markets close early once their result is known, so using the actual close would leak the outcome.
+
 ## Weather brackets
 
 `weather/` is a separate project that prices daily high-temperature bracket markets from weather ensembles. See [weather/README.md](weather/README.md).

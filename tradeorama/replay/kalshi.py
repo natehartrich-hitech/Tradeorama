@@ -91,10 +91,10 @@ class Kalshi:
             return r.json()
         raise RuntimeError(f"Kalshi {path} kept failing (rate limited or server errors); try again later")
 
-    def _pages(self, path: str, key: str, params: dict):
+    def _pages(self, path: str, key: str, params: dict, limit: int = PAGE):
         cursor = None
         while True:
-            page = dict(params, limit=PAGE)
+            page = dict(params, limit=limit)
             if cursor:
                 page["cursor"] = cursor
             d = self._get(path, page)
@@ -110,6 +110,26 @@ class Kalshi:
 
     def series(self, ticker: str) -> dict:
         return self._get(f"/series/{ticker}").get("series") or {}
+
+    def series_list(self) -> list[dict]:
+        """Every series (about 16,000 in Nov 2026, in one response), with all-time volume."""
+        return self._get("/series", {"include_volume": "true"}).get("series") or []
+
+    def settled_events(self, series_ticker: str, min_close_ts: float):
+        """Settled events of a series, newest first. The archive's events come back without their markets."""
+        params = {"series_ticker": series_ticker, "status": "settled", "min_close_ts": int(min_close_ts)}
+        yield from self._pages("/events", "events", params, limit=200)
+
+    def event_markets(self, event_ticker: str) -> list[dict]:
+        found = list(self._pages("/historical/markets", "markets", {"event_ticker": event_ticker}))
+        return found or list(self._pages("/markets", "markets", {"event_ticker": event_ticker}))
+
+    def candles(self, ticker: str, series_ticker: str, start_ts: float, end_ts: float, archived: bool) -> list[dict]:
+        """Hourly candles (bid, ask and trade prices, volume) ending between start_ts and end_ts."""
+        params = {"start_ts": int(start_ts), "end_ts": int(end_ts), "period_interval": 60}
+        path = (f"/historical/markets/{ticker}/candlesticks" if archived
+                else f"/series/{series_ticker}/markets/{ticker}/candlesticks")
+        return self._get(path, params).get("candlesticks") or []
 
     def settled_markets(self, series_ticker: str, min_close_ts: float, max_close_ts: float,
                         settled_cutoff: float) -> list[dict]:
