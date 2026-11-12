@@ -514,6 +514,46 @@ def cmd_backtest(cfg: Config, args) -> None:
         print(f"\nAll cities: {overall.positions} simulated trades, P&L {fmt_usd(overall.pnl)} "
               f"(model expected {fmt_usd(overall.model_expected)}); with no skill, at least this good "
               f"{overall.chance_pct:.0f}% of the time.")
+    w_all = rows[0]["blend_w"] if rows else None
+    print("\nDoes the model add anything the market doesn't already know? Blend = market and model "
+          "probabilities combined; the model's weight was fitted on the EARLIER half "
+          "(0 = ignore the model, 1 = trust only the model).")
+    if w_all is None:
+        print("  No days with full market prices to fit on.")
+    else:
+        print(f"  Model weight fitted on all cities together: {w_all:.2f}"
+              + ("  -> the model added nothing; the blend is just the market." if w_all == 0 else ""))
+        print(f"{'city':5} {'kind':4} {'own weight':>10}  {'Brier blend':>11} {'market':>7}  "
+              f"{'difference (95% range)':34} {'trades':>6} {'P&L':>9} {'luck':>6}")
+        blend_positions = []
+        for r in rows:
+            own = "–" if r["blend_own_w"] is None else f"{r['blend_own_w']:.2f}"
+            if r["blend_diff"] is None:
+                diff = "no market prices"
+            elif r.get("blend_diff_se") is None:
+                diff = f"{r['blend_diff']:+.3f} (1 day)"
+            elif r["blend_diff"] == 0 and r["blend_diff_se"] == 0:
+                diff = "+0.000 (same as market)"
+            else:
+                lo, hi = r["blend_diff"] - 2 * r["blend_diff_se"], r["blend_diff"] + 2 * r["blend_diff_se"]
+                verdict = "blend better" if hi < 0 else "market better" if lo > 0 else "not clear"
+                diff = f"{r['blend_diff']:+.3f} ({lo:+.3f}..{hi:+.3f}) {verdict}"
+            bb = "–" if r["blend_brier"] is None else f"{r['blend_brier']:.3f}"
+            kb = "–" if r["blend_market_brier"] is None else f"{r['blend_market_brier']:.3f}"
+            luck = "–" if r["blend_luck"] is None else f"{r['blend_luck'].chance_pct:.0f}%"
+            print(f"{r['station']:5} {r['kind']:4} {own:>10}  {bb:>11} {kb:>7}  {diff:34} "
+                  f"{r['blend_trades']:6d} {fmt_usd(r['blend_pnl']):>9} {luck:>6}")
+            blend_positions += [{"contracts": t["contracts"], "cost": t["cost"], "payout": t["payout"], "prob": t["prob"]}
+                                for s in r["scored"] for t in s.blend_trades]
+        if blend_positions:
+            o = paper.luck_from_positions(blend_positions)
+            print(f"Trading on the blend: {o.positions} simulated trades, P&L {fmt_usd(o.pnl)} "
+                  f"(blend expected {fmt_usd(o.model_expected)}); with no skill, at least this good "
+                  f"{o.chance_pct:.0f}% of the time.")
+        else:
+            print("Trading on the blend: no trades (never enough edge after fees).")
+        print("own weight = each city's best weight on its own earlier days (fewer days, so noisier); "
+              "the table uses the all-city weight.")
     print("raw bias = how far the uncorrected pooled forecast ran from the actual value, over all days "
           "(+ = too warm); the daily per-model corrections above remove it.")
     print("luck = how often a no-skill trader would do at least as well with the same trades (under ~5%: unlikely luck).")

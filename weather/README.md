@@ -161,6 +161,9 @@ python -m wxbrackets backtest --models hrrr,gefs,rrfs,refs,ecmwf --start 2026-09
 - **Output, per city and kind:** the fitted biases and spread, the model-vs-market Brier with a 95% range, simulated trades under the paper rules, their P&L and the luck check. There's also a per-bracket CSV.
   - Simulated fills assume the decision-time price was available for these small sizes, since the history has no order-book depth.
   - "Model expected" P&L far above the actual P&L means the model is overconfident.
+- **Does the model add anything to the market?** The output also blends the market's and the model's probabilities (a logarithmic pool: each bracket ∝ market^(1−w) × model^w). The model weight w is fitted on the earlier half, across all cities together and per city.
+  - It reports the blend's Brier score against the market on the later half, and simulated trading on the blend.
+  - A fitted weight near 0 means the model knows nothing the market doesn't. In that case no trading rule built on this model will beat the market. A clearly positive weight, with the blend beating the market, means there's information worth trading on, even if the model alone loses.
 - **Size:** about 51 GB is *downloaded* for the default models over all cities and days (ECMWF adds about 160 GB), but almost none of it is stored.
   - Each message is held in memory only until it's decoded, with at most about 16 in flight, so memory stays at a few hundred MB.
   - Only each city's temperatures are kept, in `backtest.db`: about 350 MB for the full default run. An interrupted run resumes from there.

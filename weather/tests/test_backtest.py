@@ -167,3 +167,35 @@ def test_rolling_biases_use_only_results_known_at_the_decision():
     assert set(b) == {"gefs"}
     # Days d-2 .. d-31 are used (d and d-1 aren't final at the decision): mean of 2..31.
     assert b["gefs"] == pytest.approx(sum(range(2, 32)) / 30)
+
+
+def test_blend_ends_are_market_and_model():
+    market, model = [0.2, 0.5, 0.3], [0.6, 0.3, 0.1]
+    assert bt.blend(market, model, 0.0) == market
+    assert bt.blend(market, model, 1.0) == pytest.approx(model)
+    mid = bt.blend(market, model, 0.5)
+    assert sum(mid) == pytest.approx(1.0)
+    assert market[0] < mid[0] < model[0]
+
+
+def _scored(market, model, hit):
+    return bt.Scored(case=None, probs=model, market=market, hit=hit, pooled_mean=0.0)
+
+
+def test_fit_blend_ignores_a_useless_model_and_uses_an_informative_one():
+    import random
+    rnd = random.Random(1)
+    useless, useful = [], []
+    for _ in range(200):
+        hit = rnd.randrange(3)
+        market = [0.25, 0.25, 0.25]
+        market[hit] += 0.25 if rnd.random() < 0.6 else 0.0  # the market leans the right way 60% of the time
+        market = [m / sum(market) for m in market]
+        noise = [rnd.random() + 0.05 for _ in range(3)]
+        useless.append(_scored(market, [n / sum(noise) for n in noise], hit))
+        sharp = [0.1, 0.1, 0.1]
+        sharp[hit] = 0.8 if rnd.random() < 0.8 else 0.1  # right 80% of the time
+        useful.append(_scored(market, [p / sum(sharp) for p in sharp], hit))
+    assert bt.fit_blend(useless) <= 0.1
+    assert bt.fit_blend(useful) >= 0.5
+    assert bt.fit_blend([_scored(None, [1.0], 0)]) is None

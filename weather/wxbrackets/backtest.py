@@ -322,6 +322,8 @@ class Scored:
     hit: int  # index of the bracket that won
     pooled_mean: float
     trades: list[dict] = field(default_factory=list)
+    blend: list[float] | None = None  # market and model combined (see `blend`)
+    blend_trades: list[dict] = field(default_factory=list)
 
 
 def score_case(cfg: Config, case: Case, maxes: dict, bias: float, spread: float | None = None) -> Scored | None:
@@ -346,18 +348,20 @@ def brier(probs: list[float], hit: int) -> float:
     return sum((p - (i == hit)) ** 2 for i, p in enumerate(probs))
 
 
-def simulate(scored: list[Scored], paper_cfg) -> None:
+def simulate(scored: list[Scored], paper_cfg, use_blend: bool = False) -> None:
     """Paper-trade the decision-time prices: same rules as `paper` (min edge, quarter Kelly,
     per-event and daily caps), filled at the quoted price. No order-book depth in the history,
-    so fills assume the small sizes these caps allow were available."""
+    so fills assume the small sizes these caps allow were available. With `use_blend`, trade on
+    the market-and-model blend instead of the model alone (into `blend_trades`)."""
     by_day = defaultdict(list)
     for s in scored:
-        by_day[s.case.day].append(s)
+        if not use_blend or s.blend is not None:
+            by_day[s.case.day].append(s)
     for day in sorted(by_day):
         spent_day = 0.0
         candidates = []
         for s in by_day[day]:
-            for m, p in zip(s.case.markets, s.probs):
+            for m, p in zip(s.case.markets, s.blend if use_blend else s.probs):
                 yes, no = s.case.prices.get(m.slug, (None, None))
                 for side, prob, ask in (("yes", p, yes), ("no", 1 - p, no)):
                     if ask is None or not 0 < ask < 1:
@@ -376,7 +380,7 @@ def simulate(scored: list[Scored], paper_cfg) -> None:
             contracts = int(budget / unit * 100) / 100
             cost = contracts * unit
             won = m.yes_payout == 1.0 if side == "yes" else m.yes_payout == 0.0
-            s.trades.append({"bracket": m.bracket.label, "side": side, "contracts": contracts, "cost": cost,
+            (s.blend_trades if use_blend else s.trades).append({"bracket": m.bracket.label, "side": side, "contracts": contracts, "cost": cost,
                              "prob": prob, "edge": e, "payout": contracts if won else 0.0})
             spent_event[ev_key] += cost
             spent_day += cost
@@ -419,6 +423,30 @@ def model_means(members: dict) -> dict[str, float]:
     for (mid, _), v in members.items():
         by[mid].append(v)
     return {mid: float(np.mean(v)) for mid, v in by.items()}
+
+
+BLEND_WEIGHTS = tuple(i / 20 for i in range(21))  # the model's weight: 0 = market only, 1 = model only
+
+
+def blend(market: list[float], model: list[float], w: float, floor: float = 1e-3) -> list[float]:
+    """Logarithmic pool: each bracket's probability is proportional to market^(1-w) * model^w.
+    The floor keeps a bracket one side calls impossible from zeroing the other side's view."""
+    if w == 0:
+        return list(market)
+    logs = [(1 - w) * math.log(max(m, floor)) + w * math.log(max(p, floor)) for m, p in zip(market, model)]
+    top = max(logs)
+    ex = [math.exp(x - top) for x in logs]
+    total = sum(ex)
+    return [e / total for e in ex]
+
+
+def fit_blend(scored: list[Scored]) -> float | None:
+    """The model weight whose blend scored best (lowest Brier) on these days; None without prices."""
+    pairs = [s for s in scored if s.market]
+    if not pairs:
+        return None
+    score = {w: float(np.mean([brier(blend(s.market, s.probs, w), s.hit) for s in pairs])) for w in BLEND_WEIGHTS}
+    return min(score, key=score.get)
 
 
 def run(cfg: Config, cases: list[Case], db: DB, model_ids: list[str], csv_path: str | None = None) -> list[dict]:
@@ -472,6 +500,7 @@ def run(cfg: Config, cases: list[Case], db: DB, model_ids: list[str], csv_path: 
                 fit[spread] = float(np.mean(scores))
         spread = min(fit, key=fit.get) if fit else None
         scored = [s for c, m in test if (s := score_case(bt_cfg, c, m, 0.0, spread))]
+        train_scored = [s for c, m in train if (s := score_case(bt_cfg, c, m, 0.0, spread))]
 
         # How far each corrected model still misses on the scored days: shows which models help where.
         misses = defaultdict(list)
@@ -486,8 +515,19 @@ def run(cfg: Config, cases: list[Case], db: DB, model_ids: list[str], csv_path: 
                      "raw_bias": float(np.mean(pooled_errs)) if pooled_errs else None,
                      "model_bias": {mid: (float(np.mean(b)), min(b), max(b)) for mid, b in applied.items()},
                      "model_miss": {mid: float(np.mean(v)) for mid, v in misses.items()},
-                     "spread": spread, "truth": "/".join(sorted(sources)) or "none", "scored": scored})
+                     "spread": spread, "truth": "/".join(sorted(sources)) or "none", "scored": scored,
+                     "train_scored": train_scored})
     simulate(all_test, cfg.paper)
+
+    # Does the model add anything the market doesn't know? Blend the two with the model's weight fitted
+    # on every city's earlier days (each city's own best weight is shown too, but rests on fewer days).
+    w_all = fit_blend([s for r in rows for s in r["train_scored"]])
+    for r in rows:
+        r["blend_w"] = w_all
+        r["blend_own_w"] = fit_blend(r["train_scored"])
+        for s in r["scored"]:
+            s.blend = blend(s.market, s.probs, w_all) if s.market and w_all is not None else None
+    simulate(all_test, cfg.paper, use_blend=True)
     for row in rows:
         summarize(row)
     if csv_path:
@@ -509,17 +549,34 @@ def summarize(row: dict) -> None:
     positions = [{"contracts": t["contracts"], "cost": t["cost"], "payout": t["payout"], "prob": t["prob"]} for t in trades]
     row["luck"] = luck_from_positions(positions) if positions else None
 
+    blended = [s for s in scored if s.blend is not None]
+    diffs = {s.case.day.isoformat(): [brier(s.blend, s.hit) - brier(s.market, s.hit)] for s in blended}
+    d = brier_difference(diffs) or {}
+    row["blend_diff"], row["blend_diff_se"] = d.get("brier_diff"), d.get("brier_diff_se")
+    row["blend_brier"] = float(np.mean([brier(s.blend, s.hit) for s in blended])) if blended else None
+    row["blend_market_brier"] = float(np.mean([brier(s.market, s.hit) for s in blended])) if blended else None
+    bt = [t for s in scored for t in s.blend_trades]
+    row["blend_trades"] = len(bt)
+    row["blend_pnl"] = sum(t["payout"] - t["cost"] for t in bt)
+    bpos = [{"contracts": t["contracts"], "cost": t["cost"], "payout": t["payout"], "prob": t["prob"]} for t in bt]
+    row["blend_luck"] = luck_from_positions(bpos) if bpos else None
+
 
 def write_csv(scored: list[Scored], path: str) -> None:
     with open(path, "w", newline="", encoding="utf-8") as fh:
         w = csv.writer(fh)
-        w.writerow(["station", "kind", "day", "bracket", "model_prob", "market_prob", "won", "trade_side",
-                    "contracts", "cost", "payout"])
+        w.writerow(["station", "kind", "day", "bracket", "model_prob", "market_prob", "blend_prob", "won", "trade_side",
+                    "contracts", "cost", "payout", "blend_trade_side", "blend_contracts", "blend_cost", "blend_payout"])
         for s in scored:
             trades = {t["bracket"]: t for t in s.trades}
+            btrades = {t["bracket"]: t for t in s.blend_trades}
             for i, m in enumerate(s.case.markets):
                 t = trades.get(m.bracket.label, {})
+                b = btrades.get(m.bracket.label, {})
                 w.writerow([s.case.station.code, s.case.kind, s.case.day, m.bracket.label, round(s.probs[i], 4),
-                            None if s.market is None else round(s.market[i], 4), int(i == s.hit),
+                            None if s.market is None else round(s.market[i], 4),
+                            None if s.blend is None else round(s.blend[i], 4), int(i == s.hit),
                             t.get("side", ""), t.get("contracts", ""), round(t["cost"], 2) if t else "",
-                            round(t["payout"], 2) if t else ""])
+                            round(t["payout"], 2) if t else "",
+                            b.get("side", ""), b.get("contracts", ""), round(b["cost"], 2) if b else "",
+                            round(b["payout"], 2) if b else ""])
