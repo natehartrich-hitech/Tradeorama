@@ -22,7 +22,7 @@ Shared memory for this project: who it's for, what was decided and why, what was
 | Sports bot: Pinnacle +EV against Polymarket US | `tradeorama/strategy/` | Paper trading since early Nov 2026 |
 | Weather model and paper trader: daily highs and lows | `weather/` (package `wxbrackets`, own venv and `config.yaml`) | Highs paper trading since Nov 5, 2026; lows added Nov 5 |
 | Web app: browse markets, manual orders, bot panel | `tradeorama/app.py`, `tradeorama/static/` | Market browsing and orders still use the **international** site |
-| Replay: Kalshi's past sports trades against Pinnacle | `tradeorama/replay/` (`python -m tradeorama.replay`) | Built Nov 12, 2026; first run (NBA, Feb 2026) pending on the owner's PC |
+| Replay: Kalshi's past sports trades against Pinnacle | `tradeorama/replay/` (`python -m tradeorama.replay`) | Built Nov 12, 2026. NBA Feb 2026 run: **fails**; idea dropped (see next-project section) |
 
 Both bots run at once, in separate terminal windows.
 
@@ -131,6 +131,17 @@ Both bots run at once, in separate terminal windows.
   - average CLV under +1¢.
 
   If it passes, rerun on Jan–Apr and the NFL, then paper trade on Kalshi. Don't loosen the rules or hunt across leagues after a fail. That's how the weather model's "expected profit" fooled us.
+- **Verdict, NBA Feb 2026 (owner's PC, Nov 12): fails; Kalshi sports vs Pinnacle is dropped.**
+  - Coverage: all 166 games matched, 693k pregame trades, $81M.
+  - Kalshi tracks Pinnacle tightly: the dollar-weighted median distance from Pinnacle's no-vig line is 1.0¢. Takers pay a median 1.0¢ *above* Pinnacle's fair price, before the ~1.75¢ fee.
+  - The report found 4 windows on 3 game-sides (0.14 a day; the rule needs 1).
+  - Three of the four were one game, Minnesota at Memphis on Feb 2, and they were artifacts. The Odds API's game list gave the start about 1½ hours late. Kalshi's prices show tip-off near 00:45 UTC, and the game was over by about 03:10. So in-game trades were compared with Pinnacle's in-game odds. The replay now leaves out any game whose Kalshi market closed too soon after the listed start (NBA 1¾ h, NFL 2½ h).
+  - Without that game: one window, a single $1 trade, in a month. Two of the three kill rules fail.
+  - Not tested: lags shorter than the 30-minute snapshots. 30% of trades fell in intervals where Pinnacle moved. Catching those is the speed game, already ruled out.
+  - Per the rule set in advance, no hunting in other months or the NFL.
+  - Implications:
+    - The deepest US venue prices NBA moneylines as sharply as Pinnacle, so expect the Polymarket US bot's CLV to be thin too; its own test continues.
+    - The ~1¢ that takers pay above fair is the makers' gross margin, which is shortlist item 2's question.
 - Smoke test of the pipeline on real Kalshi data, with a stand-in for the Odds API: all 166 Feb 2026 games matched, about 640,000 pregame trades in about 1½ minutes, a ~40–50 MB cache, and a 5-second report. The stand-in's flat 50/50 lines showed why the kill rules alone aren't enough: against a wrong reference, every window "beat the close" by +8¢, while the luck check against real results said 42% (no skill). If the real run passes, check the largest-gap rows and the luck check too.
 
 ## Position sizing (both bots, Nov 5, 2026)
@@ -175,7 +186,8 @@ Since Nov 12, 2026, a personal cloud environment named "tradeorama" also allows 
 
 ## Open items
 
-- [ ] **Run the replay on the owner's PC:** `python -m tradeorama.replay fetch --from 2026-02-01 --to 2026-02-28`, then `report`. About 4,500 Odds API credits. Apply the kill rules as written.
+- [x] Replay of Kalshi NBA trades against Pinnacle, Feb 2026: failed the kill rules (Nov 12). Idea dropped.
+- [ ] Next from the shortlist: the Kalshi structural scan (item 2), with its kill rules written down before the first run.
 
 - [ ] After about 3–4 weeks of weather data: tune `bias_f`, `spread_inflation` and model weights from `calibration`, run per city. Consider **lead-dependent weights** (for example, heavier RRFS/HRRR for same-day mornings) if the per-lead table supports it. Weights are currently fixed per model, so that would need a small config change.
 - [ ] Sports: judge CLV per sport at about 100 trades with a closing line; drop any sport with CLV ≤ 0.

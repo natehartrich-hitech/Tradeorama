@@ -22,6 +22,10 @@ from .store import Store
 from .teams import SERIES, event_date, match_event
 
 DEFAULT_DB = "replay.db"
+# A game's Kalshi markets close when it's settled, so they can't close sooner than this after a correct start
+# time. The Odds API listed Minnesota at Memphis (Feb 2 2026) about 1½ hours late, which made in-game trades
+# and Pinnacle's in-game odds look like pregame gaps.
+MIN_GAME_HOURS = {"basketball_nba": 1.75, "americanfootball_nfl": 2.5}
 
 
 class Budget(Exception):
@@ -177,14 +181,20 @@ def winner_of(markets, code_team: dict[str, str]) -> str | None:
     return None  # voided, postponed or not settled
 
 
+def start_looks_wrong(sport: str, commence: float, closes: list[float | None]) -> bool:
+    closed = [c for c in closes if c is not None]
+    return bool(closed) and max(closed) - commence < MIN_GAME_HOURS.get(sport, 1.5) * 3600
+
+
 def load(store: Store, sport: str, first: str, last: str, hours: float):
-    """Games, pregame trades and skipped block trades from the cache, in the analysis' terms."""
+    """Games, pregame trades, skipped block trades, and games left out because their start time looks wrong."""
     rows = store.games(sport, first, last)
     games: list[an.Game] = []
     trades: dict[str, list[an.Trade]] = {}
     blocks: dict[str, int] = {}
+    wrong_start: list[tuple[str, float, float]] = []  # (event ticker, listed start, Kalshi close)
     if not rows:
-        return games, trades, blocks
+        return games, trades, blocks, wrong_start
     lines: dict[str, dict[float, dict[str, float]]] = {}
     for ts, data in store.snapshots(sport, min(r["commence"] for r in rows) - hours * 3600 - 3600,
                                     max(r["commence"] for r in rows) + 1):
@@ -195,6 +205,9 @@ def load(store: Store, sport: str, first: str, last: str, hours: float):
         snaps = tuple(an.Snapshot(ts, fair) for ts, fair in sorted(lines.get(r["odds_event_id"], {}).items())
                       if ts < commence)
         markets = store.markets_of(r["event_ticker"])
+        if start_looks_wrong(sport, commence, [m["close_ts"] for m in markets]):
+            wrong_start.append((r["event_ticker"], commence, max(m["close_ts"] for m in markets if m["close_ts"])))
+            continue
         code_team = {r["home_code"]: r["home"], r["away_code"]: r["away"]}
         games.append(an.Game(r["event_ticker"], r["day"], commence, r["home"], r["away"], snaps,
                              winner_of(markets, code_team)))
@@ -215,7 +228,7 @@ def load(store: Store, sport: str, first: str, last: str, hours: float):
                     out.append(an.Trade(t["ts"], other, round(1 - t["yes_price"], 6), t["contracts"], waived))
         trades[r["event_ticker"]] = sorted(out, key=lambda t: t.ts)
         blocks[r["event_ticker"]] = n_block
-    return games, trades, blocks
+    return games, trades, blocks, wrong_start
 
 
 def print_groups(title: str, groups: list[an.Group], out) -> None:
@@ -233,7 +246,7 @@ def cmd_report(args, out=print) -> None:
     prm = an.Params(min_edge=args.min_edge, hours=args.hours, fee_coef=fee_coef, il_tax=args.il_tax,
                     stake=args.stake, tolerance=args.tolerance, max_divergence=args.max_divergence,
                     max_age_sec=(args.step + 5) * 60)
-    games, trades, blocks = load(store, sport, args.start, args.end, args.hours)
+    games, trades, blocks, wrong_start = load(store, sport, args.start, args.end, args.hours)
     kalshi_games = sum(1 for e in store.events(series) if in_range(e, parse_day(args.start), parse_day(args.end)))
     rep = an.replay(games, trades, prm, blocks)
 
@@ -244,8 +257,13 @@ def cmd_report(args, out=print) -> None:
         + f". Trades from {prm.hours:g} h before the start. Paper stake ${prm.stake:,.0f} per window.")
     out("")
     out("Coverage")
-    out(f"  Games: {kalshi_games} on Kalshi, {len(games)} matched to Pinnacle, {rep.games} with snapshots and "
-        f"pregame trades, on {plural(rep.days, 'game day')}")
+    out(f"  Games: {kalshi_games} on Kalshi, {len(games) + len(wrong_start)} matched to Pinnacle, {rep.games} with "
+        f"snapshots and pregame trades, on {plural(rep.days, 'game day')}")
+    if wrong_start:
+        out(f"  Left out {plural(len(wrong_start), 'game')} whose Kalshi market closed too soon after the listed start "
+            f"for a whole game (the start time is probably wrong):")
+        for e, start, closed in wrong_start[:10]:
+            out(f"    {e}: listed start {fmt_utc(start)} UTC, Kalshi closed {fmt_utc(closed)} UTC")
     out(f"  Pregame trades: {rep.trades:,} (${rep.dollars:,.0f}); block trades left out: {rep.skipped.get('block', 0):,}")
     if not rep.games:
         out("\nNothing to replay. Run fetch for this sport and date range first.")

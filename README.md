@@ -141,6 +141,7 @@ Limits to keep in mind:
 - A trade proves its price was on offer, at least for its size. Buying at it assumes nobody else took it first, so real fills would be somewhat worse.
 - Trades after the last snapshot before a start (its final few minutes) can't be checked against a later line, so they're left out.
 - The P&L buys again in every window while a gap lasts, unlike the bot's Kelly target and $25 game cap. CLV is the measure to trust; P&L is a rough check.
+- Games whose Kalshi market closed sooner after the listed start than a whole game takes (NBA 1¾ h, NFL 2½ h) are left out and listed. Their start time is almost certainly wrong, which would make in-game trading look like pregame gaps.
 - Look over the "largest gaps" list: each row must be the right game and team.
 
 ## Weather brackets

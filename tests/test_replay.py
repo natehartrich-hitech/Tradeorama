@@ -10,7 +10,8 @@ import httpx
 import pytest
 
 from tradeorama.replay import analysis as an
-from tradeorama.replay.__main__ import cmd_fetch, cmd_report
+from tradeorama.replay.__main__ import cmd_fetch, cmd_report, start_looks_wrong
+from tradeorama.replay.store import Store
 from tradeorama.replay.history import OddsHistory, estimated_credits, snapshot_times
 from tradeorama.replay.kalshi import Kalshi, parse_time, parse_trade
 from tradeorama.replay.teams import event_date, match_event
@@ -311,3 +312,26 @@ def test_fetch_then_report(tmp_path):
     # The fixture's trades are 01:13–02:00 UTC; New Orleans traded at 0.67–0.69 against Pinnacle's 0.62 then 0.66:
     # no gaps, and the line moved at 01:30.
     assert "Windows: 0" in report
+
+
+def test_start_looks_wrong():
+    start = utc("2026-03-01T02:30:00Z")
+    assert start_looks_wrong("basketball_nba", start, [utc("2026-03-01T03:43:00Z"), None])  # 1 h 13 min: impossible
+    assert not start_looks_wrong("basketball_nba", start, [utc("2026-03-01T05:00:00Z")])
+    assert not start_looks_wrong("basketball_nba", start, [None])
+
+
+def test_report_leaves_out_games_with_a_wrong_start(tmp_path):
+    db = tmp_path / "r.db"
+    kalshi = Kalshi(httpx.Client(transport=kalshi_transport()), min_interval=0, sleep=lambda s: None)
+    make_odds = lambda: OddsHistory("k", httpx.Client(transport=odds_transport([])))
+    cmd_fetch(fetch_args(db, yes=True), kalshi, make_odds, out=lambda s: None)
+    store = Store(str(db))
+    store.db.execute("UPDATE games SET commence = ?", (utc("2026-03-01T04:30:00Z"),))  # Kalshi closed at 05:17
+    store.commit()
+    out = []
+    cmd_report(report_args(db), out=out.append)
+    report = "\n".join(out)
+    assert "Left out 1 game whose Kalshi market closed too soon" in report
+    assert "KXNBAGAME-26FEB28NOPUTA: listed start 03-01 04:30 UTC, Kalshi closed 03-01 05:17 UTC" in report
+    assert "Nothing to replay" in report
