@@ -6,9 +6,9 @@ The rules were written down before any results were seen (PROJECT_NOTES.md, "Str
 periods, price range, decision times and kill thresholds are constants here, not options.
 
 How a bet is made, without looking ahead:
-- Each market has a reference time fixed in advance: its event's `strike_date` (the end of the weather day,
-  the crypto price hour, the index close), or for sports games the scheduled expiration. Measuring from the
-  actual close would leak outcomes, because many markets close early once their result is known.
+- Each market has a reference time fixed in advance: its close, when trading stops at a fixed time whatever
+  happens (weather, index levels, the Fed decision), or else its scheduled expiration (markets that close early
+  when their event happens, and sports). Measuring from the actual close of those would leak outcomes.
 - At 24, 6 and 1 hours before it, the market must still be open, with a two-sided quote from the hourly candle
   that ended in the hour up to the decision. If YES's ask, or NO's ask (1 − YES bid), is 85–97¢, that side
   is bought.
@@ -58,7 +58,7 @@ class Market:
     ticker: str
     event: str
     group: str  # category, or series for sports
-    ref: float  # reference time fixed in advance
+    ref: float  # reference time fixed in advance (see __main__.reference)
     open_ts: float
     close_ts: float
     result: str  # "yes" or "no"

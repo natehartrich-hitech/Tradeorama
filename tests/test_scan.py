@@ -8,7 +8,7 @@ import pytest
 
 from tradeorama.replay.kalshi import Kalshi
 from tradeorama.scan import analysis as an
-from tradeorama.scan.__main__ import cmd_fetch, cmd_report, hash_frac, pick_series
+from tradeorama.scan.__main__ import cmd_fetch, cmd_report, hash_frac, pick_series, reference
 
 
 def ts(s: str) -> float:
@@ -119,6 +119,19 @@ def test_calibration_buckets():
     assert rows[1][3] == 0.5
 
 
+def test_reference_time_is_fixed_in_advance():
+    m = {"close_time": "2026-04-16T04:59:00Z", "expected_expiration_time": "2026-04-16T14:00:00Z"}
+    assert reference(m, sports=False) == (ts("2026-04-16T04:59:00"), "close")  # no early-close condition
+    weather = {**m, "early_close_condition": "The Last Trading Time will be 11:59 PM ET on April 15, 2026 regardless "
+                                             "of any data releases or events occurring."}
+    assert reference(weather, sports=False)[1] == "close"
+    nominee = {"close_time": "2026-03-05T14:22:00Z", "expected_expiration_time": "2029-01-20T15:00:00Z",
+               "early_close_condition": "This market will close and expire early following the next person nominated."}
+    assert reference(nominee, sports=False) == (ts("2029-01-20T15:00:00"), "expected")
+    game = {**m, "early_close_condition": "This market will close and expire after a winner is declared."}
+    assert reference(game, sports=True) == (ts("2026-04-16T14:00:00"), "expected")
+
+
 def test_sampling_is_deterministic_and_picks_top_series():
     assert hash_frac("KXHIGHNY-26JUN10") == hash_frac("KXHIGHNY-26JUN10")
     assert 0 <= hash_frac("x") < 1
@@ -147,9 +160,8 @@ def kalshi_transport():
             ]})
         if path.endswith("/events"):
             if q["series_ticker"] == "KXBTC15M":
-                return httpx.Response(200, json={"events": [{"event_ticker": "KXBTC15M-26JUN011200", "strike_date": "2026-06-01T12:00:00Z"}], "cursor": ""})
-            return httpx.Response(200, json={"cursor": "", "events": [
-                {"event_ticker": f"KXINX-{d}", "strike_date": f"{d}T20:00:00Z"} for d in days]})
+                return httpx.Response(200, json={"events": [{"event_ticker": "KXBTC15M-26JUN011200"}], "cursor": ""})
+            return httpx.Response(200, json={"cursor": "", "events": [{"event_ticker": f"KXINX-{d}"} for d in days]})
         if path.endswith("/historical/markets"):
             ev = q["event_ticker"]
             if ev.startswith("KXBTC15M"):
@@ -187,6 +199,7 @@ def test_fetch_then_report(tmp_path):
     cmd_report(Namespace(db=db), out=out.append)
     report = "\n".join(out)
     assert "Series left out: 1 (markets open less than an hour before their time)" in report
+    assert "Reference times: 20 markets from a fixed close, 0 from the scheduled expiration" in report
     # 20 markets, each a favorite on one side at 6 h and 1 h (they open at midnight, so not 24 h), taker and maker
     assert "Bets at 85–97¢: 0 in fit (Oct–Apr), 80 in holdout (May–Aug)" in report
     assert "not enough fit-period bets" in report and "Verdict: every hypothesis fails" in report

@@ -153,10 +153,13 @@ Shortlist item 2: `tradeorama/scan` (`python -m tradeorama.scan fetch`, then `re
 - **Universe:**
   - Settled Kalshi markets whose reference time falls between Oct 1, 2025 and Aug 31, 2026 (the archive ends Sept 13, 2026).
   - The top 25 series by all-time volume in each category, plus the top 30 sports series. A series needs at least 1M contracts traded. Combos ("Exotics") are excluded.
-  - **Non-sports** markets need their event's `strike_date`: a scheduled time fixed when the market is created. Series without one are left out and counted (mostly Mentions, Entertainment, and some Politics and Economics, such as CPI and TSA).
-  - **Sports** use each game's scheduled `expected_expiration_time` and get their own verdict, because of Illinois.
-  - Why not the actual close: many markets close early once their result is known, so measuring back from the actual close would leak the outcome.
-- **Sample:** deterministic, from a hash of each ticker. About 3 events per series per month and at most 8 markets per event. Markets carry an inverse-sampling weight so volumes scale back up. Series whose markets open less than about an hour before their time (the 15-minute crypto series) can't be tested and are skipped. These sizes were set for download time, before any returns were seen.
+  - **Reference time, fixed when the market is created (revised before any data, Nov 12):**
+    - Fixed-close markets: Kalshi's `early_close_condition` is empty, or says trading ends "regardless of any data releases or events" (weather). For these the reference is the close. Examples: index levels, the Fed decision, gas prices, oil, Rotten Tomatoes.
+    - Markets that close early when their event happens ("…close and expire early if the event occurs": mentions, nominees, shutdowns, ads), and all sports: the reference is the scheduled `expected_expiration_time`. Kalshi doesn't move it when a market closes early. The Fed chair nominee market closed Mar 2026 with its expected expiration still Jan 2029.
+    - Why: measuring from the actual close of such markets would leak the outcome.
+    - The first version required the event's `strike_date`. Kalshi only fills that in from mid-Aug 2026, which kept just two weeks of data, so it was replaced. This was found from event counts in the first minutes of the download, before any prices or results were looked at.
+  - Sports get their own verdict, because of Illinois.
+- **Sample:** deterministic, from a hash of each ticker, over each series' listing from Oct 2025 to now. About 3 events per series per month and at most 8 markets per event. Markets carry an inverse-sampling weight so volumes scale back up. Series whose markets open less than about an hour before their time (the 15-minute crypto series) can't be tested and are skipped. These sizes were set for download time, before any returns were seen.
 - **Bets:** at 24, 6 and 1 hour before the reference time, the market must be open, with a two-sided quote from the hourly candle that ended in the hour up to then. A side whose ask is 85–97¢ is bought: YES at the YES ask, or NO at 1 − the YES bid. The stake is $100.
   - **Taker:** pays the ask plus the fee: 0.07 × the series' (or the event's override) multiplier × p × (1 − p), rounded up per 100-contract order.
   - **Maker:** bids 1¢ under the ask. It's filled only if a trade printed at or through the bid in the next hour, or strictly through it when the bid joins an existing level. It pays the maker fee (0.0175 × multiplier) only on series with maker fees.

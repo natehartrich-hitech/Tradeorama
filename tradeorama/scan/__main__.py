@@ -20,7 +20,7 @@ SPORTS, SKIP_CATEGORIES = "Sports", {"Exotics"}  # Exotics are combos (multi-leg
 MIN_SERIES_VOLUME = 1_000_000  # contracts, all time
 PERIOD_START = datetime.fromisoformat(an.FIT[0]).replace(tzinfo=timezone.utc).timestamp()
 PERIOD_END = datetime.fromisoformat(an.HOLDOUT[1]).replace(tzinfo=timezone.utc).timestamp() + 86400
-PERIOD_MONTHS = 11
+LISTED_MONTHS = 14  # settled events listed from Oct 2025 run to about now (Nov 2026)
 
 
 def hash_frac(text: str) -> float:
@@ -45,47 +45,58 @@ def pick_series(rows, per_category: int, sports: int) -> list:
     return out
 
 
+def reference(m: dict, sports: bool) -> tuple[float | None, str]:
+    """A market's reference time, fixed when it was created, and which kind it is.
+
+    Kalshi's `early_close_condition` says how a market can close. Empty, or "... regardless of any data releases
+    or events" (weather), means trading stops at a fixed time, so the close is the schedule. Otherwise ("closes
+    early if the event occurs", sports "after a winner is declared") the actual close depends on what happened,
+    and the scheduled `expected_expiration_time` is used instead. It isn't moved when a market closes early: the
+    Fed chair nominee market closed in March 2026 with its expected expiration still in January 2029."""
+    cond = (m.get("early_close_condition") or "").lower()
+    if not sports and (not cond or "regardless" in cond):
+        return opt_time(m.get("close_time")), "close"
+    return opt_time(m.get("expected_expiration_time")), "expected"
+
+
 def sample_series(kalshi: Kalshi, store: Store, s, args, out) -> None:
-    """List a series' settled events in the period, sample them, and record their sampled markets."""
+    """List a series' settled events, sample them, and record their sampled markets in the period."""
     sports = s["category"] == SPORTS
     listed = list(kalshi.settled_events(s["ticker"], PERIOD_START - 2 * 86400))
-    kept = []
-    for e in listed:
-        strike = opt_time(e.get("strike_date"))
-        if strike is not None and PERIOD_START <= strike < PERIOD_END:
-            kept.append((e, strike))
-        elif strike is None and sports:
-            kept.append((e, None))  # a game: its scheduled expiration is the reference, read from its markets
-    if not kept:
-        store.set_series_status(s["ticker"], "no events with a fixed time in the period", len(listed), 0)
+    if not listed:
+        store.set_series_status(s["ticker"], "no settled events in the period", 0, 0)
         return
-    months = PERIOD_MONTHS if all(st is not None for _, st in kept) else PERIOD_MONTHS + 3  # no-strike lists run to now
-    frac = min(1.0, args.per_month * months / len(kept))
-    sampled = [(e, st) for e, st in kept if hash_frac(e["event_ticker"]) < frac]
-    if not sampled:
-        sampled = [min(kept, key=lambda x: hash_frac(x[0]["event_ticker"]))]
-    for i, (e, strike) in enumerate(sorted(sampled, key=lambda x: hash_frac(x[0]["event_ticker"]))):
+    # Events don't say when they happen (strike_date only exists since mid-Aug 2026), so sample over the whole
+    # listing (Oct 2025 to now) and drop markets whose reference time is outside the period afterwards.
+    frac = min(1.0, args.per_month * LISTED_MONTHS / len(listed))
+    sampled = sorted((e for e in listed if hash_frac(e["event_ticker"]) < frac), key=lambda e: hash_frac(e["event_ticker"]))
+    sampled = sampled or [min(listed, key=lambda e: hash_frac(e["event_ticker"]))]
+    checked, in_period = False, 0
+    for e in sampled:
         markets = []
         for m in kalshi.event_markets(e["event_ticker"]):
             if m.get("market_type", "binary") != "binary" or m.get("mve_collection_ticker") or m.get("result") not in ("yes", "no"):
                 continue
-            ref = strike if strike is not None else opt_time(m.get("expected_expiration_time"))
-            if ref is None or not (PERIOD_START <= ref < PERIOD_END):
-                continue
-            markets.append((m, ref))
-        if i == 0 and markets and max(ref - (opt_time(m.get("open_time")) or ref) for m, ref in markets) < 3600 + 600:
-            store.set_series_status(s["ticker"], "markets open less than an hour before their time", len(listed), len(kept))
-            return
+            ref, kind = reference(m, sports)
+            if ref is not None and PERIOD_START <= ref < PERIOD_END:
+                markets.append((m, ref, kind))
+        if markets and not checked:
+            checked = True
+            if max(ref - (opt_time(m.get("open_time")) or ref) for m, ref, _ in markets) < 3600 + 600:
+                store.set_series_status(s["ticker"], "markets open less than an hour before their time", len(listed), 0)
+                return
+        in_period += bool(markets)
         markets.sort(key=lambda x: hash_frac(x[0]["ticker"]))
         weight = (1 / frac) * max(1.0, len(markets) / args.markets_per_event)
-        store.save_event((e["event_ticker"], s["ticker"], strike, e.get("fee_type_override"),
+        store.save_event((e["event_ticker"], s["ticker"], opt_time(e.get("strike_date")), e.get("fee_type_override"),
                           e.get("fee_multiplier_override"), 1 / frac))
         store.save_markets(e["event_ticker"], [
-            (m["ticker"], ref, opt_time(m.get("open_time")), opt_time(m.get("close_time")),
+            (m["ticker"], ref, kind, opt_time(m.get("open_time")), opt_time(m.get("close_time")),
              opt_time(m.get("settlement_ts")), m["result"], weight)
-            for m, ref in markets[: args.markets_per_event]])
-    store.set_series_status(s["ticker"], "sampled", len(listed), len(kept))
-    out(f"  {s['category']:22} {s['ticker']:28} {len(kept):6,} events in period, {len(sampled):4} sampled")
+            for m, ref, kind in markets[: args.markets_per_event]])
+    store.set_series_status(s["ticker"], "sampled", len(listed), in_period)
+    out(f"  {s['category']:22} {s['ticker']:28} {len(listed):6,} events listed, {len(sampled):4} sampled, "
+        f"{in_period:4} in the period")
 
 
 def cmd_fetch(args, kalshi: Kalshi | None = None, out=print) -> None:
@@ -224,6 +235,9 @@ def cmd_report(args, out=print) -> None:
             skipped[r["status"]] = skipped.get(r["status"], 0) + 1
     for why, n in sorted(skipped.items()):
         out(f"Series left out: {n} ({why})")
+    kinds = dict(store.db.execute("SELECT ref_kind, COUNT(*) FROM markets WHERE candles_done = 1 GROUP BY ref_kind"))
+    out(f"Reference times: {kinds.get('close', 0):,} markets from a fixed close, {kinds.get('expected', 0):,} from "
+        f"the scheduled expiration (markets that close early when their event happens, and sports)")
     sports = [m for m in markets if m.sports]
     non_sports = [m for m in markets if not m.sports]
     report_universe("Non-sports categories (the main verdict)", non_sports, out)

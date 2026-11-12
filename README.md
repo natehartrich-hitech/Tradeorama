@@ -160,7 +160,7 @@ python -m tradeorama.scan report
   - three hypotheses chosen on Oct 2025–Apr 2026 and scored once on May–Aug 2026, against kill rules.
 
   The rules are fixed in `tradeorama/scan/analysis.py` and explained in PROJECT_NOTES.md ("Structural scan"). Sports get a separate verdict.
-- Bets are timed from each event's scheduled time, not its actual close. Many markets close early once their result is known, so using the actual close would leak the outcome.
+- Bets are timed from a reference fixed when each market was created: its close, when trading stops at a fixed time whatever happens, or else its scheduled expiration. Many markets close early once their result is known, so using the actual close would leak the outcome.
 
 ## Weather brackets
 

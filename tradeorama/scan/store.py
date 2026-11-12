@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS events (
     weight REAL, markets_done INTEGER DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS markets (
-    id INTEGER PRIMARY KEY, ticker TEXT UNIQUE, event_ticker TEXT, ref_ts REAL, open_ts REAL, close_ts REAL,
+    id INTEGER PRIMARY KEY, ticker TEXT UNIQUE, event_ticker TEXT, ref_ts REAL, ref_kind TEXT, open_ts REAL, close_ts REAL,
     settled_ts REAL, result TEXT, weight REAL, candles_done INTEGER DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS markets_event ON markets(event_ticker);
@@ -59,10 +59,10 @@ class Store:
                                (series,)).fetchall()
 
     def save_markets(self, event_ticker: str, rows: list[tuple]) -> None:
-        """rows: (ticker, ref_ts, open_ts, close_ts, settled_ts, result, weight)"""
+        """rows: (ticker, ref_ts, ref_kind, open_ts, close_ts, settled_ts, result, weight)"""
         self.db.executemany(
-            "INSERT OR IGNORE INTO markets (ticker, event_ticker, ref_ts, open_ts, close_ts, settled_ts, result, weight) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)", [(r[0], event_ticker, *r[1:]) for r in rows])
+            "INSERT OR IGNORE INTO markets (ticker, event_ticker, ref_ts, ref_kind, open_ts, close_ts, settled_ts, result, "
+            "weight) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", [(r[0], event_ticker, *r[1:]) for r in rows])
         self.db.execute("UPDATE events SET markets_done = 1 WHERE event_ticker = ?", (event_ticker,))
         self.db.commit()
 
