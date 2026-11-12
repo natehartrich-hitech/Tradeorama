@@ -64,7 +64,9 @@ class Kalshi:
                  sleep=time.sleep, clock=time.monotonic):
         self.http = client or httpx.Client(timeout=30)
         self.hosts = list(hosts)
-        self.min_interval = min_interval  # Kalshi's basic tier allows about 20 reads a second
+        # Unauthenticated reads are limited by a token bucket. From the cloud in Nov 2026 that sustained only
+        # about 2–4 requests a second, so the pace adapts: slower after each 429, slowly faster after successes.
+        self.floor = self.min_interval = min_interval
         self.sleep, self.clock = sleep, clock
         self._last = -math.inf
         self.requests = 0
@@ -83,9 +85,15 @@ class Kalshi:
                     continue
                 raise RuntimeError(f"can't reach Kalshi ({type(exc).__name__})") from None
             self.requests += 1
-            if r.status_code == 429 or r.status_code >= 500:
+            if r.status_code == 429:
+                self.min_interval = min(max(self.min_interval * 1.5, 0.05), 2.0)
+                wait = r.headers.get("retry-after")
+                self.sleep(float(wait) if wait and wait.replace(".", "", 1).isdigit() else 1 + attempt)
+                continue
+            if r.status_code >= 500:
                 self.sleep(min(2 ** attempt, 30))
                 continue
+            self.min_interval = max(self.floor, self.min_interval * 0.98)
             if r.status_code != 200:
                 raise RuntimeError(f"Kalshi {path} returned {r.status_code}: {r.text[:200]}")
             return r.json()
@@ -120,9 +128,15 @@ class Kalshi:
         params = {"series_ticker": series_ticker, "status": "settled", "min_close_ts": int(min_close_ts)}
         yield from self._pages("/events", "events", params, limit=200)
 
-    def event_markets(self, event_ticker: str) -> list[dict]:
+    def event_markets(self, event_ticker: str, live_too: bool = True) -> list[dict]:
         found = list(self._pages("/historical/markets", "markets", {"event_ticker": event_ticker}))
-        return found or list(self._pages("/markets", "markets", {"event_ticker": event_ticker}))
+        if found or not live_too:
+            return found
+        return list(self._pages("/markets", "markets", {"event_ticker": event_ticker}))
+
+    def archived_series_markets(self, series_ticker: str):
+        """Every archived market of a series, 1,000 per page (the archive has no time filter)."""
+        yield from self._pages("/historical/markets", "markets", {"series_ticker": series_ticker})
 
     def candles(self, ticker: str, series_ticker: str, start_ts: float, end_ts: float, archived: bool) -> list[dict]:
         """Hourly candles (bid, ask and trade prices, volume) ending between start_ts and end_ts."""

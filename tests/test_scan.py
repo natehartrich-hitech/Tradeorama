@@ -163,6 +163,12 @@ def kalshi_transport():
                 return httpx.Response(200, json={"events": [{"event_ticker": "KXBTC15M-26JUN011200"}], "cursor": ""})
             return httpx.Response(200, json={"cursor": "", "events": [{"event_ticker": f"KXINX-{d}"} for d in days]})
         if path.endswith("/historical/markets"):
+            if "series_ticker" in q:  # the whole archive of a small series: built from the per-event answers
+                evs = ["KXINX-" + d for d in days] if q["series_ticker"] == "KXINX" else ["KXBTC15M-26JUN011200"]
+                ms = [m for ev in evs for m in handler(httpx.Request("GET", f"https://x/historical/markets?event_ticker={ev}")).json()["markets"]]
+                for m in ms:
+                    m["event_ticker"] = m["ticker"].rsplit("-", 1)[0]
+                return httpx.Response(200, json={"markets": ms, "cursor": ""})
             ev = q["event_ticker"]
             if ev.startswith("KXBTC15M"):
                 return httpx.Response(200, json={"markets": [{"ticker": ev + "-A", "result": "yes", "open_time": "2026-06-01T11:45:00Z",
@@ -191,7 +197,7 @@ def test_fetch_then_report(tmp_path):
     db = str(tmp_path / "scan.db")
     kalshi = Kalshi(httpx.Client(transport=kalshi_transport()), min_interval=0, sleep=lambda s: None)
     lines = []
-    args = Namespace(db=db, per_category=25, sports=30, per_month=50, markets_per_event=8, interval=0)
+    args = Namespace(db=db, per_category=25, sports=30, per_month=50, markets_per_event=3, interval=0)
     cmd_fetch(args, kalshi, out=lines.append)
     text = "\n".join(lines)
     assert "Series: 2 chosen" in text and "Candles: 20 markets" in text

@@ -71,10 +71,24 @@ def sample_series(kalshi: Kalshi, store: Store, s, args, out) -> None:
     frac = min(1.0, args.per_month * LISTED_MONTHS / len(listed))
     sampled = sorted((e for e in listed if hash_frac(e["event_ticker"]) < frac), key=lambda e: hash_frac(e["event_ticker"]))
     sampled = sampled or [min(listed, key=lambda e: hash_frac(e["event_ticker"]))]
+    # Markets for the sampled events: one request per event, or, when the whole series' archive is fewer pages
+    # than that (daily series, sports), the series' archive pages. Events settled after the archive cutoff (Sept 13,
+    # 2026) are after the period anyway, so the live tier isn't asked.
+    first = kalshi.event_markets(sampled[0]["event_ticker"], live_too=False)
+    pages = len(listed) * max(1, len(first)) / 1000
+    by_event: dict[str, list[dict]] | None = None
+    if pages < 0.8 * len(sampled):
+        by_event = {}
+        for m in kalshi.archived_series_markets(s["ticker"]):
+            by_event.setdefault(m["event_ticker"], []).append(m)
     checked, in_period = False, 0
-    for e in sampled:
+    for i, e in enumerate(sampled):
+        if by_event is not None:
+            raw = by_event.get(e["event_ticker"], [])
+        else:
+            raw = first if i == 0 else kalshi.event_markets(e["event_ticker"], live_too=False)
         markets = []
-        for m in kalshi.event_markets(e["event_ticker"]):
+        for m in raw:
             if m.get("market_type", "binary") != "binary" or m.get("mve_collection_ticker") or m.get("result") not in ("yes", "no"):
                 continue
             ref, kind = reference(m, sports)
@@ -253,8 +267,9 @@ def main(argv=None) -> None:
     f.add_argument("--per-category", type=int, default=25, help="series per category, by volume (default 25)")
     f.add_argument("--sports", type=int, default=30, help="sports series, by volume (default 30)")
     f.add_argument("--per-month", type=float, default=3, help="events sampled per series per month (default 3)")
-    f.add_argument("--markets-per-event", type=int, default=8, help="markets sampled per event (default 8)")
-    f.add_argument("--interval", type=float, default=0.07, help="seconds between Kalshi requests (default 0.07)")
+    f.add_argument("--markets-per-event", type=int, default=3, help="markets sampled per event (default 3)")
+    f.add_argument("--interval", type=float, default=0.3,
+                   help="seconds between Kalshi requests at most; it slows down by itself when rate limited (default 0.3)")
     f.add_argument("--db", default=DEFAULT_DB)
     f.set_defaults(fn=cmd_fetch)
     r = sub.add_parser("report", help="apply the pre-set hypotheses and kill rules")

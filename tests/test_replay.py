@@ -94,7 +94,21 @@ def test_kalshi_waits_out_rate_limits():
 
     k = Kalshi(httpx.Client(transport=httpx.MockTransport(handler)), min_interval=0, sleep=slept.append)
     assert k.cutoff() == {"market_settled_ts": utc("2026-09-13T00:00:00Z")}
-    assert slept == [1, 2]
+    assert [s for s in slept if s >= 1] == [1, 2]  # waits after each 429, besides the pacing between requests
+    assert k.min_interval > 0  # and it now paces itself more slowly
+
+
+def test_kalshi_honours_retry_after():
+    calls, slept = [], []
+
+    def handler(request):
+        calls.append(1)
+        if len(calls) == 1:
+            return httpx.Response(429, headers={"retry-after": "3"})
+        return httpx.Response(200, json={})
+
+    Kalshi(httpx.Client(transport=httpx.MockTransport(handler)), min_interval=0, sleep=slept.append).cutoff()
+    assert 3.0 in slept
 
 
 # ---------------------------------------------------------------- matching and planning
