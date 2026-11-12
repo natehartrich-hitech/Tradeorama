@@ -112,6 +112,37 @@ To stop a running bot, press Ctrl+C or create a file named `tradeorama.stop` in 
 - Market matching relies on how Polymarket names and times its sports markets. If Polymarket changes that, matches will drop to zero, which is the safe failure.
 - In live mode, the bot's ledger records what each order reported. Your Polymarket positions are the final record.
 
+## Replay: Kalshi's past sports trades against Pinnacle
+
+`python -m tradeorama.replay` tests the sports bot's idea on history before any paper trading: when Kalshi traded a game at least fees + 3¢ cheaper than Pinnacle's no-vig line, did that price beat Pinnacle's closing line? It's analysis only and places no orders. Kalshi's market data is public (no account or key). The Odds API part needs `ODDS_API_KEY` in `.env`, as for the bot, on a paid plan, since historical odds aren't on the free tier.
+
+```powershell
+python -m tradeorama.replay fetch --from 2026-02-01 --to 2026-02-28    # NBA by default; asks before spending credits
+python -m tradeorama.replay report --from 2026-02-01 --to 2026-02-28
+python -m tradeorama.replay fetch --sport americanfootball_nfl --from 2025-09-04 --to 2026-01-04
+```
+
+`fetch` caches everything in `replay.db` (`--db` to change it), so a rerun costs nothing and an interrupted one picks up where it stopped:
+1. Kalshi's settled game markets for the dates (series `KXNBAGAME` or `KXNFLGAME`; `--series` for others).
+2. Each day's games and start times from The Odds API (1 credit a day), matched to Kalshi's games by team and date. Unmatched games are listed with the reason.
+3. Every Kalshi trade in the 6 hours before each start (`--hours`). This is free, and February 2026 took about 1½ minutes: about 640,000 trades and $73M.
+4. Pinnacle snapshots every 30 minutes from 6 hours before the day's first game until its last start (`--step`). Each costs 10 credits, and one call covers every game. February 2026 is about 450 snapshots, roughly 4,500 credits. A run never spends more than `--max-credits` (default 6,000), and it stops before fewer than `--keep-credits` (default 2,500) would be left this month for the bot.
+
+`report` replays the cache:
+- **Gaps:** a trade counts only if its price clears the minimum edge (`--min-edge`, default 3¢) after Kalshi's taker fee (0.07 × p × (1 − p)) against the latest Pinnacle snapshot before it. Pinnacle's line must also be unchanged in the next snapshot. That second check stops "gaps" that were really Pinnacle moving first. Trades more than 15¢ from Pinnacle are left out as likely bad data. Qualifying trades between two snapshots form one window: one chance to buy, sized by the dollars that traded at qualifying prices.
+- **CLV**, defined as in the bot: Pinnacle's closing probability minus cost per contract, fees included. The 95% range resamples game days.
+- **Paper P&L** at up to `--stake` ($100) per window, with the luck check from the weather reports, and splits by hours before the start, favorite or underdog, and edge size. A what-if line adds Illinois' 1.75% tax (`--il-tax 0.0175` makes it the main result).
+- **Kill rules, set before the first run.** The idea is out for that league and period if any one fails:
+  - fewer than 1 game-side with a gap per game day;
+  - a median under $100 traded at qualifying prices per window;
+  - average CLV under +1¢.
+
+Limits to keep in mind:
+- A trade proves its price was on offer, at least for its size. Buying at it assumes nobody else took it first, so real fills would be somewhat worse.
+- Trades after the last snapshot before a start (its final few minutes) can't be checked against a later line, so they're left out.
+- The P&L buys again in every window while a gap lasts, unlike the bot's Kelly target and $25 game cap. CLV is the measure to trust; P&L is a rough check.
+- Look over the "largest gaps" list: each row must be the right game and team.
+
 ## Weather brackets
 
 `weather/` is a separate project that prices daily high-temperature bracket markets from weather ensembles. See [weather/README.md](weather/README.md).

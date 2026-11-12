@@ -1,0 +1,111 @@
+{
+ "markets": [
+  {
+   "can_close_early": true,
+   "close_time": "2026-03-01T05:17:48Z",
+   "created_time": "2026-02-26T17:02:08.968168Z",
+   "custom_strike": {
+    "basketball_team": "6f60dfb1-fda1-423f-b76f-67e9d24b9644"
+   },
+   "early_close_condition": "This market will close and expire after a winner is declared.",
+   "event_ticker": "KXNBAGAME-26FEB28NOPUTA",
+   "exchange_index": 0,
+   "expected_expiration_time": "2026-03-01T05:30:00Z",
+   "expiration_time": "2026-03-15T02:30:00Z",
+   "expiration_value": "New Orleans",
+   "last_price_dollars": "0.0100",
+   "latest_expiration_time": "2026-03-15T02:30:00Z",
+   "market_type": "binary",
+   "no_ask_dollars": "1.0000",
+   "no_bid_dollars": "0.9900",
+   "no_sub_title": "Utah",
+   "notional_value_dollars": "1.0000",
+   "open_interest_fp": "0.00",
+   "open_time": "2026-02-26T17:06:00Z",
+   "previous_price_dollars": "0.0100",
+   "previous_yes_ask_dollars": "0.0100",
+   "previous_yes_bid_dollars": "0.0000",
+   "price_level_structure": "linear_cent",
+   "price_ranges": [
+    {
+     "end": "1.0000",
+     "start": "0.0000",
+     "step": "0.0100"
+    }
+   ],
+   "result": "no",
+   "rules_primary": "If Utah wins the New Orleans at Utah professional basketball game originally scheduled for Feb 28, 2026, then the market resolves to Yes.",
+   "rules_secondary": "",
+   "settlement_bounds_type": "default",
+   "settlement_timer_seconds": 30,
+   "settlement_ts": "2026-03-01T05:19:26.932088Z",
+   "settlement_value_dollars": "0.0000",
+   "status": "finalized",
+   "strike_type": "structured",
+   "ticker": "KXNBAGAME-26FEB28NOPUTA-UTA",
+   "title": "New Orleans at Utah Winner?",
+   "updated_time": "2026-03-01T05:19:27.438281Z",
+   "volume_24h_fp": "0.00",
+   "volume_fp": "3455942.00",
+   "yes_ask_dollars": "0.0100",
+   "yes_ask_size_fp": "-236954.00",
+   "yes_bid_dollars": "0.0000",
+   "yes_bid_size_fp": "0.00",
+   "yes_sub_title": "Utah"
+  },
+  {
+   "can_close_early": true,
+   "close_time": "2026-03-01T05:17:48Z",
+   "created_time": "2026-02-26T17:02:08.968168Z",
+   "custom_strike": {
+    "basketball_team": "d3c8c2ac-c4a0-4d67-8b16-53cb91118dfc"
+   },
+   "early_close_condition": "This market will close and expire after a winner is declared.",
+   "event_ticker": "KXNBAGAME-26FEB28NOPUTA",
+   "exchange_index": 0,
+   "expected_expiration_time": "2026-03-01T05:30:00Z",
+   "expiration_time": "2026-03-15T02:30:00Z",
+   "expiration_value": "New Orleans",
+   "last_price_dollars": "0.9900",
+   "latest_expiration_time": "2026-03-15T02:30:00Z",
+   "market_type": "binary",
+   "no_ask_dollars": "0.0100",
+   "no_bid_dollars": "0.0000",
+   "no_sub_title": "New Orleans",
+   "notional_value_dollars": "1.0000",
+   "open_interest_fp": "0.00",
+   "open_time": "2026-02-26T17:06:00Z",
+   "previous_price_dollars": "0.9900",
+   "previous_yes_ask_dollars": "1.0000",
+   "previous_yes_bid_dollars": "0.9900",
+   "price_level_structure": "linear_cent",
+   "price_ranges": [
+    {
+     "end": "1.0000",
+     "start": "0.0000",
+     "step": "0.0100"
+    }
+   ],
+   "result": "yes",
+   "rules_primary": "If New Orleans wins the New Orleans at Utah professional basketball game originally scheduled for Feb 28, 2026, then the market resolves to Yes.",
+   "rules_secondary": "",
+   "settlement_bounds_type": "default",
+   "settlement_timer_seconds": 30,
+   "settlement_ts": "2026-03-01T05:19:26.932088Z",
+   "settlement_value_dollars": "1.0000",
+   "status": "finalized",
+   "strike_type": "structured",
+   "ticker": "KXNBAGAME-26FEB28NOPUTA-NOP",
+   "title": "New Orleans at Utah Winner?",
+   "updated_time": "2026-03-01T05:19:27.438281Z",
+   "volume_24h_fp": "0.00",
+   "volume_fp": "2527354.00",
+   "yes_ask_dollars": "1.0000",
+   "yes_ask_size_fp": "0.00",
+   "yes_bid_dollars": "0.9900",
+   "yes_bid_size_fp": "-310482.00",
+   "yes_sub_title": "New Orleans"
+  }
+ ],
+ "cursor": ""
+}

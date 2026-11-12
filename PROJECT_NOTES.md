@@ -9,6 +9,11 @@ Shared memory for this project: who it's for, what was decided and why, what was
 - **Everything is paper trading.** No real orders are placed anywhere, and live trading on Polymarket US isn't built.
 - The Odds API plan has 20,000 credits a month, used for Pinnacle odds.
 - Progress is tracked on two checklists (artifacts in the owner's Claude account): "Tradeorama Setup Checklist" covers the app and sports bot, and "Weather Bot Checklist" covers the weather project.
+- **Goals (Nov 12, 2026):**
+  - The aim is a paper strategy that passes a test strict enough to risk real money: possibly thousands of dollars, so the market can't be too thin.
+  - About 10 hours a week. A few hundred dollars for data is fine if a test justifies it. A cloud server is fine.
+  - Open to any venue or account.
+  - Works in the freight industry: nothing that could compete with the employer (see the next-project section).
 
 ## What's in the repo
 
@@ -17,6 +22,7 @@ Shared memory for this project: who it's for, what was decided and why, what was
 | Sports bot: Pinnacle +EV against Polymarket US | `tradeorama/strategy/` | Paper trading since early Nov 2026 |
 | Weather model and paper trader: daily highs and lows | `weather/` (package `wxbrackets`, own venv and `config.yaml`) | Highs paper trading since Nov 5, 2026; lows added Nov 5 |
 | Web app: browse markets, manual orders, bot panel | `tradeorama/app.py`, `tradeorama/static/` | Market browsing and orders still use the **international** site |
+| Replay: Kalshi's past sports trades against Pinnacle | `tradeorama/replay/` (`python -m tradeorama.replay`) | Built Nov 12, 2026; first run (NBA, Feb 2026) pending on the owner's PC |
 
 Both bots run at once, in separate terminal windows.
 
@@ -32,6 +38,12 @@ Both bots run at once, in separate terminal windows.
   - Soccer has separate home, draw and away markets, settled on regulation time.
   - The fee comes from each market's `feeCoefficient` (0.0695).
   - Fills record their venue. Trades before the switch were priced from the international site and are labelled `polymarket`.
+- **Illinois and sports contracts (checked Nov 12, 2026; changing fast, so recheck before going live):**
+  - The Illinois Gaming Board sent cease-and-desist letters to Kalshi (Apr 2025), to Crypto.com and Robinhood, and to Polymarket US (QCX LLC, Jan 27, 2026).
+  - SB 3019 (signed Jun 16, 2026) treats sports contracts on exchanges as "exchange wagers". It requires a $15M state license and adds a tax of 1.75% per wager (3.5% beyond 5 million wagers a year); exchanges without a license must geo-block Illinois.
+  - On Oct 30, 2026 Judge Pacold (N.D. Ill.) granted Kalshi and Coinbase partial preliminary injunctions: the contracts are likely swaps under federal law. Reports disagree on whether the transaction tax is blocked too. Illinois appealed to the Seventh Circuit.
+  - Unknown: whether Polymarket US and Kalshi offer sports to Illinois accounts today, and whether the tax would land on traders.
+  - Taxes: from 2026, gambling losses are deductible only up to 90% of winnings. A retroactive fix passed the House Ways and Means Committee in Sept 2026, but it wasn't confirmed as law. The IRS hasn't said how prediction-market contracts are taxed. See a tax preparer before real money.
 
 ## Weather model: key decisions
 
@@ -97,6 +109,30 @@ Both bots run at once, in separate terminal windows.
 - The backtest's cache check only looked at the first station, so a later run adding cities skipped their values. Fixed: a message counts as cached only when every station has it.
 - **Open:** live forecasts don't apply per-model bias corrections, only pooled ones (shared or per city). If the backtest shows large opposite per-model biases, add per-model, per-city corrections to the live config.
 
+## Next project: choosing what to test (Nov 12, 2026)
+
+- **Why change course:** the weather verdict says that trying to *be* the sharp price with public data loses to a market that already prices it in. Ideas more likely to work here do one of three things:
+  1. borrow a sharp price from a deeper market and trade a softer venue that doesn't ban winners (the sports bot's pattern);
+  2. trade a documented structural bias;
+  3. trade markets whose answer is partly published before they close.
+- **Shortlist, in order:**
+  1. **Kalshi sports vs Pinnacle.** Kalshi is liquid (an ordinary NBA game trades millions of contracts, roughly $400k in the 6 hours before an estimated tip-off in Feb 2026), and unlike sportsbooks it doesn't limit winners. Risk: market makers price off sharp lines, so gaps may be rare, plus Illinois' legal status (above).
+  2. **Kalshi structural scan.** Bürgi, Deng and Whelan found that longshots win less often than priced and that makers beat takers. Fit on older data, score on newer. It could also seed a data product. A paper test can't know queue position, so maker results are optimistic.
+  3. **Kalshi TSA check-ins and EIA gas prices.** The answer is partly public before the market closes. Legally clean, but likely smaller.
+- **Ruled out or parked:**
+  - Kalshi weather with the same models: already answered by the backtest.
+  - Economic releases: too few events a year for a verdict.
+  - Pure arbitrage and speed plays: bots and co-located traders win.
+  - Illinois sportsbooks: they limit winners, and FanDuel and DraftKings add 50¢ per bet in Illinois.
+  - **Anything freight-related:** it could compete with the owner's employer, and Illinois' Employee Patent Act lets invention-assignment clauses cover side projects related to the employer's business. Not without a written OK.
+- **First test (decided before seeing results):** replay Kalshi's NBA moneyline trades for Feb 2026 against Pinnacle's no-vig line (`tradeorama/replay`, README "Replay"). **Kill rules:**
+  - fewer than 1 game-side with a gap per game day;
+  - a median under $100 traded at qualifying prices per window;
+  - average CLV under +1¢.
+
+  If it passes, rerun on Jan–Apr and the NFL, then paper trade on Kalshi. Don't loosen the rules or hunt across leagues after a fail. That's how the weather model's "expected profit" fooled us.
+- Smoke test of the pipeline on real Kalshi data, with a stand-in for the Odds API: all 166 Feb 2026 games matched, about 640,000 pregame trades in about 1½ minutes, a ~40–50 MB cache, and a 5-second report. The stand-in's flat 50/50 lines showed why the kill rules alone aren't enough: against a wrong reference, every window "beat the close" by +8¢, while the luck check against real results said 42% (no skill). If the real run passes, check the largest-gap rows and the luck check too.
+
 ## Position sizing (both bots, Nov 5, 2026)
 
 Kelly is a **target position**: each check computes the total stake Kelly wants in an outcome, subtracts what's already held (open positions), and buys only the difference, if it's at least $1. Before this change, every check re-bought a full Kelly amount, so any edge that lasted a few checks grew to the per-game or per-city-day cap ($25). Positions are held to settlement; there's no selling when an edge disappears.
@@ -116,10 +152,18 @@ Kelly is a **target position**: each check computes the total stake Kelly wants 
   - One download is decoded for every city's grid point.
 - **On Windows,** read files as UTF-8 explicitly. Otherwise cp1252 garbled "°" in `config.yaml`.
 - **The Odds API puts the key in the URL.** httpx's INFO logging printed it once, so the key was rotated and httpx logging is now set to WARNING.
+- **Kalshi public market data** (checked live Nov 12, 2026):
+  - Base `https://external-api.kalshi.com/trade-api/v2` (the official SDK's host). `api.elections.kalshi.com` serves the same data. No key is needed.
+  - Data is split into a live tier and an archive. `GET /historical/cutoff` gives the boundary: Sept 13, 2026 for settled markets and trades. Anything older is only served by `/historical/markets` (series filter, no time filter) and `/historical/trades` (`ticker`, `min_ts`, `max_ts`). Pages hold up to 1,000 items, and trades come newest first.
+  - Fixed-point strings: `yes_price_dollars` "0.4500", `count_fp` "31.00". Use `taker_outcome_side` (yes/no). `taker_side` is deprecated. `is_block_trade` marks off-book trades.
+  - Game series: `KXNBAGAME` and `KXNFLGAME`, `fee_type` `quadratic_with_maker_fees`, multiplier 1 (taker fee 0.07 × p × (1 − p)). Each event (e.g. `KXNBAGAME-26FEB28NOPUTA`, US Eastern date) has two markets, one per team, with standard team codes. The NFL Rams appear as both `LA` and `LAR`, and Jacksonville as `JAC`. Voided games settle as `scalar`.
+  - Robinhood's Chicago weather markets settle on Weather Underground, while Kalshi's and Polymarket US's settle on the NWS report. Same-looking contracts can settle differently.
 
 ## Cloud-session limits (not the owner's PC)
 
 These sessions couldn't reach Open-Meteo, api.weather.gov, forecast.weather.gov or the IEM archive, so those paths were built from docs and verified on the owner's PC. Polymarket US (`gateway.polymarket.us`, `docs.polymarket.us`), NOAA's RRFS bucket and PyPI were reachable, and were checked live.
+
+Since Nov 12, 2026, a personal cloud environment named "tradeorama" also allows Kalshi's two API hosts, so the Kalshi side of the replay was checked live. The Odds API isn't reachable from the cloud, and its key stays on the owner's PC, so Odds API runs happen there.
 
 ## Known limitations of the weather model
 
@@ -130,6 +174,8 @@ These sessions couldn't reach Open-Meteo, api.weather.gov, forecast.weather.gov 
 5. Thin markets: wide bid/ask gaps on most brackets.
 
 ## Open items
+
+- [ ] **Run the replay on the owner's PC:** `python -m tradeorama.replay fetch --from 2026-02-01 --to 2026-02-28`, then `report`. About 4,500 Odds API credits. Apply the kill rules as written.
 
 - [ ] After about 3–4 weeks of weather data: tune `bias_f`, `spread_inflation` and model weights from `calibration`, run per city. Consider **lead-dependent weights** (for example, heavier RRFS/HRRR for same-day mornings) if the per-lead table supports it. Weights are currently fixed per model, so that would need a small config change.
 - [ ] Sports: judge CLV per sport at about 100 trades with a closing line; drop any sport with CLV ≤ 0.
