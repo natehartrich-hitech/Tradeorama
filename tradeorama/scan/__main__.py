@@ -110,7 +110,7 @@ def sample_series(kalshi: Kalshi, store: Store, s, args, out) -> None:
             for m, ref, kind in markets[: args.markets_per_event]])
     store.set_series_status(s["ticker"], "sampled", len(listed), in_period)
     out(f"  {s['category']:22} {s['ticker']:28} {len(listed):6,} events listed, {len(sampled):4} sampled, "
-        f"{in_period:4} in the period")
+        f"{in_period:4} in the period  [{kalshi.requests:,} requests, {kalshi.limited:,} rate-limited]")
 
 
 def cmd_fetch(args, kalshi: Kalshi | None = None, out=print) -> None:
@@ -144,7 +144,8 @@ def cmd_fetch(args, kalshi: Kalshi | None = None, out=print) -> None:
         store.save_candles(m["id"], rows)
         if i % 200 == 0 or i == len(markets):
             store.commit()
-            out(f"  {i:,} of {len(markets):,} markets ({time.time() - start:,.0f} s, {kalshi.requests:,} requests)")
+            out(f"  {i:,} of {len(markets):,} markets ({time.time() - start:,.0f} s, {kalshi.requests:,} requests, "
+                f"{kalshi.limited:,} rate-limited)")
     store.commit()
     c = store.counts()
     out(f"Done: {c['events']:,} events, {c['markets_with_candles']:,} markets with candles, {c['candles']:,} candles, "
@@ -268,8 +269,8 @@ def main(argv=None) -> None:
     f.add_argument("--sports", type=int, default=30, help="sports series, by volume (default 30)")
     f.add_argument("--per-month", type=float, default=3, help="events sampled per series per month (default 3)")
     f.add_argument("--markets-per-event", type=int, default=3, help="markets sampled per event (default 3)")
-    f.add_argument("--interval", type=float, default=0.3,
-                   help="seconds between Kalshi requests at most; it slows down by itself when rate limited (default 0.3)")
+    f.add_argument("--interval", type=float, default=0.2,
+                   help="shortest gap between Kalshi requests; it slows down by itself when rate limited (default 0.2)")
     f.add_argument("--db", default=DEFAULT_DB)
     f.set_defaults(fn=cmd_fetch)
     r = sub.add_parser("report", help="apply the pre-set hypotheses and kill rules")

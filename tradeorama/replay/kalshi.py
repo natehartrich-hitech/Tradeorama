@@ -70,6 +70,7 @@ class Kalshi:
         self.sleep, self.clock = sleep, clock
         self._last = -math.inf
         self.requests = 0
+        self.limited = 0  # 429 answers
 
     def _get(self, path: str, params: dict | None = None) -> dict:
         for attempt in range(6):
@@ -86,14 +87,15 @@ class Kalshi:
                 raise RuntimeError(f"can't reach Kalshi ({type(exc).__name__})") from None
             self.requests += 1
             if r.status_code == 429:
-                self.min_interval = min(max(self.min_interval * 1.5, 0.05), 2.0)
+                self.limited += 1
+                self.min_interval = min(max(self.min_interval * 1.3, 0.05), 2.0)
                 wait = r.headers.get("retry-after")
                 self.sleep(float(wait) if wait and wait.replace(".", "", 1).isdigit() else 1 + attempt)
                 continue
             if r.status_code >= 500:
                 self.sleep(min(2 ** attempt, 30))
                 continue
-            self.min_interval = max(self.floor, self.min_interval * 0.98)
+            self.min_interval = max(self.floor, self.min_interval * 0.9)
             if r.status_code != 200:
                 raise RuntimeError(f"Kalshi {path} returned {r.status_code}: {r.text[:200]}")
             return r.json()
