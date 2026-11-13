@@ -23,7 +23,7 @@ Shared memory for this project: who it's for, what was decided and why, what was
 | Weather model and paper trader: daily highs and lows | `weather/` (package `wxbrackets`, own venv and `config.yaml`) | Highs paper trading since Nov 5, 2026; lows added Nov 5 |
 | Web app: browse markets, manual orders, bot panel | `tradeorama/app.py`, `tradeorama/static/` | Market browsing and orders still use the **international** site |
 | Replay: Kalshi's past sports trades against Pinnacle | `tradeorama/replay/` (`python -m tradeorama.replay`) | Built Nov 12, 2026. NBA Feb 2026 run: **fails**; idea dropped (see next-project section) |
-| Structural scan: Kalshi's favorite-longshot bias after fees | `tradeorama/scan/` (`python -m tradeorama.scan`) | Rules fixed Nov 12, 2026; first run pending |
+| Structural scan: Kalshi's favorite-longshot bias after fees | `tradeorama/scan/` (`python -m tradeorama.scan`) | Rules fixed Nov 12, 2026; first run pending on the owner's PC |
 
 Both bots run at once, in separate terminal windows.
 
@@ -219,7 +219,7 @@ Since Nov 12, 2026, a personal cloud environment named "tradeorama" also allows 
 ## Open items
 
 - [x] Replay of Kalshi NBA trades against Pinnacle, Feb 2026: failed the kill rules (Nov 12). Idea dropped.
-- [ ] Structural scan (item 2): rules fixed (section above); run `fetch` and `report` and apply them as written.
+- [ ] Structural scan (item 2): rules fixed (section above). **Run on the owner's PC** (`python -m tradeorama.scan fetch`, then `report`), because from the cloud Kalshi's rate limit allowed only about 1 request a second, roughly 9 hours for the sample. Apply the rules as written.
 
 - [ ] After about 3–4 weeks of weather data: tune `bias_f`, `spread_inflation` and model weights from `calibration`, run per city. Consider **lead-dependent weights** (for example, heavier RRFS/HRRR for same-day mornings) if the per-lead table supports it. Weights are currently fixed per model, so that would need a small config change.
 - [ ] Sports: judge CLV per sport at about 100 trades with a closing line; drop any sport with CLV ≤ 0.
