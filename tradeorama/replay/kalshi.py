@@ -64,8 +64,9 @@ class Kalshi:
                  sleep=time.sleep, clock=time.monotonic):
         self.http = client or httpx.Client(timeout=30)
         self.hosts = list(hosts)
-        # Unauthenticated reads are limited by a token bucket. From the cloud in Nov 2026 that sustained only
-        # about 2–4 requests a second, so the pace adapts: slower after each 429, slowly faster after successes.
+        # Unauthenticated reads are rate limited, and from the cloud the limit seemed shared with other traffic:
+        # in Nov 2026 even 1 request a second saw some 429s, while a steady ~3 a second got ~2 through. So the
+        # pace eases off a little after a 429 (to at most 0.6 s apart), retries soon, and recovers quickly.
         self.floor = self.min_interval = min_interval
         self.sleep, self.clock = sleep, clock
         self._last = -math.inf
@@ -73,7 +74,7 @@ class Kalshi:
         self.limited = 0  # 429 answers
 
     def _get(self, path: str, params: dict | None = None) -> dict:
-        for attempt in range(6):
+        for attempt in range(10):
             wait = self.min_interval - (self.clock() - self._last)
             if wait > 0:
                 self.sleep(wait)
@@ -88,14 +89,14 @@ class Kalshi:
             self.requests += 1
             if r.status_code == 429:
                 self.limited += 1
-                self.min_interval = min(max(self.min_interval * 1.3, 0.05), 2.0)
+                self.min_interval = min(max(self.min_interval * 1.15, 0.05), max(0.6, self.floor))
                 wait = r.headers.get("retry-after")
-                self.sleep(float(wait) if wait and wait.replace(".", "", 1).isdigit() else 1 + attempt)
+                self.sleep(float(wait) if wait and wait.replace(".", "", 1).isdigit() else 0.5 * (attempt + 1))
                 continue
             if r.status_code >= 500:
                 self.sleep(min(2 ** attempt, 30))
                 continue
-            self.min_interval = max(self.floor, self.min_interval * 0.9)
+            self.min_interval = max(self.floor, self.min_interval * 0.95)
             if r.status_code != 200:
                 raise RuntimeError(f"Kalshi {path} returned {r.status_code}: {r.text[:200]}")
             return r.json()

@@ -94,7 +94,7 @@ def test_kalshi_waits_out_rate_limits():
 
     k = Kalshi(httpx.Client(transport=httpx.MockTransport(handler)), min_interval=0, sleep=slept.append)
     assert k.cutoff() == {"market_settled_ts": utc("2026-09-13T00:00:00Z")}
-    assert [s for s in slept if s >= 1] == [1, 2]  # waits after each 429, besides the pacing between requests
+    assert [s for s in slept if s >= 0.5] == [0.5, 1.0]  # waits after each 429, besides the pacing between requests
     assert k.min_interval > 0  # and it now paces itself more slowly
 
 

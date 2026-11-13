@@ -269,8 +269,8 @@ def main(argv=None) -> None:
     f.add_argument("--sports", type=int, default=30, help="sports series, by volume (default 30)")
     f.add_argument("--per-month", type=float, default=3, help="events sampled per series per month (default 3)")
     f.add_argument("--markets-per-event", type=int, default=3, help="markets sampled per event (default 3)")
-    f.add_argument("--interval", type=float, default=0.2,
-                   help="shortest gap between Kalshi requests; it slows down by itself when rate limited (default 0.2)")
+    f.add_argument("--interval", type=float, default=0.3,
+                   help="shortest gap between Kalshi requests; it slows down by itself when rate limited (default 0.3)")
     f.add_argument("--db", default=DEFAULT_DB)
     f.set_defaults(fn=cmd_fetch)
     r = sub.add_parser("report", help="apply the pre-set hypotheses and kill rules")
