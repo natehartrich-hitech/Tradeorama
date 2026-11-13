@@ -78,8 +78,13 @@ def sample_series(kalshi: Kalshi, store: Store, s, args, out) -> None:
     pages = len(listed) * max(1, len(first)) / 1000
     by_event: dict[str, list[dict]] | None = None
     if pages < 0.8 * len(sampled):
-        by_event = {}
-        for m in kalshi.archived_series_markets(s["ticker"]):
+        # The archive also holds the series' earlier years, so give up on it once it's clearly longer than
+        # asking per event would be.
+        by_event, limit = {}, 1000 * 0.8 * len(sampled)
+        for n, m in enumerate(kalshi.archived_series_markets(s["ticker"]), 1):
+            if n > limit:
+                by_event = None
+                break
             by_event.setdefault(m["event_ticker"], []).append(m)
     checked, in_period = False, 0
     for i, e in enumerate(sampled):
@@ -269,8 +274,8 @@ def main(argv=None) -> None:
     f.add_argument("--sports", type=int, default=30, help="sports series, by volume (default 30)")
     f.add_argument("--per-month", type=float, default=3, help="events sampled per series per month (default 3)")
     f.add_argument("--markets-per-event", type=int, default=3, help="markets sampled per event (default 3)")
-    f.add_argument("--interval", type=float, default=0.3,
-                   help="shortest gap between Kalshi requests; it slows down by itself when rate limited (default 0.3)")
+    f.add_argument("--interval", type=float, default=0.1,
+                   help="shortest gap between Kalshi requests; it slows down by itself when rate limited (default 0.1)")
     f.add_argument("--db", default=DEFAULT_DB)
     f.set_defaults(fn=cmd_fetch)
     r = sub.add_parser("report", help="apply the pre-set hypotheses and kill rules")
