@@ -347,6 +347,50 @@ Kalshi data only; code in `tradeorama/scan/gas.py` (`python -m tradeorama.scan g
   - **The near-the-money spread at 4 PM ET is typically 5¢** (149 quotes), so a taker gives up about 2.5¢ plus the fee before any edge.
   - **Step 2 (the wholesale model): no go** on both counts.
 
+## Market-making test: rules fixed before the run (Nov 14, 2026)
+
+The idea: earn Kalshi's liquidity rewards plus the spread by resting two-sided quotes in thin, rewarded markets, and lose to adverse selection when better-informed traders fill them.
+
+**Paper only: no orders, no account, no API keys.** Code in `tradeorama/mm/`. The owner runs `python -m tradeorama.mm run` on the PC for 5 days, then `python -m tradeorama.mm report`.
+
+- **Why:** every Kalshi test so far found takers losing to the spread, wide spreads (5¢ near the money in gas) and often empty books. Kalshi also pays makers:
+  - On Nov 14 there were 1,000 active liquidity programs worth $99,750. The median was $100 per market over about 6 days.
+  - Programs ending Nov 9–14 paid out about $101k.
+- **Scoring, from Kalshi's help page "Liquidity Incentive Program":**
+  - Kalshi snapshots the book once a second, at a random moment.
+  - The reference price per side is the first level, walking down from the best bid, where cumulative size reaches ⅕ of the period's target size (100–20,000 contracts).
+  - Orders that help fill the target size count. At or above the reference price they get full credit; below it, the discount factor (0.5 for most programs) to the power of ticks below.
+  - Share per side = your score ÷ everyone's. YES and NO are scored separately; a snapshot counts only if both sides reach the target size.
+  - Reward = your average share × the pool × the fraction of snapshots that counted. $1 minimum per market's program. Rewards are taxable income.
+- **Markets:**
+  - Active liquidity programs; about 100 markets, at most 10 per series, chosen by ticker hash. Kept while their program runs, with gaps refilled hourly.
+  - **Excluded:** sports (Illinois), combos, and anything freight-adjacent: shipping chokepoints (Suez, Panama, Hormuz, Bab el-Mandeb, straits, canals) and ports, shipping, freight, trucking, rail, cargo or logistics markets.
+- **The paper quote (deciding size):**
+  - 100 contracts on each side at the best bid, so YES at the best YES bid and NO at the best NO bid. That's about $100 per market, about $10k in all.
+  - A side stops quoting once its position reaches 300 contracts, and empty sides aren't quoted.
+  - The same data is also scored at 25, 50 and 200 a side, for information only.
+- **Measurement:**
+  - All books are read every 60 s in one batch request (up to 100 markets), and each market's trade tape about every 6 minutes.
+  - **Rewards:** each snapshot recomputes the reference price, our share on each side (with our order included and joining at the best bid), and whether the snapshot counts, then converts to dollars from the pool and length of each program. A gap between snapshots longer than 5 minutes isn't credited.
+  - **Fills:** our order joins the back of the queue at the best bid. If the best bid moves, the quote moves and rejoins at the back. We're filled only after the size ahead of us has traded at our price, or when a trade goes through our price.
+  - Fill P&L is marked at the mid 1 h later and at the end (or at settlement). Maker fees apply where the series charges them.
+  - **Committed capital** is the time-weighted cost of resting orders plus inventory.
+- **Kill rules (at 100 contracts a side).** It's out if any fails:
+  - net (rewards + fill P&L − fees) at least **1% of committed capital per week**;
+  - net at least **$10 a day**;
+  - still positive **without the best 3 markets**;
+  - positive on **at least 3 of the 5 days**;
+  - at least **30 simulated fills**. Fewer means inconclusive and the test is extended, not passed.
+- **Known optimism:**
+  - one snapshot a minute against Kalshi's one a second;
+  - other makers don't react to us;
+  - a simple queue model;
+  - whole levels count at the target-size boundary, which makes others' scores bigger and is conservative for us;
+  - one 5-day window.
+
+  Live results would likely be about half of paper.
+- **A pass leads to the owner's decision on a small live test.** That needs a Kalshi account, API keys and an explicit go-ahead. Nothing places orders before then.
+
 ## Position sizing (both bots, Nov 5, 2026)
 
 Kelly is a **target position**: each check computes the total stake Kelly wants in an outcome, subtracts what's already held (open positions), and buys only the difference, if it's at least $1. Before this change, every check re-bought a full Kelly amount, so any edge that lasted a few checks grew to the per-game or per-city-day cap ($25). Positions are held to settlement; there's no selling when an edge disappears.
