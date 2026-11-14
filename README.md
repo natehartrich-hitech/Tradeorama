@@ -163,6 +163,29 @@ python -m tradeorama.scan leads --out leads_report.txt   # the two follow-ups to
   The rules are fixed in `tradeorama/scan/analysis.py` and explained in PROJECT_NOTES.md ("Structural scan"). Sports get a separate verdict.
 - Bets are timed from a reference fixed when each market was created: its close, when trading stops at a fixed time whatever happens, or else its scheduled expiration. Many markets close early once their result is known, so using the actual close would leak the outcome.
 
+## Market-making test: Kalshi's liquidity rewards (paper only)
+
+`python -m tradeorama.mm` measures, for 5 days, what a small two-sided quote in about 100 of Kalshi's rewarded markets would earn. It counts the liquidity rewards, minus what fills would lose to better-informed traders, minus fees. **It places no orders and needs no Kalshi account or key.** It reads Kalshi's public order books and trades. The rules, fixed before the run, are in PROJECT_NOTES.md ("Market-making test").
+
+```powershell
+python -m tradeorama.mm run                           # leave this window open; it stops by itself after 5 days
+python -m tradeorama.mm status                        # in another window: how far along it is
+python -m tradeorama.mm report --out mm_report.txt    # at the end (or for an interim look)
+```
+
+- **Stopping and resuming:** stop it any time with Ctrl+C or by creating a file named `mm.stop` in the folder. Run it again to resume. The 5 days count from the first start and are kept in `mm.db`, so a restart doesn't extend the test.
+- **What it reads:**
+  - every minute, all ~100 order books in one request;
+  - each market's trades, about every 6 minutes;
+  - every hour, the active reward programs, keeping about 100 markets followed (non-sports, no freight-adjacent markets, at most 10 per series).
+- **Cost:** about 0.3 requests a second. Roughly 100–150 MB of disk over 5 days.
+- **Keep the PC awake** (Settings → System → Power → Sleep: Never). Gaps longer than 5 minutes aren't credited, so downtime shows up as missing time, not made-up rewards.
+- **Missed-run alert:** set `MM_HEARTBEAT_URL` in `.env` to a new Healthchecks check (period 1 hour, grace 30 minutes). After a Windows Update restart you'll get an alert; then just run it again.
+- **The report:**
+  - shows rewards, fill P&L, fees, net per day and the return on committed capital, at 25, 50, 100 (deciding) and 200 contracts a side;
+  - shows adverse selection (what fills were worth an hour later), best and worst markets, and results by day;
+  - applies the kill rules.
+
 ## Weather brackets
 
 `weather/` is a separate project that prices daily high-temperature bracket markets from weather ensembles. See [weather/README.md](weather/README.md).

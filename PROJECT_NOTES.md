@@ -354,7 +354,9 @@ The idea: earn Kalshi's liquidity rewards plus the spread by resting two-sided q
 **Paper only: no orders, no account, no API keys.** Code in `tradeorama/mm/`. The owner runs `python -m tradeorama.mm run` on the PC for 5 days, then `python -m tradeorama.mm report`.
 
 - **Why:** every Kalshi test so far found takers losing to the spread, wide spreads (5¢ near the money in gas) and often empty books. Kalshi also pays makers:
-  - On Nov 14 there were 1,000 active liquidity programs worth $99,750. The median was $100 per market over about 6 days.
+  - Correction (later on Nov 14): that "1,000 programs, $99,750" was capped by the request's limit. Smaller limits silently cap the list, with no next page.
+  - With limit=10,000 there were **at least 10,000 active programs, about $700k in all, roughly $200k a day**. By category per day: Elections $47k, Financials $42k, Entertainment $40k, Politics $26k, Commodities $15k, Crypto $8k, Economics $8k, Sports $5k.
+  - The median program is about $100 per market over about 6 days.
   - Programs ending Nov 9–14 paid out about $101k.
 - **Scoring, from Kalshi's help page "Liquidity Incentive Program":**
   - Kalshi snapshots the book once a second, at a random moment.
@@ -438,6 +440,7 @@ Since Nov 12, 2026, a personal cloud environment named "tradeorama" also allows 
 - [x] Replay of Kalshi NBA trades against Pinnacle, Feb 2026: failed the kill rules (Nov 12). Idea dropped.
 - [x] Structural scan (item 2): run Nov 14, 2026 on the owner's PC; failed the kill rules. Idea dropped.
 - [x] Lead 1 on earlier data (Nov 14): failed (−0.72¢, luck 63%). Lead 2 on fresh data (Nov 14): failed narrowly (+2.79¢, luck 6.6%). Both dropped.
+- [ ] **Market-making test:** the owner runs `python -m tradeorama.mm run` on the PC for 5 days, then `report`. A cloud smoke test (Nov 14) checked the mechanics: 10,000 programs read, 100 markets from 51 series, all books in one request, 92% of snapshots counted. Its 7 minutes and zero fills say nothing about the verdict.
 - [x] Shortlist #3, gas, Step 1 (Nov 14): failed (Part A +0.04¢, luck 50%; market forecast error 0.26¢ against 0.60¢ for yesterday's value; 5¢ spreads). Gas dropped; Step 2 not built, so no EIA key needed.
 - [ ] Decide what's next after five clean no's on Kalshi edges (NBA vs Pinnacle, structural bias, both leads, gas). Options are in the chat of Nov 14; the owner chooses.
 
