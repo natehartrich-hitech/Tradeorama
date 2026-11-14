@@ -124,9 +124,13 @@ def fetch_lead2(kalshi: Kalshi, store: Store, out=print, per_category: int = 25)
     groups = batches(todo_m)
     out(f"Candles: {len(todo_m):,} markets in {len(groups):,} batch requests.")
     for i, g in enumerate(groups, 1):
-        d = kalshi._get("/markets/candlesticks", {
-            "market_tickers": ",".join(t for _, t, _ in g), "start_ts": int(g[0][2] - 7200),
-            "end_ts": int(g[-1][2] - 3600), "period_interval": 60})
+        try:
+            d = kalshi._get("/markets/candlesticks", {
+                "market_tickers": ",".join(t for _, t, _ in g), "start_ts": int(g[0][2] - 7200),
+                "end_ts": int(g[-1][2] - 3600), "period_interval": 60})
+        except RuntimeError as exc:  # rate limited for too long: a rerun picks these markets up again
+            out(f"  skipped a batch of {len(g)} markets for now ({exc}); rerun fresh-fetch to finish it")
+            continue
         found = {x.get("market_ticker"): x.get("candlesticks") or [] for x in d.get("markets") or []}
         for mid, ticker, _ in g:
             store.save_candles(mid, [candle_row(c) for c in found.get(ticker, [])])
@@ -160,17 +164,28 @@ def fetch_lead1(kalshi: Kalshi, store: Store, out=print, per_category: int = 25)
         store.set_series_status(s["ticker"], "sampled", None, len(by_event))
         out(f"  {s['ticker']:28} {len(by_event):5,} events, {n:6,} markets  [{kalshi.requests:,} requests, "
             f"{kalshi.limited:,} rate-limited]")
-    todo_m = store.markets_todo()
-    out(f"Candles: {len(todo_m):,} markets (archived: one request each).")
-    for i, m in enumerate(todo_m, 1):
-        start = max(m["ref_ts"] - (max(an.DECISION_HOURS) + 1) * 3600, m["open_ts"] or 0)
-        end = min(m["ref_ts"] + 3600, (m["close_ts"] or m["ref_ts"]) + 3600)
-        rows = [candle_row(c) for c in kalshi.candles(m["ticker"], m["series"], start, end, archived=True)] if end > start else []
-        store.save_candles(m["id"], rows)
-        if i % 200 == 0 or i == len(todo_m):
-            store.commit()
-            out(f"  {i:,} of {len(todo_m):,} markets [{kalshi.requests:,} requests, {kalshi.limited:,} rate-limited]")
-    store.commit()
+    for attempt in (1, 2):  # a second pass retries markets that kept failing during the first
+        todo_m = store.markets_todo()
+        if not todo_m:
+            break
+        out(f"Candles: {len(todo_m):,} markets (archived: one request each)" + (", retrying" if attempt == 2 else "") + ".")
+        failed = 0
+        for i, m in enumerate(todo_m, 1):
+            start = max(m["ref_ts"] - (max(an.DECISION_HOURS) + 1) * 3600, m["open_ts"] or 0)
+            end = min(m["ref_ts"] + 3600, (m["close_ts"] or m["ref_ts"]) + 3600)
+            try:
+                raw = kalshi.candles(m["ticker"], m["series"], start, end, archived=True) if end > start else []
+            except RuntimeError as exc:  # rate limited for too long: leave it for the next pass or a rerun
+                failed += 1
+                out(f"  skipped {m['ticker']} for now ({exc})")
+                continue
+            store.save_candles(m["id"], [candle_row(c) for c in raw])
+            if i % 200 == 0 or i == len(todo_m):
+                store.commit()
+                out(f"  {i:,} of {len(todo_m):,} markets [{kalshi.requests:,} requests, {kalshi.limited:,} rate-limited]")
+        store.commit()
+        if failed:
+            out(f"  {failed} markets still to fetch" + ("; rerun fresh-fetch to finish them" if attempt == 2 else ""))
 
 
 # ---------------------------------------------------------------- report

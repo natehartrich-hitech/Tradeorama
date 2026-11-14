@@ -286,6 +286,7 @@ def test_leads_command_runs_on_the_cache(tmp_path):
 # ---------------------------------------------------------------- fresh-data tests of the leads
 
 from tradeorama.scan import fresh  # noqa: E402
+from tradeorama.scan.store import Store  # noqa: E402
 
 
 def test_candle_rows_from_both_formats():
@@ -359,3 +360,31 @@ def test_lead1_and_lead2_rules():
     s = an.Summary(500, 200, 100, 0.02, 0.9, 0.93, 2.0, {}, 5000.0)
     assert [r.passed for r in fresh.rules(s, {"2023": 0.01, "2024": -0.01, "2025": 0.02}, 2)] == [True] * 4
     assert [r.passed for r in fresh.rules(s, {"a": 0.01, "b": -0.01}, 2)] == [True, True, False, True]
+
+
+def test_lead1_fetch_keeps_going_when_one_market_keeps_failing(tmp_path):
+    calls = {"bad": 0}
+
+    def handler(request):
+        path, q = request.url.path, request.url.params
+        if path.endswith("/series"):
+            return httpx.Response(200, json={"series": [{"ticker": "KXCPI", "category": "Economics",
+                                                         "fee_type": "quadratic", "fee_multiplier": 1, "volume_fp": "5000000"}]})
+        if path.endswith("/historical/markets"):
+            ms = [{"ticker": f"KXCPI-24JUN-T{i}", "event_ticker": "KXCPI-24JUN", "result": "no",
+                   "open_time": "2024-06-01T00:00:00Z", "close_time": "2024-06-12T12:00:00Z",
+                   "settlement_ts": "2024-06-12T13:00:00Z", "early_close_condition": ""} for i in range(3)]
+            return httpx.Response(200, json={"markets": ms, "cursor": ""})
+        if "/candlesticks" in path:
+            if path.split("/")[-2].endswith("T1") and calls["bad"] < 10:  # fails all 10 tries of the first pass
+                calls["bad"] += 1
+                return httpx.Response(429, json={})
+            return httpx.Response(200, json={"candlesticks": []})
+        raise AssertionError(path)
+
+    kalshi = Kalshi(httpx.Client(transport=httpx.MockTransport(handler)), min_interval=0, sleep=lambda s: None)
+    lines = []
+    fresh.fetch_lead1(kalshi, Store(str(tmp_path / "l1.db")), out=lines.append)
+    text = "\n".join(lines)
+    assert "skipped KXCPI-24JUN-T1 for now" in text and "retrying" in text
+    assert Store(str(tmp_path / "l1.db")).markets_todo() == []  # the retry pass got it
