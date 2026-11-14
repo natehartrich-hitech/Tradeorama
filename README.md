@@ -116,6 +116,34 @@ To stop a running bot, press Ctrl+C or create a file named `tradeorama.stop` in 
 
 `weather/` is a separate project that prices daily high-temperature bracket markets from weather ensembles. See [weather/README.md](weather/README.md).
 
+## Running the weather bot at boot
+
+The weather paper trader can run as a Windows scheduled task. It starts 2 minutes after every boot, with nobody signed in, so a Windows Update restart in the night costs minutes, not a day. (The sports bot isn't set up this way; run it in a terminal window as before.) From an **administrator** PowerShell in this folder:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\bots.ps1 install    # create the task and start it now
+powershell -ExecutionPolicy Bypass -File .\scripts\bots.ps1 status     # running? last log lines
+powershell -ExecutionPolicy Bypass -File .\scripts\bots.ps1 stop       # stop it (it starts again at the next boot)
+powershell -ExecutionPolicy Bypass -File .\scripts\bots.ps1 start
+powershell -ExecutionPolicy Bypass -File .\scripts\bots.ps1 uninstall  # remove the task
+```
+
+- The task is **Weather bot** under `\Tradeorama\` in Task Scheduler. It runs `scripts\run-weather-bot.cmd` (`python -m wxbrackets paper --every 60`).
+- There's no window. Output goes to `logs\weather-bot.log`, rotated when the bot starts if it's over 5 MB (one old copy is kept). To watch it live: `Get-Content .\logs\weather-bot.log -Tail 30 -Wait`.
+- If the bot exits or crashes, the launcher starts it again after 2 minutes.
+- `install` stops a weather bot already running in a terminal window first (it asks), since two copies would both trade.
+- The task runs as you without storing your password. If `install` reports a logon error, add `-StorePassword`.
+
+### Missed-run alerts
+
+A PC that's off can't warn you, so each bot pings an outside "dead man's switch" while it runs, and the service alerts you when the pings stop. With [Healthchecks.io](https://healthchecks.io) (free for up to 20 checks):
+
+1. Create one check per bot. Set **period 1 hour, grace 30 minutes**, and add an email, Telegram, ntfy or other notification.
+2. Paste the sports check's ping URL into `.env` as `STRATEGY_HEARTBEAT_URL=...`, and the weather check's into `weather/config.yaml` as `heartbeat_url: "..."`.
+3. Restart the bots: the weather bot with `bots.ps1 stop`, then `bots.ps1 start`; the sports bot with Ctrl+C in its window, then run it again.
+
+Each bot pings after every pass and every 10 minutes while it waits, and reports a crash at once (`/fail`). With no URL set, nothing is sent. Stopping a bot on purpose also stops the pings, so pause its check first.
+
 ## API
 
 | Method | Path | Description |
@@ -150,8 +178,10 @@ pytest
 ## Layout
 
 ```
+scripts/       bots.ps1 (run the weather bot as a scheduled task at boot) and its launcher
 tradeorama/
   config.py    settings loaded from env / .env
+  heartbeat.py missed-run alert pings (Healthchecks.io-style)
   markets.py   market discovery and positions (Gamma + Data APIs)
   trader.py    CLOB client wrapper: validation, dry run, order placement and cancels
   app.py       FastAPI routes; serves the UI

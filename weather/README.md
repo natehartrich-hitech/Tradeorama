@@ -39,6 +39,8 @@ python -m wxbrackets paper --every 30           # paper trade every 30 minutes (
 python -m wxbrackets paper-report
 ```
 
+To run `paper` at every boot without a terminal window, and to get an alert when it stops, see "Running the weather bot at boot" in the [main README](../README.md). The alert uses `heartbeat_url` in `config.yaml`.
+
 ### Daily lows
 
 Everything works for the day's **low** as well, with `--kind low` on `forecast`, `calibration` and `paper-report`. `paper` trades both by default (`paper.kinds`).

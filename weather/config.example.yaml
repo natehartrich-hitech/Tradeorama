@@ -107,6 +107,12 @@ default_brackets: [45, 47, 49, 51, 53, 55]
 
 database: wxbrackets.db
 
+# Missed-run alert (optional). `paper` pings this URL after every pass and every 10 minutes
+# while it waits; if the pings stop (PC off, bot crashed or hung), the service alerts you.
+# Create a check at https://healthchecks.io (period 1 hour, grace 30 minutes) and paste its
+# ping URL here. Empty = no pings. Dry runs never ping.
+heartbeat_url: ""
+
 # Stations. VERIFY which station each market settles on before trusting any number:
 # read the contract rules on the exchange. cli_location is the 3-letter code in the
 # CLI product ID (e.g. CLIMDW -> MDW); cli_office is the issuing NWS office.

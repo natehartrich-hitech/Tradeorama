@@ -4,7 +4,6 @@ import argparse
 import json
 import logging
 import sys
-import time
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -19,6 +18,7 @@ from .climate_day import climate_date, climate_day_window
 from .config import Config, ConfigError, Station, load_config
 from .db import DB
 from .forecast import Forecast, build_forecast, run_record
+from .heartbeat import Heartbeat
 from .http import Http
 from .iem import IEM
 from .nws import NWS
@@ -188,6 +188,17 @@ def cmd_forecast(cfg: Config, args) -> None:
 
 
 def cmd_paper(cfg: Config, args) -> None:
+    # Pings a dead man's switch (config `heartbeat_url`) so a bot that stops, crashes or hangs
+    # raises an alert. Dry runs don't ping: they'd hide a stopped bot.
+    hb = Heartbeat(None if args.dry else cfg.heartbeat_url)
+    try:
+        paper_loop(cfg, args, hb)
+    except Exception as exc:
+        hb.fail(f"wxbrackets paper stopped: {exc!r}")
+        raise
+
+
+def paper_loop(cfg: Config, args, hb: Heartbeat) -> None:
     kinds = [args.kind] if args.kind else list(cfg.paper.kinds)
     linked = lambda s: any(s.prefix(k) for k in kinds)  # noqa: E731
     stations = [cfg.station(args.station)] if args.station else [s for s in cfg.stations.values() if linked(s)]
@@ -197,6 +208,8 @@ def cmd_paper(cfg: Config, args) -> None:
     pmus = PolymarketUS(http, cfg.pmus_gateway)
     grib = None  # shared across loops, so each city's grid point is located only once
     while True:
+        if args.every:  # timestamps make a long-running log readable
+            print(f"--- check at {datetime.now().astimezone():%Y-%m-%d %H:%M %Z} ---")
         # One NOAA download per file serves every city: read all of their points from it.
         rrfs = RRFS(http, cache=db, base_url=cfg.rrfs_base_url, grib=grib, points=[(s.lat, s.lon) for s in stations])
         settled = paper.settle(db, pmus)
@@ -235,10 +248,11 @@ def cmd_paper(cfg: Config, args) -> None:
                           f"for ${o.fill.cost:.2f} (model {100 * o.prob:.0f}%, ask {cents(o.ask)}, "
                           f"edge {100 * o.fill.edge_per_contract:+.1f}¢)")
         grib = rrfs._grib
+        hb.beat(force=True)  # a full pass finished
         if not args.every:
             return
         print(f"Next check in {args.every:g} min (Ctrl+C to stop).")
-        time.sleep(args.every * 60)
+        hb.sleep(args.every * 60)
 
 
 def cmd_paper_report(cfg: Config, args) -> None:

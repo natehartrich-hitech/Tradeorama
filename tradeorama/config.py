@@ -113,6 +113,7 @@ class StrategySettings:
     poll_mid_sec: float = 900
     poll_far_sec: float = 3600
     poll_idle_sec: float = 6 * 3600
+    heartbeat_url: str | None = None  # dead man's switch pinged by `run` (e.g. a Healthchecks.io check URL)
 
 
 def load_strategy_settings() -> StrategySettings:
@@ -137,4 +138,5 @@ def load_strategy_settings() -> StrategySettings:
         poll_mid_sec=float(env("POLL_MID_SEC") or 900),
         poll_far_sec=float(env("POLL_FAR_SEC") or 3600),
         poll_idle_sec=float(env("POLL_IDLE_SEC") or 6 * 3600),
+        heartbeat_url=_clean(env("STRATEGY_HEARTBEAT_URL")),
     )

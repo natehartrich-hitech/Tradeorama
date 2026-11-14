@@ -18,7 +18,7 @@ Shared memory for this project: who it's for, what was decided and why, what was
 | Weather model and paper trader: daily highs and lows | `weather/` (package `wxbrackets`, own venv and `config.yaml`) | Highs paper trading since Nov 5, 2026; lows added Nov 5 |
 | Web app: browse markets, manual orders, bot panel | `tradeorama/app.py`, `tradeorama/static/` | Market browsing and orders still use the **international** site |
 
-Both bots run at once, in separate terminal windows.
+Both bots run at once. The weather bot runs as a Windows scheduled task that starts at boot with nobody signed in (`scripts\bots.ps1`; see "Running unattended" below). The sports bot runs in a terminal window: the owner chose not to start it at boot (Nov 11, 2026).
 
 ## Sports bot: key decisions
 
@@ -94,6 +94,13 @@ Both bots run at once, in separate terminal windows.
 - SFO grid points: GEFS 0.5°'s nearest land point is 37.5N 122.0W (near Fremont), often 15–20°F hotter than the airport. HRRR's land point there runs about 9°F cold. RRFS/REFS track the actual highs. Consider dropping GEFS at SFO if its remaining miss stays large.
 - The backtest's cache check only looked at the first station, so a later run adding cities skipped their values. Fixed: a message counts as cached only when every station has it.
 - **Open:** live forecasts don't apply per-model bias corrections, only pooled ones (shared or per city). If the backtest shows large opposite per-model biases, add per-model, per-city corrections to the live config.
+
+## Running unattended (added Nov 11, 2026)
+
+- **Why:** on Nov 10, 2026 at 9:14 PM, Windows Update restarted the PC three times (MoUsoCoreWorker, then TrustedInstaller twice). It was back up by 9:22 PM, but the bots lived in terminal windows, so nothing ran for about 20 hours. That lost Nov 11's morning same-day trading window and its shadow-mode prices; the database was intact.
+- **Boot-time task (weather bot only):** `scripts\bots.ps1 install` (admin PowerShell) creates "Weather bot" under `\Tradeorama\` in Task Scheduler. It starts 2 minutes after boot, runs as the owner without a stored password (S4U), with no time limit (the default 3-day limit would kill it). The `.cmd` launcher sets `PYTHONUTF8=1` (bracket labels contain "≤", which cp1252 can't encode once output goes to a file), appends to `logs\weather-bot.log` (rotated at start-up once over 5 MB), and starts the bot again 2 minutes after it exits. The owner decided the **sports bot should not start at boot**; it still runs by hand in a terminal.
+- **Missed-run alerts:** both bots ping a dead man's switch (Healthchecks.io: period 1 hour, grace 30 minutes) after each pass and every 10 minutes while waiting, and post `/fail` on a crash. A check on the PC itself couldn't alert when the PC is off, which is the case that mattered. URLs: `STRATEGY_HEARTBEAT_URL` in `.env`, `heartbeat_url` in `weather/config.yaml`. Unset means no pings; `paper --dry` never pings. A heartbeat error never stops a bot.
+- **The weather database moved to `F:\wxdata\wxbrackets.db`** (Nov 11, `database:` in `weather/config.yaml`). The F: drive must be present at boot for the weather task.
 
 ## Position sizing (both bots, Nov 5, 2026)
 
