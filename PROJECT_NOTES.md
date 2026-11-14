@@ -335,6 +335,18 @@ Kalshi data only; code in `tradeorama/scan/gas.py` (`python -m tradeorama.scan g
   - Part B says go and the spread check passes: Step 2, which needs the owner's free EIA key.
   - Neither: the gas idea is dropped.
 
+- **Gas Step 1 result (cloud, Nov 14, 2026): fails; the gas idea is dropped.**
+  - Data: 1,368 markets from 228 events (national 134 days; 8 states 94 days in total, most only since late summer).
+  - **Part A, late-evening favorites:** 102 bets on 77 events over 64 days. They won 82.7% at an average ask of 81.6¢: **+0.04¢ per contract**. Luck 50%.
+    - By part: Apr–May −7.6¢, Jun–Jul −8.4¢, Aug–Sep 12 +8.2¢.
+    - National alone: 84 bets, −3.1¢. The Sep–Nov "+9.7¢ on 54 national bets" from Lead 2 didn't repeat.
+  - **Part B, national series:** the market's own forecast (the 50¢ crossing) has a median error of **0.37¢ at 10 AM, 0.26¢ at 4 PM and 0.24¢ at 10 PM ET.**
+    - "Yesterday's value" misses by 0.60¢. The naive trend does worse still, at 0.80–0.84¢: daily AAA changes don't simply continue.
+    - So the market already knows the next morning's AAA to about a quarter cent. That's more than twice as good as yesterday's value and about 3× better than trend, which suggests it uses real-time station prices.
+    - A model fed by wholesale prices, published with a lag, has little room.
+  - **The near-the-money spread at 4 PM ET is typically 5¢** (149 quotes), so a taker gives up about 2.5¢ plus the fee before any edge.
+  - **Step 2 (the wholesale model): no go** on both counts.
+
 ## Position sizing (both bots, Nov 5, 2026)
 
 Kelly is a **target position**: each check computes the total stake Kelly wants in an outcome, subtracts what's already held (open positions), and buys only the difference, if it's at least $1. Before this change, every check re-bought a full Kelly amount, so any edge that lasted a few checks grew to the per-game or per-city-day cap ($25). Positions are held to settlement; there's no selling when an edge disappears.
@@ -382,7 +394,8 @@ Since Nov 12, 2026, a personal cloud environment named "tradeorama" also allows 
 - [x] Replay of Kalshi NBA trades against Pinnacle, Feb 2026: failed the kill rules (Nov 12). Idea dropped.
 - [x] Structural scan (item 2): run Nov 14, 2026 on the owner's PC; failed the kill rules. Idea dropped.
 - [x] Lead 1 on earlier data (Nov 14): failed (−0.72¢, luck 63%). Lead 2 on fresh data (Nov 14): failed narrowly (+2.79¢, luck 6.6%). Both dropped.
-- [ ] Next: shortlist #3, gas (draft above). Fix its rules, including the late-evening gas-favorite test on unseen Apr–Sep 2026 days, before fetching. Needs the owner's free EIA key from Step 2.
+- [x] Shortlist #3, gas, Step 1 (Nov 14): failed (Part A +0.04¢, luck 50%; market forecast error 0.26¢ against 0.60¢ for yesterday's value; 5¢ spreads). Gas dropped; Step 2 not built, so no EIA key needed.
+- [ ] Decide what's next after five clean no's on Kalshi edges (NBA vs Pinnacle, structural bias, both leads, gas). Options are in the chat of Nov 14; the owner chooses.
 
 - [ ] After about 3–4 weeks of weather data: tune `bias_f`, `spread_inflation` and model weights from `calibration`, run per city. Consider **lead-dependent weights** (for example, heavier RRFS/HRRR for same-day mornings) if the per-lead table supports it. Weights are currently fixed per model, so that would need a small config change.
 - [ ] Sports: judge CLV per sport at about 100 trades with a closing line; drop any sport with CLV ≤ 0.
