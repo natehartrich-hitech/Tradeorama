@@ -8,3 +8,5 @@ tradeorama.stop
 logs/
 replay.db
 scan.db
+lead1.db
+lead2.db

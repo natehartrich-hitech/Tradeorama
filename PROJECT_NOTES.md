@@ -225,6 +225,26 @@ Shortlist item 2: `tradeorama/scan` (`python -m tradeorama.scan fetch`, then `re
     - Kalshi's batch candle request (100 markets per request) works for markets settled after the Sept 13, 2026 archive cutoff, which makes that test cheap.
     - The archive (before Oct 2025) is also untouched data, usable for Lead 1.
 
+- **Fresh-data tests of the two leads (rules fixed Nov 14, 2026, before fetching; code in `tradeorama/scan/fresh.py`, run in the cloud with `python -m tradeorama.scan fresh-fetch --lead N`, then `fresh-report --lead N`):**
+  - **Lead 2, the last hour, on Sep 14–Nov 12, 2026** (after the archive cutoff, so none of it was in the scan):
+    - Every non-sports market from the scan's series (top 25 per category, ≥ 1M contracts), except hourly and 15-minute series, whose markets open at most about an hour before their time. Capped at 5,000 markets per series, chosen by ticker hash.
+    - Same reference-time rule as the scan. The market must have opened more than an hour before its time.
+    - **Bet:** 1 hour before, buy the side whose midpoint is 65–90¢, at its ask, spread ≤ 3¢, $100.
+    - **Out if any fails:**
+      - at least +1¢ per contract after fees;
+      - luck under 5%;
+      - positive in **both** halves (Sep 14–Oct 13, Oct 14–Nov 12);
+      - at least $2,000 a week at qualifying prices.
+  - **Lead 1, economic releases, on Jan 1, 2023–Sep 30, 2025** (before the scan's period):
+    - Every market of the scan's top 25 Economics series in that period, capped at 8 markets per event by hash.
+    - **Bet:** taker at an 85–97¢ ask, spread ≤ 3¢, at 24, 6 and 1 h, pooled.
+    - **Out if any fails:**
+      - at least +1¢;
+      - luck under 5%;
+      - positive in **at least 2 of 3** years (2023, 2024, Jan–Sep 2025);
+      - at least $2,000 a week.
+  - **A pass leads to forward paper trading against the live order book, not to money.**
+
 ## Position sizing (both bots, Nov 5, 2026)
 
 Kelly is a **target position**: each check computes the total stake Kelly wants in an outcome, subtracts what's already held (open positions), and buys only the difference, if it's at least $1. Before this change, every check re-bought a full Kelly amount, so any edge that lasted a few checks grew to the per-game or per-city-day cap ($25). Positions are held to settlement; there's no selling when an edge disappears.

@@ -321,6 +321,22 @@ def cmd_leads(args, out=print) -> None:
             "on tight quotes): treated as the empty-book effect and dropped.")
 
 
+def cmd_fresh_fetch(args, kalshi: Kalshi | None = None, out=print) -> None:
+    from . import fresh
+    kalshi = kalshi or Kalshi(min_interval=args.interval)
+    store = Store(args.db or f"lead{args.lead}.db")
+    (fresh.fetch_lead2 if args.lead == 2 else fresh.fetch_lead1)(kalshi, store, out)
+    c = store.counts()
+    out(f"Done: {c['markets_with_candles']:,} markets with candles, {c['candles']:,} candles, "
+        f"{kalshi.requests:,} requests ({kalshi.limited:,} rate-limited).")
+
+
+def cmd_fresh_report(args, out=print) -> None:
+    from . import fresh
+    store = Store(args.db or f"lead{args.lead}.db")
+    (fresh.report_lead2 if args.lead == 2 else fresh.report_lead1)(store, out)
+
+
 def main(argv=None) -> None:
     # Redirected output on Windows is Windows-1252, which has no − or ≥: print a ? rather than crash.
     if hasattr(sys.stdout, "reconfigure"):
@@ -346,6 +362,16 @@ def main(argv=None) -> None:
     le.add_argument("--db", default=DEFAULT_DB)
     le.add_argument("--out", help="also save the report to this file, as UTF-8")
     le.set_defaults(fn=cmd_leads)
+    ff = sub.add_parser("fresh-fetch", help="download data for a lead's fresh-data test (lead 2: Sep-Nov 2026; lead 1: 2023-25)")
+    ff.add_argument("--lead", type=int, choices=[1, 2], required=True)
+    ff.add_argument("--db", help="cache file (default lead1.db or lead2.db)")
+    ff.add_argument("--interval", type=float, default=0.1, help="shortest gap between Kalshi requests (default 0.1)")
+    ff.set_defaults(fn=cmd_fresh_fetch)
+    fr = sub.add_parser("fresh-report", help="score a lead's fresh-data test against its kill rules")
+    fr.add_argument("--lead", type=int, choices=[1, 2], required=True)
+    fr.add_argument("--db", help="cache file (default lead1.db or lead2.db)")
+    fr.add_argument("--out", help="also save the report to this file, as UTF-8")
+    fr.set_defaults(fn=cmd_fresh_report)
     args = p.parse_args(argv)
     try:
         if getattr(args, "out", None):

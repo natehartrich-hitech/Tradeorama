@@ -281,3 +281,81 @@ def test_leads_command_runs_on_the_cache(tmp_path):
     text = target.read_text(encoding="utf-8")
     assert "Lead 1: Economics" in text and "Lead 1: fails a kill rule" in text  # the mock has no Economics markets
     assert "1 h before, spread ≤ 3¢ (the deciding row)" in text and "Lead 2: doesn't survive" in text
+
+
+# ---------------------------------------------------------------- fresh-data tests of the leads
+
+from tradeorama.scan import fresh  # noqa: E402
+
+
+def test_candle_rows_from_both_formats():
+    archive = {"end_period_ts": 100, "yes_bid": {"close": "0.90"}, "yes_ask": {"close": "0.92"},
+               "price": {"low": "0.89", "high": "0.93"}, "volume": "12.00"}
+    live = {"end_period_ts": 100, "yes_bid": {"close_dollars": "0.9000"}, "yes_ask": {"close_dollars": "0.9200"},
+            "price": {"low_dollars": "0.8900", "high_dollars": "0.9300"}, "volume_fp": "12.00"}
+    assert fresh.candle_row(archive) == fresh.candle_row(live) == (100, 0.90, 0.92, 0.89, 0.93, 12.0)
+    assert fresh.candle_row({"end_period_ts": 5})[1:] == (None, None, None, None, 0.0)
+
+
+def test_batches_respect_size_and_time_span():
+    ms = [(i, f"T{i}", 1000.0 + i * 3600) for i in range(250)]
+    bs = fresh.batches(ms, size=100, span_hours=48)
+    assert all(len(b) <= 100 for b in bs) and all(b[-1][2] - b[0][2] <= 48 * 3600 for b in bs)
+    assert sum(len(b) for b in bs) == 250
+
+
+def lead2_transport():
+    """Two weather events in Oct 2026, live tier: one favorite at 80¢ that wins, one empty book, one market that
+    opens too late to have a quote an hour before."""
+    def handler(request):
+        path, q = request.url.path, request.url.params
+        if path.endswith("/series"):
+            return httpx.Response(200, json={"series": [
+                {"ticker": "KXHIGHNY", "category": "Climate and Weather", "fee_type": "quadratic", "fee_multiplier": 1,
+                 "volume_fp": "5000000", "frequency": "daily"},
+                {"ticker": "KXBTCD", "category": "Crypto", "fee_type": "quadratic", "fee_multiplier": 1,
+                 "volume_fp": "9000000", "frequency": "hourly"}]})
+        if path.endswith("/markets") and q.get("series_ticker") == "KXHIGHNY":
+            ms = []
+            for d in ("2026-10-01", "2026-10-20"):
+                ev = f"KXHIGHNY-{d}"
+                for suffix, result, opened in (("A", "yes", f"{d}T00:00:00Z"), ("B", "no", f"{d}T00:00:00Z"),
+                                               ("C", "no", f"{d}T03:30:00Z")):
+                    ms.append({"ticker": f"{ev}-{suffix}", "event_ticker": ev, "result": result, "open_time": opened,
+                               "close_time": f"{d}T04:00:00Z", "settlement_ts": f"{d}T14:00:00Z",
+                               "early_close_condition": ""})
+            return httpx.Response(200, json={"markets": ms, "cursor": ""})
+        if path.endswith("/markets/candlesticks"):
+            out = []
+            for t in q["market_tickers"].split(","):
+                end = int(q["end_ts"]) // 3600 * 3600
+                bid, ask = ("0.7900", "0.8100") if t.endswith("-A") else ("0.1000", "0.9000")
+                out.append({"market_ticker": t, "candlesticks": [{
+                    "end_period_ts": end, "yes_bid": {"close_dollars": bid}, "yes_ask": {"close_dollars": ask},
+                    "price": {"low_dollars": bid, "high_dollars": ask}, "volume_fp": "500.00"}]})
+            return httpx.Response(200, json={"markets": out})
+        raise AssertionError(f"unexpected request {path} {dict(q)}")
+    return httpx.MockTransport(handler)
+
+
+def test_lead2_fetch_and_report(tmp_path):
+    db = str(tmp_path / "lead2.db")
+    kalshi = Kalshi(httpx.Client(transport=lead2_transport()), min_interval=0, sleep=lambda s: None)
+    lines = []
+    cmd_fresh = __import__("tradeorama.scan.__main__", fromlist=["cmd_fresh_fetch"])
+    cmd_fresh.cmd_fresh_fetch(Namespace(lead=2, db=db, interval=0), kalshi, out=lines.append)
+    text = "\n".join(lines)
+    assert "Lead 2: 1 non-sports series (hourly and 15-minute series left out)" in text
+    assert "4 markets" in text  # market C opens 30 minutes before its time: no quote an hour before
+    out = []
+    cmd_fresh.cmd_fresh_report(Namespace(lead=2, db=db), out=out.append)
+    report = "\n".join(out)
+    # Only the 80¢ favorites count (the 10¢/90¢ book is too wide): 2 bets, both won at 81¢ plus the fee.
+    assert "2 bets on 2 events over 2 days; won 100.0% at an average price of 81.0¢" in report
+    assert "Sep 14–Oct 13" in report and "Verdict: fails a kill rule" in report  # too few days for the luck check
+
+
+def test_lead1_and_lead2_rules():
+    s = an.Summary(500, 200, 100, 0.02, 0.9, 0.93, 2.0, {}, 5000.0)
+    assert [r.passed for r in fresh.rules(s, {"2023": 0.01, "2024": -0.01, "2025": 0.02}, 2)] == [True] * 4
+    assert [r.passed for r in fresh.rules(s, {"a": 0.01, "b": -0.01}, 2)] == [True, True, False, True]
