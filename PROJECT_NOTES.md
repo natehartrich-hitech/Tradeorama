@@ -253,6 +253,14 @@ Shortlist item 2: `tradeorama/scan` (`python -m tradeorama.scan fetch`, then `re
   - By group, for information only: Commodities 330 bets +2.3¢, Economics 94 bets +7.1¢, Financials 44 bets −7.3¢; the rest too small.
   - The direction and size matched the Oct–Apr check (+3.3¢), so this is a near miss rather than a clear no. Keeping it alive would take a new forward test with its rules written first. Pooling it with the earlier data, or relaxing the bar afterwards, wouldn't be a fair test.
 
+- **Lead 1 earlier-data result (cloud, Nov 14, 2026): fails clearly; dropped.**
+  - Data: 3,097 Economics markets from 543 events, Jan 2023–Sep 2025. 141 bets on 77 events over 60 days.
+  - They won 93.3% at an average ask of 93.7¢: **−0.72¢ per contract**. Luck 63%.
+  - By year: 2023 +4.75¢, 2024 −6.59¢, 2025 +0.04¢. Volume $13.8k a week.
+  - By series, for information only: jobs reports −23¢ on 14, TSA −3.6¢ on 32, unemployment +1.8¢ on 19, CPI YoY +5.6¢ on 12, weekly gas +6.3¢ on 11.
+  - **Conclusion:** the positive Economics readings in Oct 2025–Aug 2026 didn't hold up on the 33 months before. Economic-release favorites aren't systematically underpriced after fees and spread.
+  - The one small group that stayed positive was weekly gas, which feeds into shortlist #3's gas lead. At 11 bets it's not evidence on its own.
+
 ## Shortlist #3: gas prices (draft design, Nov 14, 2026; rules not fixed yet)
 
 - **Quick kills from market facts (Nov 14):**
@@ -346,7 +354,7 @@ Since Nov 12, 2026, a personal cloud environment named "tradeorama" also allows 
 
 - [x] Replay of Kalshi NBA trades against Pinnacle, Feb 2026: failed the kill rules (Nov 12). Idea dropped.
 - [x] Structural scan (item 2): run Nov 14, 2026 on the owner's PC; failed the kill rules. Idea dropped.
-- [ ] **In progress (Nov 14):** Lead 1's fresh-data test (2023–Sep 2025 economic releases) is downloading in the cloud; run `python -m tradeorama.scan fresh-report --lead 1`. If the cloud copy is lost, rerun `fresh-fetch --lead 1` (about an hour here; probably faster on the PC).
+- [x] Lead 1 on earlier data (Nov 14): failed (−0.72¢, luck 63%). Lead 2 on fresh data (Nov 14): failed narrowly (+2.79¢, luck 6.6%). Both dropped.
 - [ ] Next: shortlist #3, gas (draft above). Fix its rules, including the late-evening gas-favorite test on unseen Apr–Sep 2026 days, before fetching. Needs the owner's free EIA key from Step 2.
 
 - [ ] After about 3–4 weeks of weather data: tune `bias_f`, `spread_inflation` and model weights from `calibration`, run per city. Consider **lead-dependent weights** (for example, heavier RRFS/HRRR for same-day mornings) if the per-lead table supports it. Weights are currently fixed per model, so that would need a small config change.
