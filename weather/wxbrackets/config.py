@@ -92,6 +92,7 @@ class Config:
     pmus_gateway: str = "https://gateway.polymarket.us"
     paper: PaperSettings = PaperSettings()
     distribution_low: DistributionSettings | None = None
+    heartbeat_url: str | None = None  # dead man's switch pinged by `paper` (e.g. a Healthchecks.io check URL)
 
     def distribution_for(self, kind: str, station: Station | None = None) -> DistributionSettings:
         """Settings in layers: `distribution`, then `distribution_low` for lows, then the city's own
@@ -230,4 +231,5 @@ def parse_config(raw: dict, base_dir: Path = Path(".")) -> Config:
         pmus_gateway=(raw.get("polymarket_us") or {}).get("gateway") or "https://gateway.polymarket.us",
         paper=parse_paper(raw.get("paper") or {}),
         distribution_low=dist_low,
+        heartbeat_url=str(raw.get("heartbeat_url") or "").strip() or None,
     )

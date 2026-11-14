@@ -5,6 +5,7 @@ import logging
 import sys
 
 from ..config import load_settings, load_strategy_settings
+from ..heartbeat import Heartbeat
 from ..trader import Trader
 from .bot import STOP_FILE, Bot
 from .ledger import Ledger
@@ -32,6 +33,7 @@ def build(live: bool = False) -> Bot:
         Trader(settings),
         Ledger(strat.db_path),
         live=live,
+        heartbeat=Heartbeat(strat.heartbeat_url),
     )
 
 
@@ -60,6 +62,9 @@ def cmd_run(args) -> None:
         bot.run(args.interval, args.cycles, adaptive=not args.fixed)
     except KeyboardInterrupt:
         print("\nStopped.")
+    except Exception as exc:
+        bot.heartbeat.fail(f"tradeorama.strategy run stopped: {exc!r}")  # alert now, not when pings go stale
+        raise
 
 
 def fmt_cents(v) -> str:

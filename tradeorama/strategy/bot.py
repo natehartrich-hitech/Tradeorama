@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Callable
 
 from ..config import Settings, StrategySettings
+from ..heartbeat import Heartbeat
 from ..trader import Trader
 from .ev import edge, fee_per_share, kelly_fraction, plan_buy
 from .ledger import Ledger
@@ -47,6 +48,7 @@ class Bot:
         book: Callable[[str], dict] | None = None,
         fee_rate: Callable[[str], float] | None = None,
         clock: Callable[[], float] = time.time,
+        heartbeat: Heartbeat | None = None,
     ):
         if not hasattr(venue, "match"):  # a bare SportsMarkets: the international site
             venue = PolymarketIntl(venue, book or trader.order_book, fee_rate or (lambda token_id: strat.taker_fee_rate))
@@ -60,6 +62,7 @@ class Bot:
         self.odds, self.venue, self.trader, self.ledger = odds, venue, trader, ledger
         self.mode = "live" if live else "paper"
         self.clock = clock
+        self.heartbeat = heartbeat or Heartbeat(None)  # pinged by run(); no-op without a URL
         self.next_start: dict[str, float | None] = {}  # per sport: start time of the next game not yet started
         self.fetch_failed: dict[str, bool] = {}
 
@@ -234,7 +237,9 @@ class Bot:
             now = self.clock()
             ready = [sport for sport, t in due.items() if t <= now]
             if not ready:
-                # Sleep in short steps so the stop file is noticed promptly.
+                # Sleep in short steps so the stop file is noticed promptly. Waits can last hours
+                # when no games are listed, so keep the heartbeat going (throttled) meanwhile.
+                self.heartbeat.beat()
                 time.sleep(min(30.0, min(due.values()) - now))
                 continue
             decisions = self.cycle(sports=ready)
@@ -255,6 +260,7 @@ class Bot:
                 self.odds.credits_remaining,
                 ", ".join(plans),
             )
+            self.heartbeat.beat(force=True)  # a full pass finished
             n += 1
 
 
