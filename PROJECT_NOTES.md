@@ -245,6 +245,14 @@ Shortlist item 2: `tradeorama/scan` (`python -m tradeorama.scan fetch`, then `re
       - at least $2,000 a week.
   - **A pass leads to forward paper trading against the live order book, not to money.**
 
+- **Lead 2 fresh-data result (cloud, Nov 14, 2026): fails on luck, narrowly; dropped per the rules.**
+  - Data: 37,314 markets from 2,773 events. 518 bets on 300 events over 54 days.
+  - They won 84.0% at an average ask of 80.1¢: **+2.79¢ per contract** after fees.
+  - Both halves positive: +3.77¢ and +1.57¢. Volume $223k a week. Worst day −$384.
+  - **Luck 6.6% against the 5% bar.**
+  - By group, for information only: Commodities 330 bets +2.3¢, Economics 94 bets +7.1¢, Financials 44 bets −7.3¢; the rest too small.
+  - The direction and size matched the Oct–Apr check (+3.3¢), so this is a near miss rather than a clear no. Keeping it alive would take a new forward test with its rules written first. Pooling it with the earlier data, or relaxing the bar afterwards, wouldn't be a fair test.
+
 ## Position sizing (both bots, Nov 5, 2026)
 
 Kelly is a **target position**: each check computes the total stake Kelly wants in an outcome, subtracts what's already held (open positions), and buys only the difference, if it's at least $1. Before this change, every check re-bought a full Kelly amount, so any edge that lasted a few checks grew to the per-game or per-city-day cap ($25). Positions are held to settlement; there's no selling when an edge disappears.
