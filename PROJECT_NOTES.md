@@ -23,7 +23,7 @@ Shared memory for this project: who it's for, what was decided and why, what was
 | Weather model and paper trader: daily highs and lows | `weather/` (package `wxbrackets`, own venv and `config.yaml`) | Highs paper trading since Nov 5, 2026; lows added Nov 5 |
 | Web app: browse markets, manual orders, bot panel | `tradeorama/app.py`, `tradeorama/static/` | Market browsing and orders still use the **international** site |
 | Replay: Kalshi's past sports trades against Pinnacle | `tradeorama/replay/` (`python -m tradeorama.replay`) | Built Nov 12, 2026. NBA Feb 2026 run: **fails**; idea dropped (see next-project section) |
-| Structural scan: Kalshi's favorite-longshot bias after fees | `tradeorama/scan/` (`python -m tradeorama.scan`) | Rules fixed Nov 12, 2026; first run pending on the owner's PC |
+| Structural scan: Kalshi's favorite-longshot bias after fees | `tradeorama/scan/` (`python -m tradeorama.scan`) | Run Nov 14, 2026 on the owner's PC: **fails**; idea dropped (see the scan section) |
 
 Both bots run at once. The weather bot runs as a Windows scheduled task that starts at boot with nobody signed in (`scripts\bots.ps1`; see "Running unattended" below). The sports bot runs in a terminal window: the owner chose not to start it at boot (Nov 11, 2026).
 
@@ -183,6 +183,23 @@ Shortlist item 2: `tradeorama/scan` (`python -m tradeorama.scan fetch`, then `re
 - **The idea passes if any hypothesis passes.** With three tries, a narrow pass is weak evidence. A pass leads to live paper trading against the real order book, not to money.
 - **Known optimism:** maker fills ignore the queue beyond the join rule, and the hour's volume is market volume, not volume you would get. The tail risk of buying favorites (one loss wipes out 10–35 wins) shows up only if the holdout contains it. The report prints the worst day.
 
+- **Verdict (owner's PC, Nov 14, 2026): fails in both universes; the idea is dropped.**
+  - **Sample:** 10,861 markets with candles from 5,772 events. 22 series were skipped as too short-lived (15-minute series) and 26 had no settled events in the period.
+  - **Non-sports:**
+    - (a) taker, 6 h before, the best decision time on fit at −2.65¢. Holdout: 260 bets on 212 events over 85 days. They won 92.6% at an average price of 93.1¢, for −0.99¢ per contract. Luck 72.6%; 2 of 4 months positive; volume $130k a week (the only rule passed).
+    - (b) and (c): no group reached +1¢ with 200+ fit bets, so there was nothing to score.
+  - **Sports:** (a) taker, 1 h before: +0.18¢ on the holdout, luck 48%, 1 of 4 months positive. (b) and (c): nothing reached +1¢ on fit.
+  - **Design flaw found afterwards:** the bet rule had no spread check. Many quotes were empty books. For example, NBA totals showed a 12¢ bid and an 88¢ ask with nothing traded. The rule then bought any side whose ask was 85–97¢, sometimes *both* sides, at a sure loss. That explains the worst fit cells (NBA totals −31¢, NCAA spreads −40¢) and drags down every cell.
+  - **Why the verdict stands anyway:** the calibration tables use midpoints, so spreads don't affect them. In the 85–97¢ range they show no consistent edge. 90–95¢ contracts won 1.6–1.8¢ *less* often than priced on fit, and 2.6–3.2¢ more often on the holdout, from 16–63 markets per cell.
+  - **The documented favorite-longshot bias does show, but only in the tails:**
+    - non-sports contracts at 0–5¢ won about 1% at a 2.5–2.9¢ midpoint;
+    - 95–100¢ contracts won 97.6–100% at about 97.1¢.
+
+    Above 97¢ a contract can gain at most about 3¢ and one loss erases 30 or more wins, which is why the range was capped at 97¢.
+  - **Leads, not results:**
+    - **Economics:** the only group positive on fit (taker +3.8¢ to +6.0¢), but on only 51–60 bets per decision time, below the 200-bet minimum, so the rules didn't test it. Its series are mostly gas prices and the Fed, which is shortlist item 3.
+    - **1 hour before close:** non-sports contracts at 65–90¢ (midpoint) won about 7–10¢ more often than priced in both periods, and those at 10–35¢ correspondingly less often. That's about 150 markets per period, and it was found by reading the holdout tables. It's probably at least partly the same thin-book artifact: near the close, makers pull quotes, and the midpoint between a stale bid and ask understates the favorite, while the price you could actually pay is the ask. It could only be tested on fresh data (after Aug 2026) with a tight-spread rule.
+
 ## Position sizing (both bots, Nov 5, 2026)
 
 Kelly is a **target position**: each check computes the total stake Kelly wants in an outcome, subtracts what's already held (open positions), and buys only the difference, if it's at least $1. Before this change, every check re-bought a full Kelly amount, so any edge that lasted a few checks grew to the per-game or per-city-day cap ($25). Positions are held to settlement; there's no selling when an edge disappears.
@@ -201,6 +218,7 @@ Kelly is a **target position**: each check computes the total stake Kelly wants 
   - Byte-range downloads via the `.idx` files.
   - One download is decoded for every city's grid point.
 - **On Windows,** read files as UTF-8 explicitly. Otherwise cp1252 garbled "°" in `config.yaml`.
+- **A simulated taker buy needs a real, tight quote.** In thin Kalshi markets the hourly candle's bid and ask can be an empty book (12¢ / 88¢). Buying "at the ask" there tests nothing and can even buy both sides. Any future scan or backtest should require a narrow spread, e.g. 3–5¢, and preferably recent trades, before counting a bet. (Learned from the structural scan, Nov 14, 2026.)
 - **Redirecting Python output on Windows** (`> file`) uses cp1252, which can't encode − or ≥, so it can crash. Windows PowerShell also re-decodes the output, garbling ¢ and –. The replay and scan reports take `--out FILE` and write UTF-8 themselves; stdout falls back to `?` instead of crashing.
 - **The Odds API puts the key in the URL.** httpx's INFO logging printed it once, so the key was rotated and httpx logging is now set to WARNING.
 - **Kalshi public market data** (checked live Nov 12, 2026):
@@ -227,7 +245,8 @@ Since Nov 12, 2026, a personal cloud environment named "tradeorama" also allows 
 ## Open items
 
 - [x] Replay of Kalshi NBA trades against Pinnacle, Feb 2026: failed the kill rules (Nov 12). Idea dropped.
-- [ ] Structural scan (item 2): rules fixed (section above). **Run on the owner's PC** (`python -m tradeorama.scan fetch`, then `report`), because from the cloud Kalshi's rate limit allowed only about 1 request a second, roughly 9 hours for the sample. Apply the rules as written.
+- [x] Structural scan (item 2): run Nov 14, 2026 on the owner's PC; failed the kill rules. Idea dropped.
+- [ ] Next from the shortlist: item 3, Kalshi gas prices (EIA weekly / AAA) and TSA check-ins. Write the rules down before the first run, and include a tight-spread rule for simulated trades.
 
 - [ ] After about 3–4 weeks of weather data: tune `bias_f`, `spread_inflation` and model weights from `calibration`, run per city. Consider **lead-dependent weights** (for example, heavier RRFS/HRRR for same-day mornings) if the per-lead table supports it. Weights are currently fixed per model, so that would need a small config change.
 - [ ] Sports: judge CLV per sport at about 100 trades with a closing line; drop any sport with CLV ≤ 0.
