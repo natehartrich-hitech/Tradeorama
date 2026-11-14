@@ -253,6 +253,53 @@ Shortlist item 2: `tradeorama/scan` (`python -m tradeorama.scan fetch`, then `re
   - By group, for information only: Commodities 330 bets +2.3¢, Economics 94 bets +7.1¢, Financials 44 bets −7.3¢; the rest too small.
   - The direction and size matched the Oct–Apr check (+3.3¢), so this is a near miss rather than a clear no. Keeping it alive would take a new forward test with its rules written first. Pooling it with the earlier data, or relaxing the bar afterwards, wouldn't be a fair test.
 
+## Shortlist #3: gas prices (draft design, Nov 14, 2026; rules not fixed yet)
+
+- **Quick kills from market facts (Nov 14):**
+  - **TSA weekly check-ins** (`KXTSAW`) are too thin: the week ending May 31, 2026 traded about 7,400 contracts across 21 brackets, roughly $2–3k.
+  - **Diesel** (`KXDIESELD`, `KXDIESELW`) only started Aug 2026 and trades about 15k contracts a day.
+  - Both are dropped as stand-alone ideas.
+- **Gas markets.** All three settle on "AAA US average regular price on date X is strictly greater than $Y":
+
+  | Series | Since | Brackets | Contracts per event | Trading |
+  |---|---|---|---|---|
+  | Daily `KXAAAGASD` | Apr 2026 (≈30 a month; older daily series were up/down only) | ~17 | ~130k | 8 AM–11:59 PM ET the day before |
+  | Weekly `KXAAAGASW` | Aug 2024 | ~22 | ~1M | Mon–Sun night before the Monday value |
+  | Monthly `KXAAAGASM` | Apr 2024 | ~41 | ~4.5M | the month before |
+
+  - State daily series (FL, OH, IL, NJ, CA, NC, MI, TX, NY; 2–3.5M contracts each, all time) are left out at first.
+  - Fees are quadratic, with maker fees on the monthly.
+  - **AAA history comes free from Kalshi:** each settled market's `expiration_value` is the AAA value (May 31, 2026: $4.336). That gives daily values since Apr 2026, Mondays since Aug 2024 and month-ends since Apr 2024. Late-May 2026 prices were about $4.34–4.51.
+- **Why an edge might exist:** retail follows wholesale with a 1–2 week lag and rises faster than it falls ("rockets and feathers"). AAA's average is smooth. Casual traders may anchor on today's price.
+  - **Against:** 1M or more contracts a week means professionals who watch gasoline futures are likely there.
+- **Data:**
+  - Kalshi: markets, candles and settled values.
+  - EIA API v2, with a free key in `.env` as `EIA_API_KEY` (never pasted in chat): daily NY Harbor and Gulf Coast conventional regular spot, front-month RBOB futures, and weekly retail since 1990, to fit the pass-through on long history.
+  - Only wholesale values up to the previous day's close are used at each decision time.
+  - Runs on the owner's PC; eia.gov isn't reachable from the cloud.
+- **Step 1, Kalshi only, no model:**
+  - Spreads and volume near the money; bets need a spread of 3¢ or less.
+  - The market's implied forecast error.
+  - Gas-favorite calibration on every event.
+  - Kill if near-the-money spreads are typically over 3¢, or volume is under $2,000 a week.
+- **Step 2, the model:** AAA change from the latest AAA, its recent trend, and the wholesale-implied gap. Bracket probabilities from the model's own past errors.
+- **Draft decision times:**
+  - daily: 10 AM, 4 PM and 10 PM ET the day before;
+  - weekly: 5 days, 2 days and 12 h before close;
+  - monthly: 14, 5 and 1 day before close.
+- **Draft fit and holdout:** fit through Jun 30, 2026; holdout Jul 1–Nov 12, 2026.
+- **Draft kill rules:**
+  - the model+market blend's Brier isn't better than the market's (95% range, resampling days);
+  - paper trades (model − ask − fee ≥ 3¢, spread ≤ 3¢, $100) make under +1¢ per contract;
+  - luck 5% or more;
+  - fewer than 3 of Jul–Oct positive;
+  - under $2,000 a week.
+- **A new gas lead from Lead 2 (Nov 14),** to become a model-free test in Step 1:
+  - In Lead 2's fresh data, Economics was 94 bets at +7.1¢ (luck 1% on its own). 66 of those were gas: daily national 54 bets +9.7¢; weekly and Florida daily 12 bets about +16–17¢. Jobs reports were −5.7¢ on 12.
+  - It's post hoc (the best of several groups), so it's a hypothesis, not a result.
+  - Plausible mechanism: the daily market stops at 11:59 PM ET, so "1 hour before" is late evening, with thin liquidity and a mostly predictable next AAA value.
+  - **Test it on unseen gas data,** with the rules written first: the ~85% of Apr–Sep 13, 2026 daily gas events the scan never downloaded (it took about 3 a month), then a forward paper run.
+
 ## Position sizing (both bots, Nov 5, 2026)
 
 Kelly is a **target position**: each check computes the total stake Kelly wants in an outcome, subtracts what's already held (open positions), and buys only the difference, if it's at least $1. Before this change, every check re-bought a full Kelly amount, so any edge that lasted a few checks grew to the per-game or per-city-day cap ($25). Positions are held to settlement; there's no selling when an edge disappears.
@@ -299,7 +346,8 @@ Since Nov 12, 2026, a personal cloud environment named "tradeorama" also allows 
 
 - [x] Replay of Kalshi NBA trades against Pinnacle, Feb 2026: failed the kill rules (Nov 12). Idea dropped.
 - [x] Structural scan (item 2): run Nov 14, 2026 on the owner's PC; failed the kill rules. Idea dropped.
-- [ ] Next from the shortlist: item 3, Kalshi gas prices (EIA weekly / AAA) and TSA check-ins. Write the rules down before the first run, and include a tight-spread rule for simulated trades.
+- [ ] **In progress (Nov 14):** Lead 1's fresh-data test (2023–Sep 2025 economic releases) is downloading in the cloud; run `python -m tradeorama.scan fresh-report --lead 1`. If the cloud copy is lost, rerun `fresh-fetch --lead 1` (about an hour here; probably faster on the PC).
+- [ ] Next: shortlist #3, gas (draft above). Fix its rules, including the late-evening gas-favorite test on unseen Apr–Sep 2026 days, before fetching. Needs the owner's free EIA key from Step 2.
 
 - [ ] After about 3–4 weeks of weather data: tune `bias_f`, `spread_inflation` and model weights from `calibration`, run per city. Consider **lead-dependent weights** (for example, heavier RRFS/HRRR for same-day mornings) if the per-lead table supports it. Weights are currently fixed per model, so that would need a small config change.
 - [ ] Sports: judge CLV per sport at about 100 trades with a closing line; drop any sport with CLV ≤ 0.
