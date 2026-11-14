@@ -265,6 +265,9 @@ def cmd_report(args, out=print) -> None:
 
 
 def main(argv=None) -> None:
+    # Redirected output on Windows is Windows-1252, which has no − or ≥: print a ? rather than crash.
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(errors="replace")
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     logging.getLogger("httpx").setLevel(logging.WARNING)
     p = argparse.ArgumentParser(prog="python -m tradeorama.scan", description="Kalshi favorite-longshot scan")
@@ -280,10 +283,19 @@ def main(argv=None) -> None:
     f.set_defaults(fn=cmd_fetch)
     r = sub.add_parser("report", help="apply the pre-set hypotheses and kill rules")
     r.add_argument("--db", default=DEFAULT_DB)
+    r.add_argument("--out", help="also save the report to this file, as UTF-8 (use this rather than > on Windows)")
     r.set_defaults(fn=cmd_report)
     args = p.parse_args(argv)
     try:
-        args.fn(args)
+        if getattr(args, "out", None):
+            with open(args.out, "w", encoding="utf-8") as f:
+                def tee(line: str) -> None:
+                    print(line)
+                    f.write(line + "\n")
+                args.fn(args, out=tee)
+            print(f"Saved to {args.out}")
+        else:
+            args.fn(args)
     except (RuntimeError, ValueError) as exc:
         sys.exit(f"error: {exc}")
 

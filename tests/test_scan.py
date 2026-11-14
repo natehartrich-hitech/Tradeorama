@@ -8,7 +8,7 @@ import pytest
 
 from tradeorama.replay.kalshi import Kalshi
 from tradeorama.scan import analysis as an
-from tradeorama.scan.__main__ import cmd_fetch, cmd_report, hash_frac, pick_series, reference
+from tradeorama.scan.__main__ import cmd_fetch, cmd_report, hash_frac, main, pick_series, reference
 
 
 def ts(s: str) -> float:
@@ -213,3 +213,15 @@ def test_fetch_then_report(tmp_path):
     lines.clear()
     cmd_fetch(args, kalshi, out=lines.append)
     assert "0 still to sample" in "\n".join(lines) and "Candles: 0 markets" in "\n".join(lines)
+
+
+def test_report_saves_a_utf8_file(tmp_path, capsys):
+    db = str(tmp_path / "scan.db")
+    kalshi = Kalshi(httpx.Client(transport=kalshi_transport()), min_interval=0, sleep=lambda s: None)
+    cmd_fetch(Namespace(db=db, per_category=25, sports=30, per_month=50, markets_per_event=3, interval=0), kalshi,
+              out=lambda s: None)
+    target = tmp_path / "scan_report.txt"
+    main(["report", "--db", db, "--out", str(target)])
+    text = target.read_text(encoding="utf-8")
+    assert "contracts priced 85–97¢" in text and "Verdict:" in text
+    assert f"Saved to {target}" in capsys.readouterr().out

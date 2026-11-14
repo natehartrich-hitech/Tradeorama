@@ -350,6 +350,9 @@ def add_common(p) -> None:
 
 
 def main(argv=None) -> None:
+    # Redirected output on Windows is Windows-1252, which has no − or ≥: print a ? rather than crash.
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(errors="replace")
     load_dotenv()
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     # httpx logs every request URL at INFO, and Odds API URLs contain the API key.
@@ -374,10 +377,19 @@ def main(argv=None) -> None:
                    help="how far Pinnacle may move between the snapshots around a trade (default 0.005)")
     r.add_argument("--max-divergence", type=float, default=0.15, help="ignore trades this far from Pinnacle (default 0.15)")
     r.add_argument("--top", type=int, default=10, help="how many of the largest gaps to list (default 10)")
+    r.add_argument("--out", help="also save the report to this file, as UTF-8 (use this rather than > on Windows)")
     r.set_defaults(fn=cmd_report)
     args = p.parse_args(argv)
     try:
-        args.fn(args)
+        if getattr(args, "out", None):
+            with open(args.out, "w", encoding="utf-8") as f:
+                def tee(line: str) -> None:
+                    print(line)
+                    f.write(line + "\n")
+                args.fn(args, out=tee)
+            print(f"Saved to {args.out}")
+        else:
+            args.fn(args)
     except (RuntimeError, ValueError) as exc:
         sys.exit(f"error: {exc}")
 

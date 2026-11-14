@@ -118,7 +118,7 @@ To stop a running bot, press Ctrl+C or create a file named `tradeorama.stop` in 
 
 ```powershell
 python -m tradeorama.replay fetch --from 2026-02-01 --to 2026-02-28    # NBA by default; asks before spending credits
-python -m tradeorama.replay report --from 2026-02-01 --to 2026-02-28
+python -m tradeorama.replay report --from 2026-02-01 --to 2026-02-28 --out replay_report.txt
 python -m tradeorama.replay fetch --sport americanfootball_nfl --from 2025-09-04 --to 2026-01-04
 ```
 
@@ -150,7 +150,7 @@ Limits to keep in mind:
 
 ```powershell
 python -m tradeorama.scan fetch    # samples ~10,000–60,000 settled markets and downloads hourly candles; resumable
-python -m tradeorama.scan report
+python -m tradeorama.scan report --out scan_report.txt   # also saves a UTF-8 copy; on Windows use this, not >
 ```
 
 - `fetch` picks the top series by volume in each category. It samples a few events a month from each and a few markets from each event, deterministically, by ticker hash. Then it downloads each market's hourly candles (bid, ask, trade range, volume) for the day before its scheduled time. Everything is cached in `scan.db`, and a rerun continues where it stopped.

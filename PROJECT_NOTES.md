@@ -194,6 +194,7 @@ Kelly is a **target position**: each check computes the total stake Kelly wants 
   - Byte-range downloads via the `.idx` files.
   - One download is decoded for every city's grid point.
 - **On Windows,** read files as UTF-8 explicitly. Otherwise cp1252 garbled "°" in `config.yaml`.
+- **Redirecting Python output on Windows** (`> file`) uses cp1252, which can't encode − or ≥, so it can crash. Windows PowerShell also re-decodes the output, garbling ¢ and –. The replay and scan reports take `--out FILE` and write UTF-8 themselves; stdout falls back to `?` instead of crashing.
 - **The Odds API puts the key in the URL.** httpx's INFO logging printed it once, so the key was rotated and httpx logging is now set to WARNING.
 - **Kalshi public market data** (checked live Nov 12, 2026):
   - Base `https://external-api.kalshi.com/trade-api/v2` (the official SDK's host). `api.elections.kalshi.com` serves the same data. No key is needed.
