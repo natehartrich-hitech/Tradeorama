@@ -212,6 +212,19 @@ Shortlist item 2: `tradeorama/scan` (`python -m tradeorama.scan fetch`, then `re
     - **It survives only with at least 50 markets and at least +3¢ per contract after fees.** Otherwise it's treated as the empty-book effect and dropped.
     - Surviving earns a test on fresh Sep–Nov 2026 data (rules first), not money.
 
+- **Lead results (owner's PC, Nov 14, 2026):**
+  - **Lead 1 fails on luck.**
+    - Fit: 106 bets on 43 events, +4.42¢ per contract. Mostly payrolls +8.4¢, gas weekly +7.0¢, unemployment +7.7¢, CPI +6.4–6.7¢; GDP −40¢ on 6 bets.
+    - Holdout: 55 bets on 27 events over 23 days. They won 96.2% at an average price of 92.5¢, **+3.29¢ per contract**. 3 of 4 months positive; $45k a week.
+    - **Luck 27.4%:** the direction held out of sample, but this sample can't tell +3¢ from zero. It's mostly economic-release markets, not gas.
+  - **Lead 2 just survives its screen.**
+    - 1 h before, tight quotes (≤ 3¢): 52 markets on 39 events. They won 84.6% at an average ask of 80.1¢, **+3.31¢**, against a bar of 50 markets and +3.00¢. Luck 26%.
+    - With all quotes, the ask averaged 85.8¢ against a 78.4¢ midpoint: most of the midpoint "edge" was paid away in the spread (the empty-book effect).
+    - The same favorites lost about 4¢ at 6 h and 24 h (160 and 444 markets), so if the effect is real, it's specific to the last hour.
+  - **Per the rules, Lead 2 earns a test on fresh data.**
+    - Kalshi's batch candle request (100 markets per request) works for markets settled after the Sept 13, 2026 archive cutoff, which makes that test cheap.
+    - The archive (before Oct 2025) is also untouched data, usable for Lead 1.
+
 ## Position sizing (both bots, Nov 5, 2026)
 
 Kelly is a **target position**: each check computes the total stake Kelly wants in an outcome, subtracts what's already held (open positions), and buys only the difference, if it's at least $1. Before this change, every check re-bought a full Kelly amount, so any edge that lasted a few checks grew to the per-game or per-city-day cap ($25). Positions are held to settlement; there's no selling when an edge disappears.
