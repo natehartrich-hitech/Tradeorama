@@ -308,6 +308,33 @@ Shortlist item 2: `tradeorama/scan` (`python -m tradeorama.scan fetch`, then `re
   - Plausible mechanism: the daily market stops at 11:59 PM ET, so "1 hour before" is late evening, with thin liquidity and a mostly predictable next AAA value.
   - **Test it on unseen gas data,** with the rules written first: the ~85% of Apr–Sep 13, 2026 daily gas events the scan never downloaded (it took about 3 a month), then a forward paper run.
 
+## Gas Step 1: rules fixed before fetching (Nov 14, 2026)
+
+Kalshi data only; code in `tradeorama/scan/gas.py` (`python -m tradeorama.scan gas-fetch`, then `gas-report`). Analysis only. Run in the cloud.
+
+- **Universe:**
+  - Kalshi's daily gas-price series: the national `KXAAAGASD` plus the 8 state series with at least 2M contracts traded all time (FL, OH, IL, NJ, CA, NC, MI, TX). There are 51 daily gas series in all; the other states trade 0.3–2M contracts each.
+  - Events whose value date falls Apr 1–Sep 12, 2026 (archived). The value date is the date of the AAA reading; trading stops at 11:59 PM ET the evening before.
+  - Excluded: any event whose ticker hash is below 0.20. That covers every event the scan could have sampled, at a rate of about 0.18 for this series. Lead 2's fresh test started Sep 14, so nothing here has been looked at.
+  - Per event, the 6 markets whose strike is closest to the previous day's settled AAA value, which is known before trading opens. Each market is "AAA strictly greater than $X".
+- **Part A, late-evening favorites** (the gas lead from Lead 2):
+  - **Bet:** 1 hour before close (10:59 PM ET), buy the side whose midpoint is 65–90¢, at its ask, spread ≤ 3¢, $100, taker fee 0.07 × p × (1 − p).
+  - **Out if any fails:**
+    - at least +1¢ per contract after fees;
+    - luck under 5%;
+    - positive in at least 2 of 3 parts (Apr–May, Jun–Jul, Aug–Sep 12);
+    - at least $2,000 a week traded at qualifying prices in the decision hour (not scaled up for sampling).
+- **Part B, market checks, national series only, at 14, 8 and 2 h before close** (about 10 AM, 4 PM and 10 PM ET):
+  - **Spread check:** the median spread of near-the-money markets (YES midpoint 20–80¢) at 8 h. Over 3¢ means gas can't be traded as a taker, and the gas idea is dropped.
+  - **How good the market's own forecast is:** the strike where the YES midpoint crosses 50¢ (interpolated) is the market's forecast of AAA. Its median absolute error against the settled value is compared with two baselines:
+    - (1) yesterday's value;
+    - (2) yesterday's value plus the past week's average daily change ("trend").
+  - **Step 2 (the wholesale model) is built only if the market's median error at 8 h is at least 80% of the trend baseline's.** In other words, the market must not already be more than 20% better than a naive trend. If it is, it already uses more than simple public data, as the weather market did.
+- **Outcomes:**
+  - Part A passes: a forward paper test of it.
+  - Part B says go and the spread check passes: Step 2, which needs the owner's free EIA key.
+  - Neither: the gas idea is dropped.
+
 ## Position sizing (both bots, Nov 5, 2026)
 
 Kelly is a **target position**: each check computes the total stake Kelly wants in an outcome, subtracts what's already held (open positions), and buys only the difference, if it's at least $1. Before this change, every check re-bought a full Kelly amount, so any edge that lasted a few checks grew to the per-game or per-city-day cap ($25). Positions are held to settlement; there's no selling when an edge disappears.
