@@ -200,6 +200,18 @@ Shortlist item 2: `tradeorama/scan` (`python -m tradeorama.scan fetch`, then `re
     - **Economics:** the only group positive on fit (taker +3.8¢ to +6.0¢), but on only 51–60 bets per decision time, below the 200-bet minimum, so the rules didn't test it. Its series are mostly gas prices and the Fed, which is shortlist item 3.
     - **1 hour before close:** non-sports contracts at 65–90¢ (midpoint) won about 7–10¢ more often than priced in both periods, and those at 10–35¢ correspondingly less often. That's about 150 markets per period, and it was found by reading the holdout tables. It's probably at least partly the same thin-book artifact: near the close, makers pull quotes, and the midpoint between a stale bid and ask understates the favorite, while the price you could actually pay is the ask. It could only be tested on fresh data (after Aug 2026) with a tight-spread rule.
 
+- **Follow-ups to the two leads (rules fixed Nov 14, 2026, before running; `python -m tradeorama.scan leads` on the same cache, no new data):**
+  - **Lead 1, Economics:**
+    - Taker at 85–97¢, but only on quotes with a spread of 3¢ or less. The 24, 6 and 1 h decision times are pooled, so nothing is left to choose on fit.
+    - Scored once on May–Aug with the scan's four kill rules: +1¢ per contract, luck under 5%, at least 3 of 4 months positive, $2,000 a week.
+    - Economics was never scored alone on May–Aug; it was only part of the pooled hypothesis (a).
+    - The sample is small (the scan took about 3 events per series per month), so a fail is a weak no. Shortlist #3 checks gas favorites on every event either way.
+  - **Lead 2, the last hour:**
+    - Checked on Oct–Apr only, because the May–Aug calibration tables have already been read.
+    - A taker buys whichever side's midpoint is 65–90¢, at that side's ask, 1 h before the reference time, on quotes with a spread of 3¢ or less.
+    - **It survives only with at least 50 markets and at least +3¢ per contract after fees.** Otherwise it's treated as the empty-book effect and dropped.
+    - Surviving earns a test on fresh Sep–Nov 2026 data (rules first), not money.
+
 ## Position sizing (both bots, Nov 5, 2026)
 
 Kelly is a **target position**: each check computes the total stake Kelly wants in an outcome, subtracts what's already held (open positions), and buys only the difference, if it's at least $1. Before this change, every check re-bought a full Kelly amount, so any edge that lasted a few checks grew to the per-game or per-city-day cap ($25). Positions are held to settlement; there's no selling when an edge disappears.

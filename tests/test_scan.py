@@ -225,3 +225,59 @@ def test_report_saves_a_utf8_file(tmp_path, capsys):
     text = target.read_text(encoding="utf-8")
     assert "contracts priced 85–97¢" in text and "Verdict:" in text
     assert f"Saved to {target}" in capsys.readouterr().out
+
+
+# ---------------------------------------------------------------- leads
+
+
+def test_spread_rule_skips_empty_books():
+    t = REF - 3600
+    empty = market([candle(t, 0.12, 0.88)])  # both asks are 88¢: the first run bought both sides
+    assert [b.side for b in an.bets_for(empty, 1) if b.style == "taker"] == ["yes", "no"]
+    assert an.bets_for(empty, 1, max_spread=0.03) == []
+    tight = market([candle(t, 0.90, 0.92)])
+    assert [b.side for b in an.bets_for(tight, 1, max_spread=0.03)] == ["yes"]
+
+
+def test_lead1_takes_only_tight_economics_takers():
+    t = REF - 6 * 3600
+    econ = market([candle(t, 0.90, 0.92), candle(t + 3600, 0.90, 0.92, low=0.90, high=0.92)], group="Economics")
+    other = market([candle(t, 0.90, 0.92)], group="Financials")
+    wide = market([candle(t, 0.80, 0.92)], group="Economics")
+    bets = an.lead1_bets([econ, other, wide])
+    assert [(b.market.group, b.style, b.hours) for b in bets] == [("Economics", "taker", 6)]
+
+
+def test_favorite_bets_buy_the_favorite_side_at_its_ask():
+    t = REF - 3600
+    yes_fav = market([candle(t, 0.74, 0.76)], result="yes", ref=REF)
+    no_fav = market([candle(t, 0.19, 0.21)], result="yes", ref=REF)  # NO's mid is 80¢; NO's ask is 81¢; NO lost
+    wide = market([candle(t, 0.60, 0.90)], result="yes", ref=REF)  # mid 75¢, but a 30¢ spread
+    pairs = an.favorite_bets([yes_fav, no_fav, wide], an.HOLDOUT, 1, 0.65, 0.90)
+    assert [(b.side, b.price, round(mid, 3), b.won) for b, mid in pairs] == [
+        ("yes", 0.76, 0.75, True), ("no", 0.81, 0.80, False), ("yes", 0.90, 0.75, True)]
+    tight = an.favorite_bets([yes_fav, no_fav, wide], an.HOLDOUT, 1, 0.65, 0.90, max_spread=0.03)
+    assert len(tight) == 2
+    row = an.favorite_row(tight)
+    assert row.markets == 2 and row.won == 0.5 and row.ask == pytest.approx((0.76 + 0.81) / 2)
+    assert an.favorite_bets([yes_fav], an.FIT, 1, 0.65, 0.90) == []  # June is not in the fit period
+
+
+def test_lead2_needs_enough_markets_and_profit():
+    row = lambda n, r: an.FavoriteRow(n, n, 0.75, 0.76, 0.8, r, 10.0)
+    assert an.lead2_survives(row(60, 0.035))
+    assert not an.lead2_survives(row(40, 0.10))
+    assert not an.lead2_survives(row(60, 0.02))
+    assert not an.lead2_survives(an.FavoriteRow(0, 0, None, None, None, None, None))
+
+
+def test_leads_command_runs_on_the_cache(tmp_path):
+    db = str(tmp_path / "scan.db")
+    kalshi = Kalshi(httpx.Client(transport=kalshi_transport()), min_interval=0, sleep=lambda s: None)
+    cmd_fetch(Namespace(db=db, per_category=25, sports=30, per_month=50, markets_per_event=3, interval=0), kalshi,
+              out=lambda s: None)
+    target = tmp_path / "leads.txt"
+    main(["leads", "--db", db, "--out", str(target)])
+    text = target.read_text(encoding="utf-8")
+    assert "Lead 1: Economics" in text and "Lead 1: fails a kill rule" in text  # the mock has no Economics markets
+    assert "1 h before, spread ≤ 3¢ (the deciding row)" in text and "Lead 2: doesn't survive" in text

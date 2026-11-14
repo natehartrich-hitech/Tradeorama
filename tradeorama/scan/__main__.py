@@ -264,6 +264,63 @@ def cmd_report(args, out=print) -> None:
     report_universe("Sports, reported separately (Illinois' rules on sports contracts are unsettled)", sports, out)
 
 
+def cmd_leads(args, out=print) -> None:
+    """The two follow-ups to the first run, on the same cache. Rules: analysis.py, "leads"."""
+    markets = [m for m in load(Store(args.db)) if not m.sports]
+    out("Follow-ups to the structural scan, on the same cache (rules fixed Nov 14, 2026, before this was run)")
+
+    out(f"\nLead 1: {an.LEAD1_GROUP}, taker at {100 * an.LOW:.0f}–{100 * an.HIGH:.0f}¢, only quotes with a spread of "
+        f"{100 * an.LEAD_SPREAD:.0f}¢ or less, all three decision times pooled")
+    bets = an.lead1_bets(markets)
+    fit = [b for b in bets if an.in_period(b, an.FIT)]
+    hold = [b for b in bets if an.in_period(b, an.HOLDOUT)]
+    f = an.summarize(fit, an.FIT)
+    out(f"  Fit (Oct–Apr), for reference: {f.bets} bets on {f.events} events, profit {fmt_c(f.ret)} per contract")
+    by_series: dict[str, list[an.Bet]] = {}
+    for b in fit:
+        by_series.setdefault(b.market.ticker.split("-")[0], []).append(b)
+    for name, bs in sorted(by_series.items(), key=lambda kv: -len(kv[1]))[:6]:
+        out(f"    {name:20} {len(bs):4} bets  {fmt_c(an.ret(bs)):>9}")
+    s = an.summarize(hold, an.HOLDOUT, an.HOLDOUT_MONTHS)
+    out("  Holdout (May–Aug), scored once:")
+    if s.bets:
+        out(f"  {s.bets} bets on {s.events} events over {s.days} days; won {100 * s.win_rate:.1f}% at an average price "
+            f"of {100 * s.avg_price:.1f}¢; profit {fmt_c(s.ret)} per contract; worst day ${s.worst_day:,.0f}")
+        out("  By month: " + ", ".join(f"{m[5:]}: {fmt_c(r)}" for m, r in s.months.items()))
+    rules = an.kill_rules(s)
+    for r in rules:
+        out(f"  {'PASS' if r.passed else 'FAIL'}  {r.text}: {r.value}")
+    out("  Lead 1: " + ("passes every kill rule. Worth a full test on every gas event (shortlist #3, Step 1)."
+                        if all(r.passed for r in rules) else "fails a kill rule. Dropped as a stand-alone idea; "
+                        "shortlist #3 still checks gas favorites on far more events."))
+
+    lo, hi = an.LEAD2_RANGE
+    out(f"\nLead 2: favorites at {100 * lo:.0f}–{100 * hi:.0f}¢ (midpoint), bought at the ask. Oct–Apr only")
+    out(f"  {'which quotes':46} {'markets':>7} {'events':>6} {'mid':>6} {'ask':>6} {'won':>6} {'profit':>9} {'luck':>6}")
+    rows = [
+        ("1 h before, all quotes", 1, None, False, False),
+        (f"1 h before, spread ≤ {100 * an.LEAD_SPREAD:.0f}¢ (the deciding row)", 1, an.LEAD_SPREAD, False, True),
+        (f"1 h before, spread ≤ {100 * an.LEAD_SPREAD:.0f}¢ and traded that hour", 1, an.LEAD_SPREAD, True, False),
+        (f"6 h before, spread ≤ {100 * an.LEAD_SPREAD:.0f}¢", 6, an.LEAD_SPREAD, False, False),
+        (f"24 h before, spread ≤ {100 * an.LEAD_SPREAD:.0f}¢", 24, an.LEAD_SPREAD, False, False),
+    ]
+    deciding = None
+    for label, h, spread, traded, decides in rows:
+        r = an.favorite_row(an.favorite_bets(markets, an.FIT, h, lo, hi, spread, traded))
+        if decides:
+            deciding = r
+        pct = lambda v: "–" if v is None else f"{100 * v:5.1f}"
+        luck = "–" if r.luck_pct is None else f"{r.luck_pct:.0f}%"
+        out(f"  {label:46} {r.markets:7,} {r.events:6,} {pct(r.mid):>6} {pct(r.ask):>6} {pct(r.won):>6} "
+            f"{fmt_c(r.ret):>9} {luck:>6}")
+    if an.lead2_survives(deciding):
+        out(f"  Lead 2: survives (at least {an.LEAD2_MIN_MARKETS} markets and {fmt_c(an.LEAD2_MIN_RETURN)} on tight quotes). "
+            "Next: write rules for a test on fresh Sep–Nov 2026 data before fetching it.")
+    else:
+        out(f"  Lead 2: doesn't survive (needs at least {an.LEAD2_MIN_MARKETS} markets and {fmt_c(an.LEAD2_MIN_RETURN)} "
+            "on tight quotes): treated as the empty-book effect and dropped.")
+
+
 def main(argv=None) -> None:
     # Redirected output on Windows is Windows-1252, which has no − or ≥: print a ? rather than crash.
     if hasattr(sys.stdout, "reconfigure"):
@@ -285,6 +342,10 @@ def main(argv=None) -> None:
     r.add_argument("--db", default=DEFAULT_DB)
     r.add_argument("--out", help="also save the report to this file, as UTF-8 (use this rather than > on Windows)")
     r.set_defaults(fn=cmd_report)
+    le = sub.add_parser("leads", help="the two follow-ups to the first run, on the same cache")
+    le.add_argument("--db", default=DEFAULT_DB)
+    le.add_argument("--out", help="also save the report to this file, as UTF-8")
+    le.set_defaults(fn=cmd_leads)
     args = p.parse_args(argv)
     try:
         if getattr(args, "out", None):

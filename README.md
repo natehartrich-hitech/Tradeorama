@@ -151,6 +151,7 @@ Limits to keep in mind:
 ```powershell
 python -m tradeorama.scan fetch    # samples ~10,000–60,000 settled markets and downloads hourly candles; resumable
 python -m tradeorama.scan report --out scan_report.txt   # also saves a UTF-8 copy; on Windows use this, not >
+python -m tradeorama.scan leads --out leads_report.txt   # the two follow-ups to the first run, same cache
 ```
 
 - `fetch` picks the top series by volume in each category. It samples a few events a month from each and a few markets from each event, deterministically, by ticker hash. Then it downloads each market's hourly candles (bid, ask, trade range, volume) for the day before its scheduled time. Everything is cached in `scan.db`, and a rerun continues where it stopped.

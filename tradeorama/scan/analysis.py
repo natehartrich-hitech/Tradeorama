@@ -129,12 +129,13 @@ def next_hour(m: Market, t: float) -> Candle | None:
     return None
 
 
-def bets_for(m: Market, hours: int) -> list[Bet]:
+def bets_for(m: Market, hours: int, max_spread: float | None = None) -> list[Bet]:
+    """max_spread: skip quotes wider than this (the first run had no such rule; see "Leads" below)."""
     t = m.ref - hours * 3600
     if not (m.open_ts <= t < m.close_ts) or m.result not in ("yes", "no"):
         return []
     q = quote_at(m, t)
-    if q is None:
+    if q is None or (max_spread is not None and q.ask - q.bid > max_spread + 1e-9):
         return []
     out = []
     for side, ask, own_bid in (("yes", q.ask, q.bid), ("no", round(1 - q.bid, 4), round(1 - q.ask, 4))):
@@ -311,3 +312,72 @@ def calibration(markets: list[Market], period: tuple[str, str], hours: int) -> l
             out.append((f"{100 * lo:.0f}–{100 * hi:.0f}¢", len(xs), sum(x for x, _ in xs) / len(xs),
                         sum(1 for _, w in xs if w) / len(xs)))
     return out
+
+
+# ---------------------------------------------------------------- leads (rules fixed Nov 14, 2026, before running)
+#
+# Lead 1, Economics: the only group positive on the fit period, but with too few bets for the scan's rules.
+#   Taker at 85–97¢ as before, but only on quotes with a spread of 3¢ or less, all three decision times pooled
+#   (no choices left to make on fit), scored on May–Aug with the scan's four kill rules.
+# Lead 2, the last hour: favorites at 65–90¢ (midpoint) seemed to win 7–10¢ more often than priced. Checked on
+#   Oct–Apr only, because May–Aug has been looked at. It survives if, on quotes with a spread of 3¢ or less, a
+#   taker buying the favorite at the ask made at least +3¢ per contract after fees, over at least 50 markets.
+#   Otherwise it was the empty-book effect and is dropped. Surviving earns a fresh-data test, not money.
+
+LEAD_SPREAD = 0.03
+LEAD1_GROUP = "Economics"
+LEAD2_RANGE = (0.65, 0.90)
+LEAD2_MIN_MARKETS = 50
+LEAD2_MIN_RETURN = 0.03
+
+
+def lead1_bets(markets: list[Market]) -> list[Bet]:
+    return [b for m in markets if m.group == LEAD1_GROUP for h in DECISION_HOURS
+            for b in bets_for(m, h, max_spread=LEAD_SPREAD) if b.style == "taker"]
+
+
+@dataclass(frozen=True)
+class FavoriteRow:
+    markets: int
+    events: int
+    mid: float | None  # average midpoint of the side bought
+    ask: float | None  # average price paid, before fees
+    won: float | None  # share that won
+    ret: float | None  # profit per contract after fees, at the ask
+    luck_pct: float | None
+
+
+def favorite_bets(markets: list[Market], period: tuple[str, str], hours: int, lo: float, hi: float,
+                  max_spread: float | None = None, traded: bool = False) -> list[tuple[Bet, float]]:
+    """A taker buying whichever side's midpoint is in [lo, hi], at that side's ask. (bet, midpoint) pairs."""
+    out = []
+    for m in markets:
+        t = m.ref - hours * 3600
+        if not (period[0] <= m.day <= period[1]) or not (m.open_ts <= t < m.close_ts) or m.result not in ("yes", "no"):
+            continue
+        q = quote_at(m, t)
+        if q is None or (max_spread is not None and q.ask - q.bid > max_spread + 1e-9) or (traded and q.volume <= 0):
+            continue
+        mid = (q.bid + q.ask) / 2
+        if lo <= mid <= hi:
+            side, ask, side_mid = "yes", q.ask, mid
+        elif lo <= 1 - mid <= hi:
+            side, ask, side_mid = "no", round(1 - q.bid, 4), 1 - mid
+        else:
+            continue
+        out.append((Bet(m, hours, "taker", side, ask, ask + fee(m.taker_coef, ask), m.result == side, q.volume * ask),
+                    side_mid))
+    return out
+
+
+def favorite_row(pairs: list[tuple[Bet, float]]) -> FavoriteRow:
+    if not pairs:
+        return FavoriteRow(0, 0, None, None, None, None, None)
+    bets = [b for b, _ in pairs]
+    n = len(pairs)
+    return FavoriteRow(n, len({b.market.event for b in bets}), sum(mid for _, mid in pairs) / n,
+                       sum(b.price for b in bets) / n, sum(b.won for b in bets) / n, ret(bets), luck(bets))
+
+
+def lead2_survives(row: FavoriteRow) -> bool:
+    return row.markets >= LEAD2_MIN_MARKETS and row.ret is not None and row.ret >= LEAD2_MIN_RETURN
