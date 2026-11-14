@@ -337,6 +337,18 @@ def cmd_fresh_report(args, out=print) -> None:
     (fresh.report_lead2 if args.lead == 2 else fresh.report_lead1)(store, out)
 
 
+def cmd_gas_fetch(args, kalshi: Kalshi | None = None, out=print) -> None:
+    from . import gas
+    kalshi = kalshi or Kalshi(min_interval=args.interval)
+    gas.fetch(kalshi, args.db, out)
+    out(f"Done: {kalshi.requests:,} requests ({kalshi.limited:,} rate-limited).")
+
+
+def cmd_gas_report(args, out=print) -> None:
+    from . import gas
+    gas.report(args.db, out)
+
+
 def main(argv=None) -> None:
     # Redirected output on Windows is Windows-1252, which has no − or ≥: print a ? rather than crash.
     if hasattr(sys.stdout, "reconfigure"):
@@ -372,6 +384,14 @@ def main(argv=None) -> None:
     fr.add_argument("--db", help="cache file (default lead1.db or lead2.db)")
     fr.add_argument("--out", help="also save the report to this file, as UTF-8")
     fr.set_defaults(fn=cmd_fresh_report)
+    gf = sub.add_parser("gas-fetch", help="gas Step 1: download daily gas markets (Apr-Sep 2026) and their candles")
+    gf.add_argument("--db", default="gas.db")
+    gf.add_argument("--interval", type=float, default=0.1, help="shortest gap between Kalshi requests (default 0.1)")
+    gf.set_defaults(fn=cmd_gas_fetch)
+    gr = sub.add_parser("gas-report", help="gas Step 1: score Part A and the market checks against the fixed rules")
+    gr.add_argument("--db", default="gas.db")
+    gr.add_argument("--out", help="also save the report to this file, as UTF-8")
+    gr.set_defaults(fn=cmd_gas_report)
     args = p.parse_args(argv)
     try:
         if getattr(args, "out", None):

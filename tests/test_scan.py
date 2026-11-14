@@ -388,3 +388,85 @@ def test_lead1_fetch_keeps_going_when_one_market_keeps_failing(tmp_path):
     text = "\n".join(lines)
     assert "skipped KXCPI-24JUN-T1 for now" in text and "retrying" in text
     assert Store(str(tmp_path / "l1.db")).markets_todo() == []  # the retry pass got it
+
+
+# ---------------------------------------------------------------- gas Step 1
+
+from tradeorama.scan import gas  # noqa: E402
+
+
+def test_gas_picks_strikes_nearest_yesterday():
+    ms = [{"ticker": f"KXAAAGASD-26JUN15-{s:.3f}", "floor_strike": s} for s in (4.00, 4.05, 4.08, 4.10, 4.12, 4.20, 4.30, 3.90)]
+    picked = sorted(m["floor_strike"] for m in gas.pick_markets(ms, prior=4.09, n=4))
+    assert picked == [4.05, 4.08, 4.10, 4.12]
+    assert len(gas.pick_markets(ms, prior=None, n=3)) == 3
+
+
+def test_gas_implied_value_interpolates_the_50_cent_crossing():
+    ref = ts("2026-06-15T03:59:00")
+    t = ref - 8 * 3600
+    def mk(strike, bid, ask):
+        return an.Market(f"KXAAAGASD-26JUN15-{strike:.3f}", "E", "KXAAAGASD", ref, ref - 20 * 3600, ref, "no", 0.07, 0.0,
+                         1.0, (an.Candle(int(t), bid, ask, None, None, 10.0),))
+    ms = [mk(4.05, 0.89, 0.91), mk(4.08, 0.59, 0.61), mk(4.10, 0.39, 0.41), mk(4.12, 0.09, 0.11)]
+    # 60¢ at 4.08 and 40¢ at 4.10: the crossing is halfway, at 4.09.
+    assert gas.implied_value(ms, t) == pytest.approx(4.09)
+    assert gas.implied_value(ms[:1], t) is None
+
+
+def gas_transport():
+    """National daily gas, Jun 1-20 2026: AAA rises 1¢ a day; brackets 2¢ apart around yesterday's value."""
+    days = [f"2026-06-{d:02d}" for d in range(1, 21)]
+    value = {d: round(4.000 + 0.01 * i, 3) for i, d in enumerate(days)}
+
+    def markets():
+        out = []
+        for d in days:
+            ev = f"KXAAAGASD-{d}"
+            prior = value[d] - 0.01
+            for k in range(-4, 5):
+                strike = round(prior + 0.02 * k + 0.005, 3)
+                out.append({"ticker": f"{ev}-{strike:.3f}", "event_ticker": ev, "market_type": "binary",
+                            "strike_type": "greater", "floor_strike": strike,
+                            "result": "yes" if value[d] > strike else "no", "expiration_value": f"{value[d]:.4f}",
+                            "open_time": f"{gas.shift(d, -1)}T12:00:00Z", "close_time": f"{d}T03:59:00Z",
+                            "settlement_ts": f"{d}T14:00:00Z", "early_close_condition": None})
+        return out
+
+    def handler(request):
+        path, q = request.url.path, request.url.params
+        if path.endswith("/series"):
+            return httpx.Response(200, json={"series": [{"ticker": "KXAAAGASD", "fee_type": "quadratic",
+                                                         "fee_multiplier": 1, "volume_fp": "5"}]})
+        if path.endswith("/historical/markets") and q.get("series_ticker") == "KXAAAGASD":
+            return httpx.Response(200, json={"markets": markets(), "cursor": ""})
+        if path.endswith("/historical/markets"):
+            return httpx.Response(200, json={"markets": [], "cursor": ""})
+        if "/candlesticks" in path:
+            ticker = path.split("/")[-2]
+            strike = float(ticker.rsplit("-", 1)[1])
+            d = ticker.split("-", 1)[1][:10]
+            p = max(0.02, min(0.98, 0.5 + (value[d] - strike) * 25))  # the market knows today's value well
+            bid, ask = round(p - 0.01, 2), round(p + 0.01, 2)
+            end = int(q["end_ts"]) // 3600 * 3600
+            return httpx.Response(200, json={"candlesticks": [
+                {"end_period_ts": t, "yes_bid": {"close": f"{bid:.2f}"}, "yes_ask": {"close": f"{ask:.2f}"},
+                 "price": {"low": f"{bid:.2f}", "high": f"{ask:.2f}"}, "volume": "100.00"}
+                for t in range(end - 16 * 3600, end + 1, 3600)]})
+        raise AssertionError(f"unexpected {path} {dict(q)}")
+    return httpx.MockTransport(handler)
+
+
+def test_gas_fetch_and_report(tmp_path):
+    db = str(tmp_path / "gas.db")
+    kalshi = Kalshi(httpx.Client(transport=gas_transport()), min_interval=0, sleep=lambda s: None)
+    lines = []
+    gas.fetch(kalshi, db, out=lines.append)
+    text = "\n".join(lines)
+    assert "KXAAAGASD" in text and "events kept" in text and "Candles:" in text
+    out = []
+    gas.report(db, out=out.append)
+    report = "\n".join(out)
+    assert "Part A:" in report and "Part B:" in report and "Spread check:" in report and "Next:" in report
+    # The fake market's forecast is close to the value; yesterday's value is always 1¢ off.
+    assert "PASS (needs ≤ 3¢)" in report
