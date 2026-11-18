@@ -24,6 +24,7 @@ Shared memory for this project: who it's for, what was decided and why, what was
 | Web app: browse markets, manual orders, bot panel | `tradeorama/app.py`, `tradeorama/static/` | Market browsing and orders still use the **international** site |
 | Replay: Kalshi's past sports trades against Pinnacle | `tradeorama/replay/` (`python -m tradeorama.replay`) | Built Nov 12, 2026. NBA Feb 2026 run: **fails**; idea dropped (see next-project section) |
 | Structural scan: Kalshi's favorite-longshot bias after fees | `tradeorama/scan/` (`python -m tradeorama.scan`) | Run Nov 14, 2026 on the owner's PC: **fails**; idea dropped (see the scan section) |
+| Wheel screener: nightly cash-secured put candidates (Alpaca data, Finnhub earnings) | `weather/wheel_screener/`: **its own nested git repo** (ignored by this repo), own `.venv` and `.env` | Set up Nov 18, 2026; tests pass, API keys not added yet. Read-only data for now; Webull order code later goes in its own module. See its `CLAUDE.md` |
 
 Both bots run at once. The weather bot runs as a Windows scheduled task that starts at boot with nobody signed in (`scripts\bots.ps1`; see "Running unattended" below). The sports bot runs in a terminal window: the owner chose not to start it at boot (Nov 11, 2026).
 
